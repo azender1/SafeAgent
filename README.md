@@ -1,65 +1,60 @@
-# Deterministic Settlement Gate
+# SafeAgent
 
-A reference implementation of a deterministic settlement and dispute-containment control layer  
-for systems that rely on external outcome resolution (oracles, AI agents, referees, APIs, or humans).
+Deterministic execution guard for AI agents.
 
-This pattern sits between outcome resolution and payout and prevents money from moving unless  
-the system can prove the outcome is final and unambiguous.
+Prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents by enforcing:
 
----
+- request-id (nonce) deduplication
+- confidence / consensus thresholds before finality
+- deterministic state transitions
+- exactly-once settlement/execution semantics
+- durable state persistence (SQLite)
 
-## Why this exists
-
-Modern automated systems increasingly rely on external or probabilistic outcomes:
-
-- AI agents generating decisions  
-- Oracle-resolved prediction markets  
-- Referee / API-based match resolution  
-- Automated trading systems dependent on external signals  
-
-Common failure modes:
-
-- Conflicting outcome signals  
-- Premature settlement before finality  
-- Replay / double settlement  
-- Arbitration loops  
-- Late conflicting data after a case is "final"  
-
-Most implementations rely on retries, flags, or manual overrides.
-
-This project demonstrates a deterministic control-plane architecture that enforces:
-
-- Deterministic state transitions  
-- Conflict containment before payout  
-- Explicit finalization  
-- Exactly-once settlement (idempotent execution)  
+This repository is a reference implementation and pattern demo (not a hosted service).
 
 ---
 
-## High-Level Flow
+## What problem does this solve?
 
-Outcome Signals  
-→ Reconciliation  
+AI agents running in production often:
+
+- retry tool calls on partial failure
+- replay webhook events
+- execute the same action twice
+- act on provisional/ambiguous outcomes
+- loop under uncertainty and produce conflicting signals
+
+When agents touch real systems (tickets, emails, DB writes, payouts, trades), duplicate execution becomes expensive.
+
+SafeAgent provides a control-plane pattern that sits between an agent decision and an irreversible action and only allows execution when the outcome is deterministically FINAL.
+
+---
+
+## High-level flow
+
+Agent / Outcome Signals  
+→ Reconciliation / Consensus  
 → Finality Gate  
-→ Settlement (exactly-once)  
+→ Execution (exactly-once)  
+→ Audit / Receipt
 
 ---
 
-## Architecture (Control Plane)
+## Architecture (control plane)
 
-Outcome Signals  
+Agent decision / signals  
   ↓  
 Reconciliation (conflict detection & containment)  
   ↓  
-Finality Gate (blocks settlement unless FINAL)  
+Finality Gate (blocks execution unless FINAL)  
   ↓  
-Settlement Execution (exactly-once / idempotent)  
+Execution (exactly-once / idempotent)  
   ↓  
-Ledger / Payout  
+Receipt / Log / Downstream system  
 
 ---
 
-## State Machine
+## State machine
 
 OPEN  
 → RESOLVED_PROVISIONAL  
@@ -68,18 +63,49 @@ OPEN
 → SETTLED  
 
 - Ambiguous signals transition to IN_RECONCILIATION  
-- Settlement is impossible unless state is FINAL  
-- Settlement is idempotent (replay-safe)  
+- Execution is impossible unless state is FINAL  
+- Execution is replay-safe (idempotent)  
 - Late signals are ignored after finality  
 
 ---
 
-# Modern Integrations
+## Key features
 
-## 1) AI-Agent Outcome Simulation
+### Durable persistence (SQLiteStore)
+- Case state and signals can be persisted to SQLite.
+- State survives restarts.
+- ACID durability for single-node safety.
 
-Demonstrates multiple AI agents generating outcome signals  
-(including conflict scenarios).
+### Request-id (nonce) deduplication
+- Settlement/execution attempts require a unique `request_id`.
+- Replays using the same request_id return the cached result.
+- New request_ids after settlement resolve to the same settlement_id.
+- Prevents duplicate effects across retries or multiple actors.
+
+### Confidence / consensus threshold policy
+- Auto-finalize outcomes when agreement exceeds a threshold (e.g. 80%).
+- Falls back to majority decision when threshold is not met (in demo).
+
+---
+
+# Demos (run these)
+
+## 1) SafeAgent demo (duplicate execution prevention)
+
+Run:
+
+```bash
+python examples/safe_agent_demo.py
+```
+
+Shows:
+- agent proposes the same action twice
+- request-id dedup blocks duplicate execution
+- durable state example (optional)
+
+---
+
+## 2) AI outcome simulation (stochastic agent signals)
 
 Run:
 
@@ -88,24 +114,14 @@ python examples/simulate_ai.py
 ```
 
 Shows:
-
-- AI-generated signals  
-- Conflict isolation  
-- Reconciliation  
-- Finalization  
-- Exactly-once settlement  
-- Trace artifacts written to `examples/traces/`  
+- multiple agents produce stochastic/conflicting outcome signals
+- confidence threshold auto-finalizes when agreement is high
+- finality gate blocks premature execution
+- exactly-once settlement
 
 ---
 
-## 2) Prediction Market Style Demo
-
-Demonstrates a toy prediction market payout flow:
-
-- Participants stake YES / NO  
-- External resolution signals arrive  
-- Settlement gate enforces finality  
-- Payout receipt generated  
+## 3) Prediction-market style demo (inspiration / example domain)
 
 Run:
 
@@ -113,74 +129,70 @@ Run:
 python examples/prediction_market_demo.py
 ```
 
-Writes payout receipt to:
+Shows:
+- stake → external resolution signals → finality gate → payout receipt
+
+---
+
+## 4) Persistence demo (prove restart safety)
+
+Run twice:
+
+```bash
+python examples/persist_demo.py
+python examples/persist_demo.py
+```
+
+Second run loads case state from disk.
+
+---
+
+## 5) Nonce dedup demo
+
+Run:
+
+```bash
+python examples/nonce_demo.py
+```
+
+Shows:
+- replay same request_id → dedup
+- new request_id after settlement → returns same settlement_id
+
+---
+
+## Core implementation structure
 
 ```
-examples/receipts/
+models.py                      case + signal models
+state_machine.py               deterministic transitions
+reconciliation.py              conflict detection & resolution
+gate.py                        settlement/execution gate
+store.py                       in-memory + SQLite persistence
+
+policy.py                      confidence/threshold decision helper
+settlement_requests.py         request-id (nonce) dedup wrapper
+
+examples/safe_agent_demo.py            SafeAgent demo
+examples/simulate_ai.py                AI demo
+examples/prediction_market_demo.py     prediction market demo
+examples/persist_demo.py               persistence demo
+examples/nonce_demo.py                 nonce demo
 ```
 
 ---
 
-## Core Implementation Structure
+## Origin / inspiration
 
-```
-models.py                     case + signal models  
-state_machine.py              deterministic transitions  
-reconciliation.py             conflict detection  
-gate.py                       exactly-once settlement enforcement  
-store.py                      in-memory persistence  
+This pattern was originally motivated by settlement integrity problems in high-liability systems (payout workflows, oracle-resolved systems, and agent-driven execution).
 
-settlement/ai_oracle.py       AI-style outcome generator  
-
-examples/simulate.py                  base scenarios  
-examples/simulate_ai.py               AI-integrated demo  
-examples/prediction_market_demo.py    prediction market demo  
-```
+The same control-plane approach applies broadly to production AI agents that must not double-execute irreversible actions.
 
 ---
 
-## Scope & Intent
+## Need this in production?
 
-This repository is **not a trading bot** and **not a production exchange**.
-
-It is a reference control-layer pattern for:
-
-- AI-driven execution systems  
-- Prediction markets  
-- Escrow workflows  
-- Oracle-based resolution  
-- High-liability payout infrastructure  
-
-The focus is settlement integrity, not strategy alpha.
-
----
-
-## Production Hardening Additions
-
-The current reference implementation now includes:
-
-### Durable Persistence (SQLiteStore)
-
-- Case state and signals are persisted to SQLite.
-- Settlement state survives process restarts.
-- ACID transactions via SQLite provide single-node crash safety.
-- Designed as a minimal durable layer (can later migrate to Postgres or event sourcing).
-
-### Request-ID (Nonce) Deduplication Layer
-
-- Settlement attempts require a unique `request_id`.
-- Replays using the same `request_id` return the cached settlement result.
-- New request_ids after settlement resolve to the same settlement_id.
-- Prevents duplicate settlement effects across retries or multiple actors.
-- Moves from pure state-based idempotency to explicit request-level deduplication.
-
-These additions close the major single-instance production gaps identified in earlier architectural reviews while preserving the simplicity of the control-plane pattern.
-
-## Licensing
-
-For commercial licensing or integration discussions, see:
-
-`LICENSING.md`
+If you’re implementing this pattern in a production agent system and want help tailoring reconciliation rules, execution receipts, or persistence/concurrency strategy, see `LICENSING.md`.
 
 ---
 
