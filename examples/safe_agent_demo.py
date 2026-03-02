@@ -16,7 +16,6 @@ from settlement.settlement_requests import SettlementRequestRegistry
 def fake_agent_decision():
     """
     Pretend an LLM agent decided to perform an irreversible action.
-    In real usage this might be: charge card, place order, call API, write DB row.
     """
     return {
         "action": "create_support_ticket",
@@ -29,38 +28,34 @@ def fake_agent_decision():
 def main():
     print("\n--- safe_agent_demo (exactly-once AI action execution) ---")
 
-    # Durable store (single file DB) so state survives restarts
+    # Durable store so state survives restarts
     db_path = os.path.join("examples", "traces", "safeagent_demo.db")
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     store = SQLiteStore(db_path)
 
-    # One "case" represents one irreversible action attempt
-    case_id = "safeagent_case_1"
-    case = store.get_case(case_id)
-    if case is None:
-        case = Case(case_id=case_id)
-        store.put_case(case)
-        print("created case:", case_id)
-    else:
-        print("loaded case:", case_id, "state:", case.state)
+    # NEW case_id each run (so demo is always clean)
+    case_id = f"safeagent_case_{uuid.uuid4().hex[:8]}"
+    case = Case(case_id=case_id)
+    store.put_case(case)
+    print("created case:", case_id, "state:", case.state)
 
-    # Agent produces a decision (twice) — simulate accidental replay / retry
+    # Agent produces a decision
     decision = fake_agent_decision()
 
-    # We ingest an outcome signal to represent "agent believes outcome/action should execute"
-    # (in real usage, you'd ingest multiple signals: tool feedback, other agents, oracle data, etc.)
+    # Ingest the agent signal (moves to RESOLVED_PROVISIONAL via state machine)
     s = OutcomeSignal(case_id=case.case_id, source="agent_llm", outcome=decision["proposed_outcome"])
-    ingest_signal(case, s)
+    ok, reason = ingest_signal(case, s)
+    store.put_case(case)
+    print("ingest:", ok, reason, "state:", case.state)
 
-    # Finalize immediately for demo (or use policy threshold logic in AI demo)
+    # Finalize (now allowed because state is RESOLVED_PROVISIONAL)
     resolve_reconciliation(case, chosen_outcome=decision["proposed_outcome"])
     store.put_case(case)
-
     print("finalized outcome:", case.final_outcome, "state:", case.state)
 
     registry = SettlementRequestRegistry()
 
-    # First execution attempt (unique request id)
+    # First execution attempt
     req1 = str(uuid.uuid4())
     r1 = registry.submit(case, req1)
     store.put_case(case)
@@ -79,7 +74,7 @@ def main():
     print("\nFIRST EXECUTION RECEIPT:")
     print(json.dumps(receipt1, indent=2))
 
-    # Replay same request id (should dedup)
+    # Replay same request id (dedup)
     r1b = registry.submit(case, req1)
     store.put_case(case)
 
@@ -97,7 +92,7 @@ def main():
     print("\nREPLAY (SAME request_id) RECEIPT:")
     print(json.dumps(receipt1b, indent=2))
 
-    # New request id after already settled (still must return same settlement_id)
+    # New request id after already settled (same settlement_id)
     req2 = str(uuid.uuid4())
     r2 = registry.submit(case, req2)
     store.put_case(case)
