@@ -14,6 +14,31 @@ This repository is a reference implementation and pattern demo (not a hosted ser
 
 ---
 
+## Install
+
+```bash
+pip install safeagent-exec-guard
+```
+
+Requires Python 3.10+.
+
+---
+
+## Quick Example
+
+```python
+from settlement.models import Case
+from settlement.store import SQLiteStore
+
+store = SQLiteStore("safeagent.db")
+case = Case(case_id="example_case")
+store.put_case(case)
+
+print("SafeAgent initialized:", case.state)
+```
+
+---
+
 ## What problem does this solve?
 
 AI agents running in production often:
