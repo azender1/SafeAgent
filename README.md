@@ -2,6 +2,10 @@
 
 Deterministic execution guard for AI agents.
 
+```bash
+pip install safeagent-exec-guard
+```
+
 Prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents by enforcing:
 
 - request-id (nonce) deduplication
@@ -21,6 +25,39 @@ pip install safeagent-exec-guard
 ```
 
 Requires Python 3.10+.
+
+---
+
+## Why SafeAgent?
+
+LLM agents frequently retry tool calls or replay events when something fails.
+
+Without a guard layer, this can cause duplicate execution of irreversible actions (tickets, emails, payouts, trades).
+
+### Without SafeAgent
+
+```python
+create_support_ticket(customer_id="C123", severity="high")
+create_support_ticket(customer_id="C123", severity="high")  # duplicate
+```
+
+### With SafeAgent (exactly-once execution)
+
+```python
+from settlement.settlement_requests import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+receipt = registry.execute(
+    request_id="agent_action_123",
+    action="create_support_ticket",
+    payload={"customer_id": "C123", "severity": "high"}
+)
+
+print(receipt)
+```
+
+If the agent retries the same `request_id`, SafeAgent returns the **original receipt** instead of executing again.
 
 ---
 
@@ -65,20 +102,6 @@ Agent / Outcome Signals
 
 ---
 
-## Architecture (control plane)
-
-Agent decision / signals  
-  ↓  
-Reconciliation (conflict detection & containment)  
-  ↓  
-Finality Gate (blocks execution unless FINAL)  
-  ↓  
-Execution (exactly-once / idempotent)  
-  ↓  
-Receipt / Log / Downstream system  
-
----
-
 ## State machine
 
 OPEN  
@@ -97,69 +120,37 @@ OPEN
 ## Key features
 
 ### Durable persistence (SQLiteStore)
-- Case state and signals can be persisted to SQLite.
-- State survives restarts.
-- ACID durability for single-node safety.
+- Case state and signals can be persisted to SQLite
+- State survives restarts
+- ACID durability for single-node safety
 
 ### Request-id (nonce) deduplication
-- Settlement/execution attempts require a unique `request_id`.
-- Replays using the same request_id return the cached result.
-- New request_ids after settlement resolve to the same settlement_id.
-- Prevents duplicate effects across retries or multiple actors.
+- Settlement/execution attempts require a unique `request_id`
+- Replays using the same request_id return the cached result
+- New request_ids after settlement resolve to the same settlement_id
+- Prevents duplicate effects across retries or multiple actors
 
 ### Confidence / consensus threshold policy
-- Auto-finalize outcomes when agreement exceeds a threshold (e.g. 80%).
-- Falls back to majority decision when threshold is not met (in demo).
+- Auto-finalize outcomes when agreement exceeds a threshold (e.g. 80%)
+- Falls back to majority decision when threshold is not met (in demo)
 
 ---
 
-# Demos (run these)
+## Demos
 
-## 1) SafeAgent demo (duplicate execution prevention)
-
-Run:
+### 1) SafeAgent demo (duplicate execution prevention)
 
 ```bash
 python examples/safe_agent_demo.py
 ```
 
-Shows:
-- agent proposes the same action twice
-- request-id dedup blocks duplicate execution
-- durable state example (optional)
-
----
-
-## 2) AI outcome simulation (stochastic agent signals)
-
-Run:
+### 2) AI outcome simulation (stochastic agent signals)
 
 ```bash
 python examples/simulate_ai.py
 ```
 
-Shows:
-- multiple agents produce stochastic/conflicting outcome signals
-- confidence threshold auto-finalizes when agreement is high
-- finality gate blocks premature execution
-- exactly-once settlement
-
----
-
-## 3) Prediction-market style demo (inspiration / example domain)
-
-Run:
-
-```bash
-python examples/prediction_market_demo.py
-```
-
-Shows:
-- stake → external resolution signals → finality gate → payout receipt
-
----
-
-## 4) Persistence demo (prove restart safety)
+### 3) Persistence demo (prove restart safety)
 
 Run twice:
 
@@ -167,22 +158,6 @@ Run twice:
 python examples/persist_demo.py
 python examples/persist_demo.py
 ```
-
-Second run loads case state from disk.
-
----
-
-## 5) Nonce dedup demo
-
-Run:
-
-```bash
-python examples/nonce_demo.py
-```
-
-Shows:
-- replay same request_id → dedup
-- new request_id after settlement → returns same settlement_id
 
 ---
 
@@ -200,18 +175,9 @@ settlement_requests.py         request-id (nonce) dedup wrapper
 
 examples/safe_agent_demo.py            SafeAgent demo
 examples/simulate_ai.py                AI demo
-examples/prediction_market_demo.py     prediction market demo
 examples/persist_demo.py               persistence demo
 examples/nonce_demo.py                 nonce demo
 ```
-
----
-
-## Origin / inspiration
-
-This pattern was originally motivated by settlement integrity problems in high-liability systems (payout workflows, oracle-resolved systems, and agent-driven execution).
-
-The same control-plane approach applies broadly to production AI agents that must not double-execute irreversible actions.
 
 ---
 
