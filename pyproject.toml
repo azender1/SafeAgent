@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "safeagent-exec-guard"
+version = "0.1.5"
+description = "Deterministic execution guard for AI agents: request-id dedup + finality gating + durable state."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [{ name = "azender1" }]
+keywords = ["ai-agents", "idempotency", "exactly-once", "reliability", "execution-guard"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/azender1/safeagent"
+Source = "https://github.com/azender1/safeagent"
+Issues = "https://github.com/azender1/safeagent/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["settlement", "safeagent_guard"]
