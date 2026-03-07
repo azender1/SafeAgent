@@ -2,6 +2,8 @@
 
 Deterministic execution guard for AI agents.
 
+Install
+
 pip install safeagent-exec-guard
 
 SafeAgent prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents.
@@ -15,7 +17,7 @@ It enforces:
 
 This repository demonstrates a control-plane pattern for safe AI agent execution.
 
----
+--------------------------------------------------
 
 INSTALL
 
@@ -23,7 +25,7 @@ pip install safeagent-exec-guard
 
 Requires Python 3.10+
 
----
+--------------------------------------------------
 
 EXACTLY-ONCE TOOL EXECUTION
 
@@ -47,7 +49,7 @@ print(receipt)
 
 If the same request_id is replayed, SafeAgent returns the original receipt instead of executing the side effect again.
 
----
+--------------------------------------------------
 
 WHY SAFEAGENT
 
@@ -67,7 +69,7 @@ Without protection this causes duplicate actions such as:
 
 SafeAgent sits between the agent decision and the irreversible action.
 
----
+--------------------------------------------------
 
 WITHOUT SAFEAGENT
 
@@ -76,7 +78,7 @@ create_support_ticket(customer_id="C123")
 
 duplicate ticket created
 
----
+--------------------------------------------------
 
 WITH SAFEAGENT
 
@@ -98,7 +100,7 @@ print(receipt)
 
 Replaying the same request_id returns the same receipt.
 
----
+--------------------------------------------------
 
 OPENAI STYLE TOOL EXAMPLE
 
@@ -130,7 +132,7 @@ SECOND CALL WITH SAME request_id
 dedup_same_request_id
 same execution_id returned
 
----
+--------------------------------------------------
 
 WHAT PROBLEM DOES THIS SOLVE
 
@@ -152,7 +154,7 @@ Examples:
 
 SafeAgent ensures irreversible actions run only once.
 
----
+--------------------------------------------------
 
 HIGH LEVEL FLOW
 
@@ -162,7 +164,7 @@ Agent Decision
 → Execution
 → Receipt
 
----
+--------------------------------------------------
 
 STATE MACHINE
 
@@ -179,7 +181,7 @@ Properties
 - replay safe execution
 - late signals ignored after finality
 
----
+--------------------------------------------------
 
 DEMOS
 
@@ -207,7 +209,7 @@ CrewAI Example
 
 python examples/crewai_safeagent.py
 
----
+--------------------------------------------------
 
 PROJECT STRUCTURE
 
@@ -229,7 +231,7 @@ openai_tool_safeagent.py
 langchain_safeagent.py
 crewai_safeagent.py
 
----
+--------------------------------------------------
 
 LICENSE
 
