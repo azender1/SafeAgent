@@ -227,6 +227,12 @@ replay safe execution
 
 late signals ignored after finality
 
+AGENT RETRY DEMO
+
+Simulate an AI agent retrying a payment tool call:
+
+python examples/agent_retry_demo.py
+
 DEMOS
 
 Duplicate Execution Prevention
