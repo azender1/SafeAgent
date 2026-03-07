@@ -1,11 +1,12 @@
 ﻿from __future__ import annotations
 
+import inspect
 import time
 import uuid
-from dataclasses import dataclass, asdict
-from typing import Optional, Dict, Any, Callable
+from dataclasses import asdict, dataclass
+from typing import Any, Callable, Dict, Optional
 
-from settlement.gate import attempt_settlement, SettlementError
+from settlement.gate import SettlementError, attempt_settlement
 from settlement.models import Case
 
 
@@ -52,9 +53,8 @@ class SettlementRequestRegistry:
 
     B) Generic safe execution for ANY irreversible action (agent tool calls)
        - execute(request_id, action, payload, execute_fn) -> dict receipt
-       - First time request_id is seen: runs execute_fn() once and records a receipt.
+       - First time request_id is seen: runs execute_fn once and records a receipt.
        - Replays with same request_id: returns the original receipt (NO side effects).
-       - This is the "drop-in wrapper" that makes SafeAgent 10x easier to adopt.
     """
 
     def __init__(self) -> None:
@@ -66,6 +66,22 @@ class SettlementRequestRegistry:
         self._exec_receipts: Dict[str, SafeExecuteReceipt] = {}
         self._exec_created_at: Dict[str, float] = {}
 
+    def _now_utc(self) -> str:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+    def _invoke_execute_fn(self, execute_fn: Callable[..., Any], payload: Dict[str, Any]) -> Any:
+        """
+        Prefer the modern contract: execute_fn(payload).
+
+        Backward compatibility:
+        - if execute_fn takes no parameters, call execute_fn()
+        - otherwise call execute_fn(payload)
+        """
+        sig = inspect.signature(execute_fn)
+        if len(sig.parameters) == 0:
+            return execute_fn()
+        return execute_fn(payload)
+
     # ---------
     # A) SETTLEMENT
     # ---------
@@ -76,7 +92,11 @@ class SettlementRequestRegistry:
 
         # If we've seen this exact request before, return cached result.
         if request_id in self._settlement_requests:
-            return SettlementRequestResult(True, self._settlement_requests[request_id], "dedup_same_request_id")
+            return SettlementRequestResult(
+                True,
+                self._settlement_requests[request_id],
+                "dedup_same_request_id",
+            )
 
         # If already settled, return existing settlement id (dedup across request ids).
         if getattr(case, "settlement_id", None):
@@ -105,16 +125,22 @@ class SettlementRequestRegistry:
         request_id: str,
         action: str,
         payload: Dict[str, Any],
-        execute_fn: Callable[[], Any],
+        execute_fn: Callable[..., Any],
     ) -> Dict[str, Any]:
         """
         Exactly-once execution guard for ANY irreversible action.
 
-        - On first call with a request_id: runs execute_fn() ONCE, stores a receipt, returns it.
-        - On replay with the same request_id: returns the original receipt, does NOT re-run execute_fn().
+        - On first call with a request_id: runs execute_fn once, stores a receipt, returns it.
+        - On replay with the same request_id: returns the original receipt, does NOT re-run execute_fn.
 
-        Returns a dict so your demos can print JSON receipts easily.
+        Preferred execute_fn shape:
+            def fn(payload: dict) -> Any
+
+        Backward compatible with:
+            def fn() -> Any
         """
+
+        clean_payload = payload or {}
 
         if not request_id or not request_id.strip():
             return SafeExecuteReceipt(
@@ -123,14 +149,13 @@ class SettlementRequestRegistry:
                 request_id=request_id or "",
                 execution_id=None,
                 action=action,
-                payload=payload or {},
-                timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
             ).to_dict()
 
         # Dedup: same request_id returns the original receipt
         if request_id in self._exec_receipts:
             r = self._exec_receipts[request_id]
-            # Preserve "replay" semantics
             return SafeExecuteReceipt(
                 ok=r.ok,
                 reason="dedup_same_request_id",
@@ -138,12 +163,12 @@ class SettlementRequestRegistry:
                 execution_id=r.execution_id,
                 action=r.action,
                 payload=r.payload,
-                timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                timestamp_utc=self._now_utc(),
             ).to_dict()
 
         # First execution
         try:
-            _ = execute_fn()
+            _ = self._invoke_execute_fn(execute_fn, clean_payload)
             exec_id = str(uuid.uuid4())
             receipt = SafeExecuteReceipt(
                 ok=True,
@@ -151,8 +176,8 @@ class SettlementRequestRegistry:
                 request_id=request_id,
                 execution_id=exec_id,
                 action=action,
-                payload=payload or {},
-                timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
             )
         except Exception as e:
             receipt = SafeExecuteReceipt(
@@ -161,8 +186,8 @@ class SettlementRequestRegistry:
                 request_id=request_id,
                 execution_id=None,
                 action=action,
-                payload=payload or {},
-                timestamp_utc=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
             )
 
         self._exec_receipts[request_id] = receipt

@@ -97,7 +97,45 @@ store.put_case(case)
 
 print("SafeAgent initialized:", case.state)
 ```
+## OpenAI-style Tool Call Example
 
+AI agents often retry tool calls.
+
+Without a guard layer, retries can trigger duplicate irreversible actions like:
+
+- repeated emails
+- duplicate payouts
+- duplicate trades
+- duplicate ticket creation
+
+SafeAgent protects tool execution by deduplicating repeated requests with the same `request_id`.
+
+### Example
+
+```python
+from settlement.settlement_requests import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+def send_email(payload: dict) -> dict:
+    print(f"REAL SIDE EFFECT: sending email to {payload['to']}")
+    return {
+        "status": "sent",
+        "to": payload["to"],
+        "template": payload.get("template", "default"),
+    }
+
+receipt = registry.execute(
+    request_id="email:user123:invoice",
+    action="send_email",
+    payload={
+        "to": "user123@example.com",
+        "template": "invoice_reminder",
+    },
+    execute_fn=send_email,
+)
+
+print(receipt)
 ---
 
 ## What problem does this solve?
