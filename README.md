@@ -1,4 +1,4 @@
-# SafeAgent
+SafeAgent
 
 Deterministic execution guard for AI agents.
 
@@ -10,22 +10,21 @@ SafeAgent prevents duplicate, replayed, or premature irreversible actions trigge
 
 It enforces:
 
-- request-id (nonce) deduplication
-- deterministic state transitions
-- exactly-once execution semantics
-- durable state persistence (SQLite)
+request-id (nonce) deduplication
+
+deterministic state transitions
+
+exactly-once execution semantics
+
+durable state persistence (SQLite)
 
 This repository demonstrates a control-plane pattern for safe AI agent execution.
-
---------------------------------------------------
 
 INSTALL
 
 pip install safeagent-exec-guard
 
 Requires Python 3.10+
-
---------------------------------------------------
 
 EXACTLY-ONCE TOOL EXECUTION
 
@@ -49,27 +48,29 @@ print(receipt)
 
 If the same request_id is replayed, SafeAgent returns the original receipt instead of executing the side effect again.
 
---------------------------------------------------
-
 WHY SAFEAGENT
 
 AI agents frequently retry tool calls when:
 
-- APIs time out
-- orchestration layers restart
-- network calls fail
-- workflows replay events
+APIs time out
+
+orchestration layers restart
+
+network calls fail
+
+workflows replay events
 
 Without protection this causes duplicate actions such as:
 
-- duplicate emails
-- duplicate payouts
-- duplicate tickets
-- duplicate trades
+duplicate emails
+
+duplicate payouts
+
+duplicate tickets
+
+duplicate trades
 
 SafeAgent sits between the agent decision and the irreversible action.
-
---------------------------------------------------
 
 WITHOUT SAFEAGENT
 
@@ -77,8 +78,6 @@ create_support_ticket(customer_id="C123")
 create_support_ticket(customer_id="C123")
 
 duplicate ticket created
-
---------------------------------------------------
 
 WITH SAFEAGENT
 
@@ -99,8 +98,6 @@ receipt = registry.execute(
 print(receipt)
 
 Replaying the same request_id returns the same receipt.
-
---------------------------------------------------
 
 OPENAI STYLE TOOL EXAMPLE
 
@@ -132,29 +129,77 @@ SECOND CALL WITH SAME request_id
 dedup_same_request_id
 same execution_id returned
 
---------------------------------------------------
+LANGCHAIN STYLE TOOL EXAMPLE
+
+from safeagent_exec_guard import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+def send_email(payload):
+    print("REAL SIDE EFFECT: LangChain email to", payload["to"])
+    return {"status": "sent", "to": payload["to"]}
+
+def safe_langchain_tool(request_id, payload):
+    return registry.execute(
+        request_id=request_id,
+        action="send_email",
+        payload=payload,
+        execute_fn=send_email,
+    )
+
+print(safe_langchain_tool("langchain_email_1", {"to": "user@example.com"}))
+print(safe_langchain_tool("langchain_email_1", {"to": "user@example.com"}))
+
+SafeAgent ensures retries do not execute the side effect twice.
+
+CREWAI STYLE TOOL EXAMPLE
+
+from safeagent_exec_guard import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+def crew_send_email(payload):
+    print("REAL SIDE EFFECT: CrewAI email to", payload["to"])
+    return {"status": "sent", "to": payload["to"]}
+
+def crew_safe_action(request_id, payload):
+    return registry.execute(
+        request_id=request_id,
+        action="send_email",
+        payload=payload,
+        execute_fn=crew_send_email,
+    )
+
+print(crew_safe_action("crew_email_1", {"to": "crew@example.com"}))
+print(crew_safe_action("crew_email_1", {"to": "crew@example.com"}))
+
+CrewAI agents can retry actions safely because SafeAgent deduplicates execution.
 
 WHAT PROBLEM DOES THIS SOLVE
 
 Production AI agents frequently:
 
-- retry tool calls
-- replay webhook events
-- loop under uncertainty
-- trigger the same action twice
+retry tool calls
+
+replay webhook events
+
+loop under uncertainty
+
+trigger the same action twice
 
 When those actions touch real systems duplicates are expensive.
 
 Examples:
 
-- sending emails twice
-- charging customers twice
-- placing duplicate trades
-- creating duplicate tickets
+sending emails twice
+
+charging customers twice
+
+placing duplicate trades
+
+creating duplicate tickets
 
 SafeAgent ensures irreversible actions run only once.
-
---------------------------------------------------
 
 HIGH LEVEL FLOW
 
@@ -163,8 +208,6 @@ Agent Decision
 → Finality Gate
 → Execution
 → Receipt
-
---------------------------------------------------
 
 STATE MACHINE
 
@@ -176,12 +219,13 @@ OPEN
 
 Properties
 
-- ambiguous signals enter reconciliation
-- execution only allowed in FINAL
-- replay safe execution
-- late signals ignored after finality
+ambiguous signals enter reconciliation
 
---------------------------------------------------
+execution only allowed in FINAL
+
+replay safe execution
+
+late signals ignored after finality
 
 DEMOS
 
@@ -209,8 +253,6 @@ CrewAI Example
 
 python examples/crewai_safeagent.py
 
---------------------------------------------------
-
 PROJECT STRUCTURE
 
 models.py
@@ -230,8 +272,6 @@ nonce_demo.py
 openai_tool_safeagent.py
 langchain_safeagent.py
 crewai_safeagent.py
-
---------------------------------------------------
 
 LICENSE
 
