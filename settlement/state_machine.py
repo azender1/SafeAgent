@@ -1,21 +1,57 @@
 from __future__ import annotations
-from .models import Case, CaseState
+
+from settlement.models import CaseState
 
 
-class InvalidTransition(Exception):
+class InvalidTransitionError(Exception):
+    """Raised when a case attempts an invalid state transition."""
     pass
 
 
-def set_state(case: Case, new_state: CaseState) -> None:
-    # Deterministic transitions only
-    allowed = {
-        CaseState.OPEN: {CaseState.RESOLVED_PROVISIONAL, CaseState.IN_RECONCILIATION},
-        CaseState.RESOLVED_PROVISIONAL: {CaseState.IN_RECONCILIATION, CaseState.FINAL},
-        CaseState.IN_RECONCILIATION: {CaseState.FINAL},  # only exit when resolved
-        CaseState.FINAL: {CaseState.SETTLED},
-        CaseState.SETTLED: set(),
-    }
+# Allowed state transitions
+VALID_TRANSITIONS = {
+    CaseState.OPEN: {
+        CaseState.RESOLVED_PROVISIONAL,
+        CaseState.IN_RECONCILIATION,
+    },
+    CaseState.RESOLVED_PROVISIONAL: {
+        CaseState.IN_RECONCILIATION,
+        CaseState.FINAL,
+    },
+    CaseState.IN_RECONCILIATION: {
+        CaseState.FINAL,
+    },
+    CaseState.FINAL: {
+        CaseState.SETTLED,
+    },
+    CaseState.SETTLED: set(),  # terminal state
+}
 
-    if new_state not in allowed[case.state]:
-        raise InvalidTransition(f"{case.state} -> {new_state} not allowed")
+
+def validate_transition(from_state: CaseState, to_state: CaseState) -> None:
+    """
+    Raise InvalidTransitionError if a transition is not allowed.
+    """
+    allowed = VALID_TRANSITIONS.get(from_state, set())
+    if to_state not in allowed:
+        raise InvalidTransitionError(
+            f"Cannot transition from {from_state} to {to_state}"
+        )
+
+
+def can_transition(from_state: CaseState, to_state: CaseState) -> bool:
+    """
+    Return True if the transition is allowed, False otherwise.
+    """
+    return to_state in VALID_TRANSITIONS.get(from_state, set())
+
+
+def set_case_state(case, new_state: CaseState) -> None:
+    """
+    Safely transition a case to a new state.
+
+    Example:
+        set_case_state(case, CaseState.FINAL)
+    """
+    validate_transition(case.state, new_state)
     case.state = new_state
