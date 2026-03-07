@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.5"
+version = "0.1.6"
 description = "Deterministic execution guard for AI agents: request-id dedup + finality gating + durable state."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,7 +34,9 @@ classifiers = [
   "License :: OSI Approved :: Apache Software License",
   "Operating System :: OS Independent",
   "Topic :: Software Development :: Libraries",
-  "Topic :: System :: Distributed Computing"
+  "Topic :: System :: Distributed Computing",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Intended Audience :: Developers"
 ]
 
 [project.urls]
