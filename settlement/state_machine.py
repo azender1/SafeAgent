@@ -55,3 +55,12 @@ def set_case_state(case, new_state: CaseState) -> None:
     """
     validate_transition(case.state, new_state)
     case.state = new_state
+
+def set_state(case, new_state: CaseState) -> None:
+    """
+    Backward-compatible alias for older code paths.
+
+    Existing modules (like gate.py) may still import set_state.
+    Keep this thin wrapper so older imports continue to work.
+    """
+    set_case_state(case, new_state)
