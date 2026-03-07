@@ -2,128 +2,112 @@
 
 Deterministic execution guard for AI agents.
 
-```bash
 pip install safeagent-exec-guard
-```
 
-Prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents by enforcing:
+SafeAgent prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents.
+
+It enforces:
 
 - request-id (nonce) deduplication
-- confidence / consensus thresholds before finality
 - deterministic state transitions
-- exactly-once settlement/execution semantics
+- exactly-once execution semantics
 - durable state persistence (SQLite)
 
-This repository is a reference implementation and pattern demo (not a hosted service).
+This repository demonstrates a control-plane pattern for safe AI agent execution.
 
 ---
 
-## Install
+INSTALL
+
+pip install safeagent-exec-guard
+
+Requires Python 3.10+
 
 ---
 
-## Exactly-once tool execution
+EXACTLY-ONCE TOOL EXECUTION
 
-```python
-from settlement.settlement_requests import SettlementRequestRegistry
+Example:
+
+from safeagent_exec_guard import SettlementRequestRegistry
 
 registry = SettlementRequestRegistry()
 
-def send_email():
-    print("SENT EMAIL")
+def send_email(payload):
+    print("SENDING EMAIL to", payload["to"])
 
 receipt = registry.execute(
     request_id="email:C123:invoice",
     action="send_email",
-    payload={"to": "c123@example.com", "template": "invoice"},
+    payload={"to": "c123@example.com"},
     execute_fn=send_email,
 )
 
 print(receipt)
-```
 
-If the same `request_id` is replayed, SafeAgent returns the original receipt instead of executing the side effect again.
-
-```bash
-pip install safeagent-exec-guard
-```
-
-Requires Python 3.10+.
+If the same request_id is replayed, SafeAgent returns the original receipt instead of executing the side effect again.
 
 ---
 
-## Why SafeAgent?
+WHY SAFEAGENT
 
-LLM agents frequently retry tool calls or replay events when something fails.
+AI agents frequently retry tool calls when:
 
-Without a guard layer, this can cause duplicate execution of irreversible actions (tickets, emails, payouts, trades).
+- APIs time out
+- orchestration layers restart
+- network calls fail
+- workflows replay events
 
-### Without SafeAgent
+Without protection this causes duplicate actions such as:
 
-```python
-create_support_ticket(customer_id="C123", severity="high")
-create_support_ticket(customer_id="C123", severity="high")  # duplicate
-```
+- duplicate emails
+- duplicate payouts
+- duplicate tickets
+- duplicate trades
 
-### With SafeAgent (exactly-once execution)
+SafeAgent sits between the agent decision and the irreversible action.
 
-```python
-from settlement.settlement_requests import SettlementRequestRegistry
+---
+
+WITHOUT SAFEAGENT
+
+create_support_ticket(customer_id="C123")
+create_support_ticket(customer_id="C123")
+
+duplicate ticket created
+
+---
+
+WITH SAFEAGENT
+
+from safeagent_exec_guard import SettlementRequestRegistry
 
 registry = SettlementRequestRegistry()
+
+def create_support_ticket(payload):
+    print("CREATING TICKET for", payload["customer_id"])
 
 receipt = registry.execute(
     request_id="agent_action_123",
     action="create_support_ticket",
-    payload={"customer_id": "C123", "severity": "high"}
+    payload={"customer_id": "C123"},
+    execute_fn=create_support_ticket,
 )
 
 print(receipt)
-```
 
-If the agent retries the same `request_id`, SafeAgent returns the **original receipt** instead of executing again.
+Replaying the same request_id returns the same receipt.
 
 ---
 
-## Quick Example
+OPENAI STYLE TOOL EXAMPLE
 
-```python
-from settlement.models import Case
-from settlement.store import SQLiteStore
-
-store = SQLiteStore("safeagent.db")
-case = Case(case_id="example_case")
-store.put_case(case)
-
-print("SafeAgent initialized:", case.state)
-```
-## OpenAI-style Tool Call Example
-
-AI agents often retry tool calls.
-
-Without a guard layer, retries can trigger duplicate irreversible actions like:
-
-- repeated emails
-- duplicate payouts
-- duplicate trades
-- duplicate ticket creation
-
-SafeAgent protects tool execution by deduplicating repeated requests with the same `request_id`.
-
-### Example
-
-```python
-from settlement.settlement_requests import SettlementRequestRegistry
+from safeagent_exec_guard import SettlementRequestRegistry
 
 registry = SettlementRequestRegistry()
 
-def send_email(payload: dict) -> dict:
-    print(f"REAL SIDE EFFECT: sending email to {payload['to']}")
-    return {
-        "status": "sent",
-        "to": payload["to"],
-        "template": payload.get("template", "default"),
-    }
+def send_email(payload):
+    print("REAL SIDE EFFECT: sending email to", payload["to"])
 
 receipt = registry.execute(
     request_id="email:user123:invoice",
@@ -136,119 +120,117 @@ receipt = registry.execute(
 )
 
 print(receipt)
+
+Example output:
+
+FIRST CALL
+REAL SIDE EFFECT: sending email to user123@example.com
+
+SECOND CALL WITH SAME request_id
+dedup_same_request_id
+same execution_id returned
+
 ---
 
-## What problem does this solve?
+WHAT PROBLEM DOES THIS SOLVE
 
-AI agents running in production often:
+Production AI agents frequently:
 
-- retry tool calls on partial failure
+- retry tool calls
 - replay webhook events
-- execute the same action twice
-- act on provisional/ambiguous outcomes
-- loop under uncertainty and produce conflicting signals
+- loop under uncertainty
+- trigger the same action twice
 
-When agents touch real systems (tickets, emails, DB writes, payouts, trades), duplicate execution becomes expensive.
+When those actions touch real systems duplicates are expensive.
 
-SafeAgent provides a control-plane pattern that sits between an agent decision and an irreversible action and only allows execution when the outcome is deterministically FINAL.
+Examples:
 
----
+- sending emails twice
+- charging customers twice
+- placing duplicate trades
+- creating duplicate tickets
 
-## High-level flow
-
-Agent / Outcome Signals  
-→ Reconciliation / Consensus  
-→ Finality Gate  
-→ Execution (exactly-once)  
-→ Audit / Receipt
+SafeAgent ensures irreversible actions run only once.
 
 ---
 
-## State machine
+HIGH LEVEL FLOW
 
-OPEN  
-→ RESOLVED_PROVISIONAL  
-→ IN_RECONCILIATION  
-→ FINAL  
-→ SETTLED  
-
-- Ambiguous signals transition to IN_RECONCILIATION  
-- Execution is impossible unless state is FINAL  
-- Execution is replay-safe (idempotent)  
-- Late signals are ignored after finality  
+Agent Decision
+→ Reconciliation
+→ Finality Gate
+→ Execution
+→ Receipt
 
 ---
 
-## Key features
+STATE MACHINE
 
-### Durable persistence (SQLiteStore)
-- Case state and signals can be persisted to SQLite
-- State survives restarts
-- ACID durability for single-node safety
+OPEN
+→ RESOLVED_PROVISIONAL
+→ IN_RECONCILIATION
+→ FINAL
+→ SETTLED
 
-### Request-id (nonce) deduplication
-- Settlement/execution attempts require a unique `request_id`
-- Replays using the same request_id return the cached result
-- New request_ids after settlement resolve to the same settlement_id
-- Prevents duplicate effects across retries or multiple actors
+Properties
 
-### Confidence / consensus threshold policy
-- Auto-finalize outcomes when agreement exceeds a threshold (e.g. 80%)
-- Falls back to majority decision when threshold is not met (in demo)
+- ambiguous signals enter reconciliation
+- execution only allowed in FINAL
+- replay safe execution
+- late signals ignored after finality
 
 ---
 
-## Demos
+DEMOS
 
-### 1) SafeAgent demo (duplicate execution prevention)
+Duplicate Execution Prevention
 
-```bash
 python examples/safe_agent_demo.py
-```
 
-### 2) AI outcome simulation (stochastic agent signals)
+AI Outcome Simulation
 
-```bash
 python examples/simulate_ai.py
-```
 
-### 3) Persistence demo (prove restart safety)
+Persistence Demo
 
-Run twice:
-
-```bash
 python examples/persist_demo.py
-python examples/persist_demo.py
-```
+
+OpenAI Tool Example
+
+python examples/openai_tool_safeagent.py
+
+LangChain Example
+
+python examples/langchain_safeagent.py
+
+CrewAI Example
+
+python examples/crewai_safeagent.py
 
 ---
 
-## Core implementation structure
+PROJECT STRUCTURE
 
-```
-models.py                      case + signal models
-state_machine.py               deterministic transitions
-reconciliation.py              conflict detection & resolution
-gate.py                        settlement/execution gate
-store.py                       in-memory + SQLite persistence
+models.py
+state_machine.py
+reconciliation.py
+gate.py
+store.py
+policy.py
 
-policy.py                      confidence/threshold decision helper
-settlement_requests.py         request-id (nonce) dedup wrapper
+settlement_requests.py
 
-examples/safe_agent_demo.py            SafeAgent demo
-examples/simulate_ai.py                AI demo
-examples/persist_demo.py               persistence demo
-examples/nonce_demo.py                 nonce demo
-```
-
----
-
-## Need this in production?
-
-If you’re implementing this pattern in a production agent system and want help tailoring reconciliation rules, execution receipts, or persistence/concurrency strategy, see `LICENSING.md`.
+examples/
+safe_agent_demo.py
+simulate_ai.py
+persist_demo.py
+nonce_demo.py
+openai_tool_safeagent.py
+langchain_safeagent.py
+crewai_safeagent.py
 
 ---
 
-## License
+LICENSE
 
-Apache-2.0
+Apache 2.0
