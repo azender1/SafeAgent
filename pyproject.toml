@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.9"
+version = "0.1.10"
 description = "Deterministic execution guard for AI agents: request-id dedup + finality gating + durable state."
 readme = "README.md"
 requires-python = ">=3.10"
