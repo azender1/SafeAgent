@@ -236,6 +236,55 @@ examples/
     crewai_safeagent.py
 ```
 
+## Failure Modes and Semantics
+
+SafeAgent is designed to prevent duplicate execution of irreversible side effects by recording a durable execution receipt per `request_id`.
+
+### What happens on retry?
+
+If the same `request_id` is replayed, SafeAgent returns the existing receipt instead of executing the side effect again.
+
+### Timeout after side effect executes
+
+One important failure mode is:
+
+- the side effect runs
+- the response does not return
+- the caller retries
+
+SafeAgent treats the stored receipt as the source of truth. If a receipt already exists for that `request_id`, the retry returns that receipt rather than executing again.
+
+### Partial failure
+
+If a tool partially commits work and then raises an error, SafeAgent does not attempt automatic rollback.
+
+Instead, the failure should be handled explicitly by the application using:
+
+- audit logs
+- reconciliation logic
+- downstream idempotency
+- compensating actions where needed
+
+### Retry after failure
+
+Failure handling should be an explicit policy decision.
+
+Common options include:
+
+- return the stored failure receipt
+- allow retry only for specific failure states
+- require operator review for ambiguous outcomes
+
+### Important design assumption
+
+SafeAgent is strongest when:
+
+- the `request_id` is generated outside the LLM
+- tool execution passes through a single guarded adapter layer
+- downstream side effects are also idempotent when possible
+
+In other words, SafeAgent is an execution guard, not a substitute for good downstream system design.
+
 ## License
 
 Apache-2.0
