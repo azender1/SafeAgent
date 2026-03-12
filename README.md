@@ -1,5 +1,9 @@
 # SafeAgent
 
+[![PyPI version](https://img.shields.io/pypi/v/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
+[![Python versions](https://img.shields.io/pypi/pyversions/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
+[![License](https://img.shields.io/pypi/l/safeagent-exec-guard.svg)](https://github.com/azender1/SafeAgent/blob/main/LICENSE)
+
 Exactly-once execution guard for AI agent side effects.
 
 SafeAgent prevents duplicate, replayed, or premature irreversible actions triggered by LLM-based agents.
@@ -71,7 +75,7 @@ SafeAgent was extracted from a retry-safe settlement problem in PeerPlay-style t
 Run the demo:
 
 ```bash
-python examples/peerplay\_tournament\_settlement\_demo.py
+python examples/peerplay_tournament_settlement_demo.py
 ```
 
 What it shows:
