@@ -176,6 +176,15 @@ Properties:
 - replay-safe execution
 - late signals ignored after finality
 
+## PeerPlay Tournament Settlement Demo
+
+SafeAgent was extracted from a retry-safety problem in PeerPlay-style tournament settlement, where verification retries must not trigger duplicate payouts or duplicate rake settlement.
+
+Run the demo:
+
+```bash
+python examples/peerplay_tournament_settlement_demo.py
+
 ## Demos
 
 Duplicate execution prevention:
