@@ -107,11 +107,44 @@ registry = SettlementRequestRegistry()
 def send_email(payload):
     print("REAL SIDE EFFECT:", payload["to"])
 
-send_email({"to":"user@example.com","template":"invoice"})
-send_email({"to":"user@example.com","template":"invoice"})
+send_email({"to": "user@example.com", "template": "invoice"})
+send_email({"to": "user@example.com", "template": "invoice"})
 ```
 
 The second call returns the cached receipt instead of executing the side effect again.
+
+---
+
+# MCP Example
+
+SafeAgent can also wrap MCP-style tools so retries return cached receipts instead of re-executing irreversible actions.
+
+```python
+from safeagent_exec_guard import SettlementRequestRegistry
+from safeagent_exec_guard.mcp import safe_mcp_tool
+
+registry = SettlementRequestRegistry()
+
+@safe_mcp_tool(
+    registry=registry,
+    action="send_payment",
+    request_id_fn=lambda payload: f"payment:{payload['recipient']}:{payload['amount']}",
+)
+def send_payment(amount: float, recipient: str):
+    print(f"REAL SIDE EFFECT: sending ${amount} to {recipient}")
+```
+
+Run the demo:
+
+```bash
+python examples/mcp_retry_demo.py
+```
+
+What it shows:
+
+1. payment executes on first call
+2. retry with the same logical action returns a cached receipt
+3. the payment side effect runs exactly once
 
 ---
 
@@ -169,6 +202,12 @@ python examples/decorator_safeagent.py
 
 ```bash
 python examples/langchain_adapter_safeagent.py
+```
+
+### MCP retry demo
+
+```bash
+python examples/mcp_retry_demo.py
 ```
 
 ---
@@ -238,6 +277,7 @@ python examples/langchain_safeagent.py
 python examples/crewai_safeagent.py
 python examples/decorator_safeagent.py
 python examples/langchain_adapter_safeagent.py
+python examples/mcp_retry_demo.py
 python examples/peerplay_tournament_settlement_demo.py
 ```
 
@@ -253,6 +293,7 @@ safeagent_exec_guard/
     reconciliation.py
     decorators.py
     langchain.py
+    mcp.py
 
 examples/
     safe_agent_demo.py
@@ -263,6 +304,7 @@ examples/
     crewai_safeagent.py
     decorator_safeagent.py
     langchain_adapter_safeagent.py
+    mcp_retry_demo.py
     peerplay_tournament_settlement_demo.py
 ```
 
