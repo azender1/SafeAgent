@@ -45,4 +45,4 @@ Source = "https://github.com/azender1/SafeAgent"
 Issues = "https://github.com/azender1/SafeAgent/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["settlement", "src/safeagent_guard"]
+packages = ["safeagent_exec_guard", "settlement"]
