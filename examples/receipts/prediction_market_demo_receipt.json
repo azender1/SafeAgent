@@ -1,0 +1,21 @@
+{
+  "market_id": "pmkt_1",
+  "case_id": "pmkt_case_1",
+  "final_outcome": "YES",
+  "settlement_id": "498a79b9-23f6-4bd5-9d46-8fd353a17761",
+  "pot": 100,
+  "stakes": {
+    "alice": {
+      "side": "YES",
+      "amount": 50
+    },
+    "bob": {
+      "side": "NO",
+      "amount": 50
+    }
+  },
+  "payout": {
+    "alice": 100.0
+  },
+  "timestamp_utc": "2026-02-28T15:56:07.577341Z"
+}

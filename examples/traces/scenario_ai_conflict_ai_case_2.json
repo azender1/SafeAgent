@@ -1,0 +1,26 @@
+{
+  "scenario": "scenario_ai_conflict",
+  "case_id": "ai_case_2",
+  "state": "CaseState.SETTLED",
+  "final_outcome": "YES",
+  "signals": [
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "ed22bf1d-fd75-4af7-b27c-4b82f7adba5f"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "46aee66c-adfb-422c-af88-72579839c8b2"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "914d0544-8eb4-4ed9-9e8b-7e72cf93b2fa"
+    }
+  ],
+  "reconciliation_reason": null,
+  "settlement_id": "5d7c81cd-8506-4176-9de9-2a51477e40c2",
+  "timestamp_utc": "2026-02-28T15:55:49.418191Z"
+}

@@ -1,0 +1,36 @@
+{
+  "scenario": "scenario_ai_majority_policy",
+  "case_id": "ai_case_3",
+  "state": "CaseState.SETTLED",
+  "final_outcome": "NO",
+  "signals": [
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "485b238c-fb68-4e63-8fb9-4fa1dd010219"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "621c31e8-775b-4f10-af1c-8abbd28332fc"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "1a6bcf20-e6f3-4933-afe4-bbd4eeb0ef59"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "58881436-8ecf-4f34-9b83-6dde0f6d543a"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "92bf2214-185b-485d-884f-2351eb8fb72f"
+    }
+  ],
+  "reconciliation_reason": null,
+  "settlement_id": "b2df4427-7d5f-445b-8edf-cbc06dac40d1",
+  "timestamp_utc": "2026-02-28T15:55:49.423920Z"
+}
