@@ -1,5 +1,3 @@
-# SafeAgent
-
 [![PyPI version](https://img.shields.io/pypi/v/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
 [![Python versions](https://img.shields.io/pypi/pyversions/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
 [![License](https://img.shields.io/pypi/l/safeagent-exec-guard.svg)](https://github.com/azender1/SafeAgent/blob/main/LICENSE)
@@ -21,11 +19,9 @@ Typical protected actions include:
 
 # Installation
 
-```bash
 pip install safeagent-exec-guard
-```
 
-Python **3.10+ required**.
+Python 3.10+ required.
 
 ---
 
@@ -42,32 +38,27 @@ Examples:
 
 Without protection this can cause:
 
-```text
-retry -> duplicate payment
-retry -> duplicate email
-retry -> duplicate ticket
-retry -> duplicate payout
-```
+retry -> duplicate payment  
+retry -> duplicate email  
+retry -> duplicate ticket  
+retry -> duplicate payout  
 
 SafeAgent inserts an execution guard between the decision and the irreversible side effect.
 
-```text
-agent decision
-↓
-request_id generated
-↓
-SafeAgent execution guard
-↓
-side effect executes once
-↓
-future retries return cached receipt
-```
+agent decision  
+↓  
+request_id generated  
+↓  
+SafeAgent execution guard  
+↓  
+side effect executes once  
+↓  
+future retries return cached receipt  
 
 ---
 
 # Minimal Example
 
-```python
 from safeagent_exec_guard import SettlementRequestRegistry
 
 registry = SettlementRequestRegistry()
@@ -83,18 +74,14 @@ receipt = registry.execute(
 )
 
 print(receipt)
-```
 
-If the same `request_id` runs again, the side effect is **not executed again**.  
+If the same request_id runs again, the side effect is NOT executed again.  
 SafeAgent returns the stored receipt.
 
 ---
 
 # Decorator API
 
-SafeAgent can wrap side-effecting functions directly.
-
-```python
 from safeagent_exec_guard import SettlementRequestRegistry, safeagent_guard
 
 registry = SettlementRequestRegistry()
@@ -109,7 +96,6 @@ def send_email(payload):
 
 send_email({"to": "user@example.com", "template": "invoice"})
 send_email({"to": "user@example.com", "template": "invoice"})
-```
 
 The second call returns the cached receipt instead of executing the side effect again.
 
@@ -117,9 +103,6 @@ The second call returns the cached receipt instead of executing the side effect 
 
 # MCP Example
 
-SafeAgent can also wrap MCP-style tools so retries return cached receipts instead of re-executing irreversible actions.
-
-```python
 from safeagent_exec_guard import SettlementRequestRegistry
 from safeagent_exec_guard.mcp import safe_mcp_tool
 
@@ -132,13 +115,10 @@ registry = SettlementRequestRegistry()
 )
 def send_payment(amount: float, recipient: str):
     print(f"REAL SIDE EFFECT: sending ${amount} to {recipient}")
-```
 
 Run the demo:
 
-```bash
 python examples/mcp_retry_demo.py
-```
 
 What it shows:
 
@@ -148,95 +128,55 @@ What it shows:
 
 ---
 
-# PeerPlay Tournament Settlement Demo
-
-SafeAgent was extracted from a retry-safe settlement problem in **PeerPlay-style tournament settlement systems**.
-
-When verification layers retry settlement, a payout could accidentally execute twice.
-
-SafeAgent prevents duplicate payouts.
-
-Run the demo:
-
-```bash
-python examples/peerplay_tournament_settlement_demo.py
-```
-
-What the demo shows:
-
-1. tournament settlement executes
-2. prize payout occurs
-3. settlement retries
-4. SafeAgent returns cached receipt
-5. no duplicate payout occurs
-
----
-
 # Framework Examples
 
-### OpenAI-style tool execution
+OpenAI-style tool execution
 
-```bash
 python examples/openai_tool_safeagent.py
-```
 
-### LangChain example
+LangChain example
 
-```bash
 python examples/langchain_safeagent.py
-```
 
-### CrewAI example
+CrewAI example
 
-```bash
 python examples/crewai_safeagent.py
-```
 
-### Decorator example
+Decorator example
 
-```bash
 python examples/decorator_safeagent.py
-```
 
-### LangChain adapter example
+LangChain adapter example
 
-```bash
 python examples/langchain_adapter_safeagent.py
-```
 
-### MCP retry demo
+MCP retry demo
 
-```bash
 python examples/mcp_retry_demo.py
-```
 
 ---
 
 # Failure Semantics
 
-SafeAgent records a **durable execution receipt** for each `request_id`.
+SafeAgent records a durable execution receipt for each request_id.
 
-### Retry behavior
+Retry behavior
 
-```text
-same request_id → return stored receipt
-```
+same request_id -> return stored receipt
 
 The side effect is never executed again.
 
-### Timeout after execution
+Timeout after execution
 
-```text
-execution completed
-response lost
-caller retries
-```
+execution completed  
+response lost  
+caller retries  
 
 SafeAgent detects the existing receipt and returns it.
 
-### Partial failures
+Partial failures
 
-SafeAgent **does not attempt automatic rollback**.
+SafeAgent does NOT attempt automatic rollback.
 
 Applications should handle partial commits with:
 
@@ -244,69 +184,7 @@ Applications should handle partial commits with:
 - reconciliation processes
 - compensating actions
 
-SafeAgent guarantees **no duplicate execution**, not business policy validation.
-
----
-
-# State Machine
-
-```text
-OPEN
-→ RESOLVED_PROVISIONAL
-→ IN_RECONCILIATION
-→ FINAL
-→ SETTLED
-```
-
-Properties:
-
-- execution allowed only after finality
-- retries return cached receipts
-- ambiguous signals reconcile before execution
-
----
-
-# Demo Scripts
-
-```bash
-python examples/safe_agent_demo.py
-python examples/simulate_ai.py
-python examples/persist_demo.py
-python examples/openai_tool_safeagent.py
-python examples/langchain_safeagent.py
-python examples/crewai_safeagent.py
-python examples/decorator_safeagent.py
-python examples/langchain_adapter_safeagent.py
-python examples/mcp_retry_demo.py
-python examples/peerplay_tournament_settlement_demo.py
-```
-
----
-
-# Project Structure
-
-```text
-safeagent_exec_guard/
-    settlement_requests.py
-    store.py
-    state_machine.py
-    reconciliation.py
-    decorators.py
-    langchain.py
-    mcp.py
-
-examples/
-    safe_agent_demo.py
-    simulate_ai.py
-    persist_demo.py
-    openai_tool_safeagent.py
-    langchain_safeagent.py
-    crewai_safeagent.py
-    decorator_safeagent.py
-    langchain_adapter_safeagent.py
-    mcp_retry_demo.py
-    peerplay_tournament_settlement_demo.py
-```
+SafeAgent guarantees no duplicate execution, not business policy validation.
 
 ---
 
