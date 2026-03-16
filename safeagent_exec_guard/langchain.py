@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict
 
-from safeagent_exec_guard.decorators import safeagent_guard
-
 
 class SafeAgentTool:
     """
@@ -35,15 +33,11 @@ class SafeAgentTool:
         self.registry = registry
         self.request_id_fn = request_id_fn
 
-        @safeagent_guard(
-            registry=self.registry,
-            action=self.name,
-            request_id_fn=lambda payload: self.request_id_fn(payload),
-        )
-        def guarded(payload: Dict[str, Any]) -> Any:
-            return self.func(payload)
-
-        self._guarded = guarded
-
     def run(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        return self._guarded(payload)
+        request_id = self.request_id_fn(payload)
+        return self.registry.execute(
+            request_id=request_id,
+            action=self.name,
+            payload=payload,
+            execute_fn=self.func,
+        )
