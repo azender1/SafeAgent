@@ -1,4 +1,4 @@
-[![PyPI version](https://img.shields.io/pypi/v/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
+[![PyPI version](https://img.shields.io/pypi/v/safeagent-exec-guard.svg?cacheSeconds=300)](https://pypi.org/project/safeagent-exec-guard/)
 [![Python versions](https://img.shields.io/pypi/pyversions/safeagent-exec-guard.svg)](https://pypi.org/project/safeagent-exec-guard/)
 [![License](https://img.shields.io/pypi/l/safeagent-exec-guard.svg)](https://github.com/azender1/SafeAgent/blob/main/LICENSE)
 
