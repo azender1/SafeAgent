@@ -8,16 +8,6 @@ class SafeAgentTool:
     Minimal LangChain-style adapter.
 
     Wrap a side-effecting function so execution is guarded by SafeAgent.
-
-    Example:
-        tool = SafeAgentTool(
-            name="send_email",
-            func=send_email,
-            registry=registry,
-            request_id_fn=lambda payload: f"email:{payload['to']}",
-        )
-
-        receipt = tool.run({"to": "user@example.com"})
     """
 
     def __init__(
