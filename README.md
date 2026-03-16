@@ -4,6 +4,10 @@
 
 Exactly-once execution guard for AI agent side effects.
 
+## Demo
+
+![SafeAgent Demo](assets/safeagent-demo.gif)
+
 SafeAgent prevents duplicate, replayed, or premature irreversible actions triggered by LLM agents or distributed workflows.
 
 Typical protected actions include:
