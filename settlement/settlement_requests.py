@@ -8,6 +8,7 @@ from typing import Any, Callable, Dict, Optional
 
 from settlement.gate import SettlementError, attempt_settlement
 from settlement.models import Case
+from safeagent_exec_guard.postgres_store import PostgresExecutionStore
 
 
 # ----------------------------
@@ -55,16 +56,29 @@ class SettlementRequestRegistry:
        - execute(request_id, action, payload, execute_fn) -> dict receipt
        - First time request_id is seen: runs execute_fn once and records a receipt.
        - Replays with same request_id: returns the original receipt (NO side effects).
+
+    Optional Postgres backing:
+       - pass postgres_dsn to persist execution receipts beyond process memory
     """
 
-    def __init__(self) -> None:
+    def __init__(self, postgres_dsn: Optional[str] = None) -> None:
         # Settlement dedup
         self._settlement_requests: Dict[str, str] = {}
         self._settlement_created_at: Dict[str, float] = {}
 
-        # Generic safe-execute dedup
+        # Generic safe-execute dedup (in-memory fallback)
         self._exec_receipts: Dict[str, SafeExecuteReceipt] = {}
         self._exec_created_at: Dict[str, float] = {}
+
+        # Optional Postgres durable store
+        self.pg: Optional[PostgresExecutionStore] = None
+        if postgres_dsn:
+            self.pg = PostgresExecutionStore(postgres_dsn)
+            try:
+                self.pg.init_db()
+            except Exception:
+                # Keep registry usable even if Postgres is temporarily unavailable
+                self.pg = None
 
     def _now_utc(self) -> str:
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
@@ -128,7 +142,7 @@ class SettlementRequestRegistry:
         execute_fn: Callable[..., Any],
     ) -> Dict[str, Any]:
         """
-        Exactly-once execution guard for ANY irreversible action.
+        At-most-once execution guard for ANY irreversible action.
 
         - On first call with a request_id: runs execute_fn once, stores a receipt, returns it.
         - On replay with the same request_id: returns the original receipt, does NOT re-run execute_fn.
@@ -153,7 +167,63 @@ class SettlementRequestRegistry:
                 timestamp_utc=self._now_utc(),
             ).to_dict()
 
-        # Dedup: same request_id returns the original receipt
+        # 1) Postgres-backed path (durable)
+        if self.pg:
+            existing = self.pg.get(request_id)
+            if existing:
+                return SafeExecuteReceipt(
+                    ok=existing.get("status") == "completed",
+                    reason="dedup_same_request_id",
+                    request_id=request_id,
+                    execution_id=existing.get("execution_id"),
+                    action=existing.get("action") or action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                ).to_dict()
+
+            inserted = self.pg.insert_if_not_exists(request_id, action)
+            if not inserted:
+                existing = self.pg.get(request_id)
+                return SafeExecuteReceipt(
+                    ok=(existing or {}).get("status") == "completed",
+                    reason="dedup_same_request_id",
+                    request_id=request_id,
+                    execution_id=(existing or {}).get("execution_id"),
+                    action=(existing or {}).get("action") or action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                ).to_dict()
+
+            try:
+                _ = self._invoke_execute_fn(execute_fn, clean_payload)
+                exec_id = str(uuid.uuid4())
+
+                receipt = SafeExecuteReceipt(
+                    ok=True,
+                    reason="executed",
+                    request_id=request_id,
+                    execution_id=exec_id,
+                    action=action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                )
+                self.pg.complete(request_id, receipt.to_dict())
+                return receipt.to_dict()
+
+            except Exception as e:
+                receipt = SafeExecuteReceipt(
+                    ok=False,
+                    reason=f"execute_failed:{type(e).__name__}",
+                    request_id=request_id,
+                    execution_id=None,
+                    action=action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                )
+                self.pg.complete(request_id, receipt.to_dict())
+                return receipt.to_dict()
+
+        # 2) In-memory fallback path
         if request_id in self._exec_receipts:
             r = self._exec_receipts[request_id]
             return SafeExecuteReceipt(
@@ -166,7 +236,6 @@ class SettlementRequestRegistry:
                 timestamp_utc=self._now_utc(),
             ).to_dict()
 
-        # First execution
         try:
             _ = self._invoke_execute_fn(execute_fn, clean_payload)
             exec_id = str(uuid.uuid4())
