@@ -209,3 +209,18 @@ SafeAgent is designed to enforce at-most-once execution of irreversible actions,
 ## License
 
 Apache-2.0
+
+---
+
+## Need help with agent reliability?
+
+If you're building AI agents that trigger real-world actions (payments, emails, trades, etc.), retries can create duplicate execution and real risk.
+
+If you're dealing with this in production or thinking about how to handle it, feel free to reach out.
+
+Happy to:
+- review your architecture
+- help design execution safety layers
+- implement SafeAgent-style guards in your system
+
+This problem gets tricky quickly once retries and distributed systems are involved.
