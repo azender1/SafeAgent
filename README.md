@@ -2,8 +2,7 @@ SafeAgent
 ![PyPI version](https://img.shields.io/pypi/v/safeagent-exec-guard.svg?cacheSeconds=300)
 ![Python versions](https://img.shields.io/pypi/pyversions/safeagent-exec-guard.svg)
 ![License](https://img.shields.io/pypi/l/safeagent-exec-guard.svg)
-Execution guard for AI agent side effects (prevents duplicate execution across retries).
----
+Execution guard for AI agent side effects that prevents duplicate execution across retries.
 Demo
 ![SafeAgent Demo](https://raw.githubusercontent.com/azender1/SafeAgent/main/assets/safeagent-demo.gif)
 LLM agents retry tool calls.
@@ -14,13 +13,10 @@ trades
 tickets
 payouts
 SafeAgent is designed to prevent duplicate execution of irreversible actions using request IDs and optional durable state, such as Postgres.
----
 Install
-```bash
-pip install safeagent-exec-guard
-```
+    pip install safeagent-exec-guard
+
 Python 3.10+
----
 Why this exists
 AI systems retry operations constantly:
 agent loops retry tool calls
@@ -28,91 +24,82 @@ HTTP clients retry failed requests
 queue workers replay jobs
 orchestrators restart workflows
 Without protection:
-```text
-retry -> duplicate payment
-retry -> duplicate email
-retry -> duplicate ticket
-retry -> duplicate payout
-```
+    retry -> duplicate payment
+    retry -> duplicate email
+    retry -> duplicate ticket
+    retry -> duplicate payout
+
 SafeAgent inserts an execution guard between the decision and the irreversible action:
-```text
-agent decision
-↓
-request_id generated
-↓
-SafeAgent execution guard
-↓
-side effect executes once
-↓
-future retries return cached receipt
-```
----
+    agent decision
+    ↓
+    request_id generated
+    ↓
+    SafeAgent execution guard
+    ↓
+    side effect executes once
+    ↓
+    future retries return cached receipt
+
 Minimal Example
-```python
-from safeagent_exec_guard import SettlementRequestRegistry
+    from safeagent_exec_guard import SettlementRequestRegistry
 
-registry = SettlementRequestRegistry()
+    registry = SettlementRequestRegistry()
 
-def send_email(payload):
-    print("SENDING EMAIL:", payload["to"])
+    def send_email(payload):
+        print("SENDING EMAIL:", payload["to"])
 
-receipt = registry.execute(
-    request_id="email:C123:invoice",
-    action="send_email",
-    payload={"to": "c123@example.com"},
-    execute_fn=send_email,
-)
+    receipt = registry.execute(
+        request_id="email:C123:invoice",
+        action="send_email",
+        payload={"to": "c123@example.com"},
+        execute_fn=send_email,
+    )
 
-print(receipt)
-```
-Example output
-```text
-First call:
-SENDING EMAIL: c123@example.com
-{'ok': True, 'reason': 'executed', 'request_id': 'email:C123:invoice'}
+    print(receipt)
 
-Second call (retry):
-{'ok': True, 'reason': 'dedup_same_request_id', 'request_id': 'email:C123:invoice'}
-```
----
+Example output:
+    First call:
+    SENDING EMAIL: c123@example.com
+    {'ok': True, 'reason': 'executed', 'request_id': 'email:C123:invoice'}
+
+    Second call (retry):
+    {'ok': True, 'reason': 'dedup_same_request_id', 'request_id': 'email:C123:invoice'}
+
+Running this twice only executes the side effect once. Later calls return the stored receipt.
 Decorator API
-```python
-from safeagent_exec_guard import SettlementRequestRegistry, safeagent_guard
+    from safeagent_exec_guard import SettlementRequestRegistry, safeagent_guard
 
-registry = SettlementRequestRegistry()
+    registry = SettlementRequestRegistry()
 
-@safeagent_guard(
-    registry=registry,
-    action="send_email",
-    request_id_fn=lambda payload: f"email:{payload['to']}:{payload.get('template','default')}",
-)
-def send_email(payload):
-    print("REAL SIDE EFFECT:", payload["to"])
+    @safeagent_guard(
+        registry=registry,
+        action="send_email",
+        request_id_fn=lambda payload: f"email:{payload['to']}:{payload.get('template','default')}",
+    )
+    def send_email(payload):
+        print("REAL SIDE EFFECT:", payload["to"])
 
-send_email({"to": "user@example.com", "template": "invoice"})
-send_email({"to": "user@example.com", "template": "invoice"})
-```
----
+    send_email({"to": "user@example.com", "template": "invoice"})
+    send_email({"to": "user@example.com", "template": "invoice"})
+
+The second call returns the cached receipt instead of executing again.
 MCP Example
-```python
-from safeagent_exec_guard import SettlementRequestRegistry
-from safeagent_exec_guard.mcp import safe_mcp_tool
+    from safeagent_exec_guard import SettlementRequestRegistry
+    from safeagent_exec_guard.mcp import safe_mcp_tool
 
-registry = SettlementRequestRegistry()
+    registry = SettlementRequestRegistry()
 
-@safe_mcp_tool(
-    registry=registry,
-    action="send_payment",
-    request_id_fn=lambda payload: f"payment:{payload['recipient']}:{payload['amount']}",
-)
-def send_payment(amount: float, recipient: str):
-    print(f"REAL SIDE EFFECT: sending ${amount} to {recipient}")
-```
+    @safe_mcp_tool(
+        registry=registry,
+        action="send_payment",
+        request_id_fn=lambda payload: f"payment:{payload['recipient']}:{payload['amount']}",
+    )
+    def send_payment(amount: float, recipient: str):
+        print(f"REAL SIDE EFFECT: sending ${amount} to {recipient}")
+
 Run:
-```bash
-python examples/mcp_retry_demo.py
-```
----
+    python examples/mcp_retry_demo.py
+
 Durable execution (Postgres)
 SafeAgent can optionally use a Postgres-backed execution store.
 This allows execution guarantees to hold across:
@@ -120,59 +107,53 @@ process restarts
 multiple workers
 distributed systems
 Without durable state, guarantees are limited to a single process.
-Example
-```python
-from safeagent_exec_guard import SettlementRequestRegistry
-from safeagent_exec_guard.postgres_store import PostgresExecutionStore
+Example:
+    from safeagent_exec_guard import SettlementRequestRegistry
+    from safeagent_exec_guard.postgres_store import PostgresExecutionStore
 
-store = PostgresExecutionStore(
-    dsn="postgresql://postgres:postgres@localhost:5432/postgres"
-)
+    store = PostgresExecutionStore(
+        dsn="postgresql://postgres:postgres@localhost:5432/postgres"
+    )
 
-registry = SettlementRequestRegistry(store=store)
+    registry = SettlementRequestRegistry(postgres_dsn="postgresql://postgres:postgres@localhost:5432/postgres")
 
-def send_payment(payload):
-    print("REAL SIDE EFFECT:", payload)
+    def send_payment(payload):
+        print("REAL SIDE EFFECT:", payload)
 
-registry.execute(
-    request_id="payment:alice:50",
-    action="send_payment",
-    payload={"amount": 50, "recipient": "alice"},
-    execute_fn=send_payment,
-)
-```
+    registry.execute(
+        request_id="payment:alice:50",
+        action="send_payment",
+        payload={"amount": 50, "recipient": "alice"},
+        execute_fn=send_payment,
+    )
+
 Run twice:
-```text
-First run:
-REAL SIDE EFFECT: {'amount': 50, 'recipient': 'alice'}
+    First run:
+    REAL SIDE EFFECT: {'amount': 50, 'recipient': 'alice'}
 
-Second run:
-Already executed — returning stored receipt
-```
----
+    Second run:
+    Already executed: {'status': 'sent'}
+
 Framework Examples
-```bash
-python examples/openai_tool_safeagent.py
-python examples/langchain_safeagent.py
-python examples/crewai_safeagent.py
-python examples/decorator_safeagent.py
-python examples/langchain_adapter_safeagent.py
-python examples/mcp_retry_demo.py
-python examples/postgres_demo.py
-```
----
+    python examples/openai_tool_safeagent.py
+    python examples/langchain_safeagent.py
+    python examples/crewai_safeagent.py
+    python examples/decorator_safeagent.py
+    python examples/langchain_adapter_safeagent.py
+    python examples/mcp_retry_demo.py
+    python examples/postgres_demo.py
+
 Failure semantics
 SafeAgent records an execution receipt for each `request_id`.
 Retry behavior
-```text
-same request_id -> return stored receipt
-```
+    same request_id -> return stored receipt
+
+The side effect is not executed again.
 Timeout after execution
-```text
-execution completed
-response lost
-caller retries
-```
+    execution completed
+    response lost
+    caller retries
+
 SafeAgent returns the stored receipt.
 Partial failures
 SafeAgent does not attempt automatic rollback.
@@ -180,13 +161,11 @@ Applications should handle partial commits using:
 audit logs
 reconciliation processes
 compensating actions
-SafeAgent enforces at-most-once execution of irreversible actions, not business policy validation.
----
+SafeAgent is designed to enforce at-most-once execution of irreversible actions, not business policy validation.
 License
 Apache-2.0
----
 Need help with agent reliability?
-If you're building AI agents that trigger real-world actions (payments, emails, trades, etc.), retries can create duplicate execution and real risk.
+If you're building AI agents that trigger real-world actions such as payments, emails, or trades, retries can create duplicate execution and real risk.
 If you're dealing with this in production or thinking about how to handle it, feel free to reach out.
 Happy to:
 review your architecture
