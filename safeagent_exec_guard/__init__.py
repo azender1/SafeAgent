@@ -10,4 +10,4 @@ __all__ = [
     "safe_mcp_tool",
 ]
 
-__version__ = "0.1.12"
+__version__ = "0.1.13"

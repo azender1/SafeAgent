@@ -1,6 +1,7 @@
+import os
 from safeagent_exec_guard.postgres_store import PostgresExecutionStore
 
-dsn = "postgresql://postgres:postgres@localhost:5432/postgres"
+dsn = os.getenv("POSTGRES_DSN", "postgresql://postgres:postgres@localhost:5432/postgres")
 
 store = PostgresExecutionStore(dsn)
 

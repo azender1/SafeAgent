@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:latest
+    container_name: safeagent-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+
+  safeagent:
+    build: .
+    container_name: safeagent-app
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - postgres
+    environment:
+      POSTGRES_DSN: postgresql://postgres:postgres@postgres:5432/postgres
+    command: ["bash"]

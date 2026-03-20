@@ -204,6 +204,18 @@ Applications should handle partial commits using:
 
 SafeAgent is designed to enforce at-most-once execution of irreversible actions, not business policy validation.
 
+## Run with Docker
+
+Start Postgres:
+
+    docker compose up -d postgres
+
+Run the Postgres demo:
+
+    docker compose run --rm safeagent python examples/postgres_demo.py
+
+This uses a local Postgres container so execution receipts persist outside a single Python process.
+
 ## License
 
 Apache-2.0
