@@ -31,7 +31,7 @@ Even if your system runs it twice,
 
 ## Demo
 
-### Retry behavior (with and without execution guard)
+### Retry behavior (with execution guard)
 
 ![SafeAgent MCP Demo](assets/mcp_demo.gif)
 
