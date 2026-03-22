@@ -31,9 +31,14 @@ Even if your system runs it twice,
 
 ## Demo
 
-### Retry behavior (with execution guard)
+A retry without protection can execute the same irreversible action twice.
 
-![SafeAgent MCP Demo](assets/mcp_demo.gif)
+SafeAgent guarantees the side effect runs once — even if the agent retries.
+
+### Retry without protection → duplicate execution ❌
+### Retry with SafeAgent → executes once and blocks duplicate ✅
+
+![Before vs After](assets/before_after_demo.gif)
 
 ---
 

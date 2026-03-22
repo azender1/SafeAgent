@@ -8,7 +8,7 @@ COPY settlement ./settlement
 COPY examples ./examples
 
 RUN pip install --upgrade pip
-RUN pip install psycopg[binary]>=3.1
+RUN pip install "psycopg[binary]>=3.1"
 RUN pip install -e .
 
-CMD ["bash"]
+CMD ["python", "examples/postgres_demo.py"]

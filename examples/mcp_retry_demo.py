@@ -25,29 +25,31 @@ payment_log = []
     request_id_fn=lambda payload: f"payment:{payload['recipient']}:{payload['amount']}",
 )
 def send_payment(amount: float, recipient: str) -> dict:
-    print(f"REAL SIDE EFFECT: sending ${amount} to {recipient}")
+    print(f"REAL SIDE EFFECT: sending ${amount:.2f} to {recipient}")
     payment = {"recipient": recipient, "amount": amount}
     payment_log.append(payment)
-    return {"status": "sent", **payment}
+    return {"status": "SETTLED", **payment}
 
 
 if __name__ == "__main__":
-    print("=" * 72)
+    print("\n" + "=" * 60)
     print("SAFEAGENT MCP RETRY DEMO")
-    print("=" * 72)
+    print("=" * 60)
 
-    print("\nFIRST CALL")
-    receipt_1 = send_payment(amount=4200.00, recipient="vendor_abc")
-    print(receipt_1)
+    print("\n[attempt 1]")
+    receipt_1 = send_payment(amount=50.00, recipient="alice@example.com")
+    print("receipt:", receipt_1)
 
-    print("\nSECOND CALL (SIMULATED RETRY WITH SAME LOGICAL ACTION)")
-    receipt_2 = send_payment(amount=4200.00, recipient="vendor_abc")
-    print(receipt_2)
+    print("\n[attempt 2 - retry]")
+    receipt_2 = send_payment(amount=50.00, recipient="alice@example.com")
+    print("DUPLICATE BLOCKED — returning cached receipt")
+    print("receipt:", receipt_2)
 
-    print("\nPAYMENT LOG")
-    print(payment_log)
+    print("\n[attempt 3 - retry]")
+    receipt_3 = send_payment(amount=50.00, recipient="alice@example.com")
+    print("DUPLICATE BLOCKED — returning cached receipt")
+    print("receipt:", receipt_3)
 
     print("\nSUMMARY")
     print(f"Same execution_id: {receipt_1['execution_id'] == receipt_2['execution_id']}")
-    print(f"Payments actually sent: {len(payment_log)}")
-    print("Expected payments actually sent: 1")
+    print(f"Payments actually sent: {len(payment_log)} (expected: 1)")
