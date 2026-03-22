@@ -1,9 +1,15 @@
-# SafeAgent
+# SafeAgent — Exactly-Once Execution Guard for AI Agents (Prevent Duplicate Payments, Emails, Trades)
 
-**Exactly-once execution for systems that retry**
+AI agents retry.
 
-Your system will retry.  
-SafeAgent makes sure it doesn’t execute twice.
+Retries can duplicate irreversible actions:
+payments, emails, trades, tickets.
+
+SafeAgent is a lightweight execution guard that guarantees a side effect runs exactly once — even if the agent, network, or system retries.
+
+It records a durable execution receipt and returns the original result on replay instead of executing again.
+
+> Even if your system runs it twice, it executes once.
 
 ---
 
