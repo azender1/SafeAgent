@@ -117,4 +117,4 @@ SafeAgent stops systems from executing the same action twice when they retry.
 
 ## License
 
-MIT
+Apache-2.0
