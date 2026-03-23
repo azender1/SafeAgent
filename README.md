@@ -1,12 +1,11 @@
-# SafeAgent — Exactly-Once Execution Guard for AI Agents
+# Execution Guard — Exactly-Once Execution for AI Agents
 
-Prevent duplicate payments, emails, trades, and other irreversible side effects caused by retries.
+AI agents retry by design.
 
-AI agents retry by design. Networks fail. Workers restart. Timeouts happen. When a system cannot tell whether a side effect already happened, it often tries again.
+Retries can duplicate irreversible actions:
+payments, emails, trades, and external API mutations.
 
-That is how you get duplicate payments, duplicate emails, duplicate trades, and repeated external mutations.
-
-SafeAgent is a lightweight execution guard that guarantees a side effect runs exactly once for a given `request_id` — even if the agent, network, or system retries.
+Execution Guard guarantees a side effect runs exactly once — even if the agent, network, or system retries.
 
 > Even if your system runs it twice, it executes once.
 
@@ -166,9 +165,19 @@ Retries do not mean “nothing happened.”
 
 They mean “we do not know what happened.”
 
-So systems try again.
+Most systems retry anyway.
 
-SafeAgent adds a durable execution check between the decision and the side effect so retries do not create duplicate real-world actions.
+That is fine for reads.
+
+It is dangerous for side effects.
+
+That is how you get duplicate payments, duplicate emails, duplicate trades, and repeated external mutations.
+
+Execution Guard adds a safety boundary at the side-effect layer:
+
+- record the execution attempt
+- execute once
+- resolve retries safely
 
 ---
 
