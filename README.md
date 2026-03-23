@@ -1,5 +1,7 @@
 # Execution Guard — Exactly-Once Execution for AI Agents
 
+A missing layer for safe side effects in agent systems.
+
 AI agents retry by design.
 
 Retries can duplicate irreversible actions:
@@ -22,7 +24,7 @@ Execution Guard guarantees the side effect runs once — even if the agent retri
 
 ![Before vs After](assets/before_after_demo.gif)
 
-SafeAgent is a reference implementation of this Execution Guard pattern.
+SafeAgent is a reference implementation of the Execution Guard pattern.
 
 ---
 
