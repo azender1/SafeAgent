@@ -15,12 +15,14 @@ Execution Guard guarantees a side effect runs exactly once — even if the agent
 
 A retry without protection can execute the same irreversible action twice.
 
-SafeAgent guarantees the side effect runs once — even if the agent retries.
+Execution Guard guarantees the side effect runs once — even if the agent retries.
 
 ### Retry without protection → duplicate execution ❌
-### Retry with SafeAgent → executes once and blocks duplicate ✅
+### Retry with Execution Guard → executes once and blocks duplicate ✅
 
 ![Before vs After](assets/before_after_demo.gif)
+
+SafeAgent is a reference implementation of this Execution Guard pattern.
 
 ---
 
