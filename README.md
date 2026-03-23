@@ -1,37 +1,14 @@
-# SafeAgent — Exactly-Once Execution Guard for AI Agents (Prevent Duplicate Payments, Emails, Trades)
+# SafeAgent — Exactly-Once Execution Guard for AI Agents
 
-AI agents retry.
+Prevent duplicate payments, emails, trades, and other irreversible side effects caused by retries.
 
-Retries can duplicate irreversible actions:
-payments, emails, trades, tickets.
+AI agents retry by design. Networks fail. Workers restart. Timeouts happen. When a system cannot tell whether a side effect already happened, it often tries again.
 
-SafeAgent is a lightweight execution guard that guarantees a side effect runs exactly once — even if the agent, network, or system retries.
+That is how you get duplicate payments, duplicate emails, duplicate trades, and repeated external mutations.
 
-It records a durable execution receipt and returns the original result on replay instead of executing again.
+SafeAgent is a lightweight execution guard that guarantees a side effect runs exactly once for a given `request_id` — even if the agent, network, or system retries.
 
 > Even if your system runs it twice, it executes once.
-
----
-
-## The problem
-
-Retries don’t mean “nothing happened.”
-
-They mean “we don’t know what happened.”
-
-So your system tries again.
-
-→ duplicate payments  
-→ duplicate trades  
-→ duplicate emails  
-→ duplicate side effects  
-
----
-
-## The guarantee
-
-Even if your system runs it twice,  
-**it executes once.**
 
 ---
 
@@ -48,34 +25,6 @@ SafeAgent guarantees the side effect runs once — even if the agent retries.
 
 ---
 
-## How it works
-
-```python
-if store.insert_if_not_exists(request_id, action):
-    result = do_side_effect()
-    store.complete(request_id, result)
-else:
-    return "Already executed"
-```
-
-A request is identified once.  
-Every retry resolves to that same execution.
-
----
-
-## Where this matters
-
-- payments  
-- trading systems  
-- background jobs  
-- webhooks  
-- external API mutations  
-- AI agent tool calls  
-
-Any system where running twice is unacceptable.
-
----
-
 ## Install
 
 ```bash
@@ -84,10 +33,98 @@ pip install safeagent-exec-guard
 
 ---
 
-## Backends
+## Quick start (SQLite)
 
-- SQLite → local / single process  
-- Postgres → distributed / production  
+Use SQLite for local development, demos, and single-process workflows.
+
+```python
+from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+
+store = SQLiteExecutionStore("safeagent.db")
+store.init_db()
+
+request_id = "payment_123"
+action = "send_payment"
+
+def do_side_effect():
+    print("Executing payment...")
+    return {"status": "sent", "receipt_id": "rcpt_12345"}
+
+if store.insert_if_not_exists(request_id, action):
+    result = do_side_effect()
+    store.complete(request_id, result)
+    print("Executed:", result)
+else:
+    print("Duplicate request detected — execution blocked")
+```
+
+---
+
+## Postgres (production)
+
+Use Postgres for distributed workers, production services, and multi-instance agent systems.
+
+### Start Postgres with Docker
+
+```bash
+docker run --name safeagent-postgres \
+  -e POSTGRES_PASSWORD=postgres \
+  -e POSTGRES_USER=postgres \
+  -e POSTGRES_DB=postgres \
+  -p 5432:5432 \
+  -d postgres:16
+```
+
+### Example
+
+```python
+import os
+from safeagent_exec_guard.postgres_store import PostgresExecutionStore
+
+dsn = os.getenv(
+    "POSTGRES_DSN",
+    "postgresql://postgres:postgres@localhost:5432/postgres"
+)
+
+store = PostgresExecutionStore(dsn)
+store.init_db()
+
+request_id = "payment_123"
+action = "send_payment"
+
+def do_side_effect():
+    print("Executing payment...")
+    return {"status": "sent", "receipt_id": "rcpt_12345"}
+
+if store.insert_if_not_exists(request_id, action):
+    result = do_side_effect()
+    store.complete(request_id, result)
+    print("Executed:", result)
+else:
+    print("Duplicate request detected — execution blocked")
+```
+
+### Reset the demo table
+
+If you want to re-run the demo from a clean state:
+
+```bash
+docker exec -it safeagent-postgres psql -U postgres -d postgres -c "TRUNCATE TABLE execution_requests;"
+```
+
+---
+
+## How it works
+
+```python
+if store.insert_if_not_exists(request_id, action):
+    result = do_side_effect()
+    store.complete(request_id, result)
+else:
+    print("Duplicate request detected — execution blocked")
+```
+
+A request is identified once. Every retry resolves against that same execution record.
 
 ---
 
@@ -95,23 +132,50 @@ pip install safeagent-exec-guard
 
 Without SafeAgent:
 
-1. request sent  
-2. timeout or uncertain result  
-3. system retries  
-4. action runs again  
+1. Request is sent.
+2. Timeout or uncertainty happens.
+3. The system retries.
+4. The side effect runs again.
 
 With SafeAgent:
 
-1. request sent with request_id  
-2. execution is recorded  
-3. action runs once  
-4. retries are ignored or resolved  
+1. Request is sent with a `request_id`.
+2. Execution is recorded durably.
+3. The side effect runs once.
+4. Retries are blocked for the same request.
 
 ---
 
-## One line
+## Where this matters
 
-SafeAgent stops systems from executing the same action twice when they retry.
+- Payments
+- Trading systems
+- Background jobs
+- Webhooks
+- External API mutations
+- AI agent tool calls
+- Ticketing and messaging workflows
+
+Any system where running the same side effect twice is unacceptable.
+
+---
+
+## Why this exists
+
+Retries do not mean “nothing happened.”
+
+They mean “we do not know what happened.”
+
+So systems try again.
+
+SafeAgent adds a durable execution check between the decision and the side effect so retries do not create duplicate real-world actions.
+
+---
+
+## Backends
+
+- SQLite → local / single process
+- Postgres → distributed / production
 
 ---
 
