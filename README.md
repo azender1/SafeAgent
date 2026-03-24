@@ -2,18 +2,18 @@
 
 A missing layer for safe side effects in agent systems.
 
-AI agents retry by design.
-
 Retries can duplicate irreversible actions:
 payments, emails, trades, and external API mutations.
 
-Execution Guard guarantees a side effect runs exactly once — even if the agent, network, or system retries.
+Execution Guard ensures a side effect runs exactly once — even under retries.
 
 > Even if your system runs it twice, it executes once.
 
 ---
 
-## Quickstart
+## Quickstart (runs in ~10 seconds)
+
+Run the same request twice — it executes once.
 
 Install:
 
