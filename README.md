@@ -13,6 +13,47 @@ Execution Guard guarantees a side effect runs exactly once — even if the agent
 
 ---
 
+## Quickstart
+
+Install:
+
+```bash
+pip install safeagent-exec-guard
+```
+
+Minimal local example (SQLite):
+
+```python
+from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+
+store = SQLiteExecutionStore("safeagent.db")
+store.init_db()
+
+def send_payment(request_id: str):
+    action = "send_payment"
+
+    if store.insert_if_not_exists(request_id, action):
+        print("executing side effect")
+        result = {"status": "sent", "receipt_id": "rcpt_12345"}
+        store.complete(request_id, result)
+        print("result:", result)
+    else:
+        print("duplicate blocked")
+
+send_payment("req_123")
+send_payment("req_123")
+```
+
+Expected output:
+
+```text
+executing side effect
+result: {'status': 'sent', 'receipt_id': 'rcpt_12345'}
+duplicate blocked
+```
+
+---
+
 ## Demo
 
 A retry without protection can execute the same irreversible action twice.
@@ -108,8 +149,6 @@ else:
 ```
 
 ### Reset the demo table
-
-If you want to re-run the demo from a clean state:
 
 ```bash
 docker exec -it safeagent-postgres psql -U postgres -d postgres -c "TRUNCATE TABLE execution_requests;"
