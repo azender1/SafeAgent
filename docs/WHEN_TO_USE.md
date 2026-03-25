@@ -1,4 +1,4 @@
-\# When to Use Execution Guard
+# When to Use Execution Guard
 
 
 
@@ -6,7 +6,7 @@ Use Execution Guard when a side effect is \*\*unsafe to run twice\*\*.
 
 
 
-\## Good use cases
+## Good use cases
 
 
 
@@ -32,7 +32,7 @@ Execution Guard is a strong fit for:
 
 
 
-\## Ask this simple question
+## Ask this simple question
 
 
 
@@ -70,7 +70,7 @@ You should strongly consider Execution Guard if your system has:
 
 
 
-\## Cases where you may not need it
+## Cases where you may not need it
 
 
 
@@ -90,7 +90,7 @@ Execution Guard is usually \*\*not necessary\*\* for:
 
 
 
-\## Mental model
+## Mental model
 
 
 
