@@ -1,4 +1,4 @@
-\# Execution Guard Architecture
+# Execution Guard Architecture
 
 
 
