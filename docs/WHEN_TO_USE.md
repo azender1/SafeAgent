@@ -44,7 +44,7 @@ If the answer is \*\*yes\*\*, Execution Guard probably belongs there.
 
 
 
-\## Strong signals you need it
+## Strong signals you need it
 
 
 
