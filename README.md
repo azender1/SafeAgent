@@ -100,9 +100,9 @@ if store.insert_if_not_exists(request_id, action):
     print("Executed:", result)
 else:
     print("Duplicate request detected — execution blocked")
-```
 
----
+```
+See also: Wrap a side effect
 
 ## Postgres (production)
 
