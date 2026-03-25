@@ -224,6 +224,10 @@ Execution Guard adds a safety boundary at the side-effect layer:
 
 ---
 
+## Case studies
+
+- [Trading Bot Case Study](docs/TRADING_BOT_CASE_STUDY.md)
+
 ## Backends
 
 - SQLite → local / single process
