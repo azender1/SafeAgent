@@ -36,7 +36,7 @@ Execution Guard is a strong fit for:
 
 
 
-> If this runs twice, do I care?
+- If this runs twice, do I care?
 
 
 
@@ -106,7 +106,7 @@ The goal is not:
 
 
 
-> never try again
+- never try again
 
 
 
@@ -114,5 +114,5 @@ The goal is:
 
 
 
-> never execute the same irreversible side effect twice
+- never execute the same irreversible side effect twice
 
