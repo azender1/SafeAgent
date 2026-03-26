@@ -1,8 +1,8 @@
-\# Execution Guard Positioning
+# Execution Guard Positioning
 
 
 
-\## What it is
+## What it is
 
 
 
@@ -14,7 +14,7 @@ It helps systems safely handle retries, timeouts, and uncertain completion witho
 
 
 
-\## What problem it solves
+## What problem it solves
 
 
 
@@ -46,7 +46,7 @@ Execution Guard exists to make retries converge safely.
 
 
 
-\## What it is not
+## What it is not
 
 
 
@@ -70,7 +70,7 @@ Execution Guard is \*\*not\*\*:
 
 
 
-\## How it is different from idempotency
+## How it is different from idempotency
 
 
 
@@ -86,7 +86,7 @@ In practice, it gives systems a durable execution record they can resolve agains
 
 
 
-\## Mental model
+## Mental model
 
 
 
@@ -94,7 +94,7 @@ Do not ask only:
 
 
 
-> should this retry?
+- should this retry?
 
 
 
@@ -102,11 +102,11 @@ Also ask:
 
 
 
-> has this execution already happened?
+- has this execution already happened?
 
 
 
-\## Best fit
+## Best fit
 
 
 
@@ -124,7 +124,7 @@ Execution Guard is strongest when:
 
 
 
-\## Short version
+## Short version
 
 
 
