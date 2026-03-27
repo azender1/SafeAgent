@@ -1,8 +1,8 @@
-\# The Execution Guard Pattern
+# The Execution Guard Pattern
 
 
 
-\## Summary
+## Summary
 
 
 
@@ -14,7 +14,7 @@ It exists for one specific problem:
 
 
 
-> the system does not know whether the side effect already happened
+- the system does not know whether the side effect already happened
 
 
 
@@ -22,11 +22,11 @@ That uncertainty is where duplicate payments, emails, trades, and external mutat
 
 
 
-\---
+---
 
 
 
-\## The failure mode
+## The failure mode
 
 
 
@@ -56,7 +56,7 @@ The dangerous assumption is:
 
 
 
-> no response means nothing happened
+- no response means nothing happened
 
 
 
@@ -64,11 +64,11 @@ That assumption is often false.
 
 
 
-\---
+---
 
 
 
-\## Core idea
+## Core idea
 
 
 
@@ -76,7 +76,7 @@ Instead of asking only:
 
 
 
-> should this retry?
+- should this retry?
 
 
 
@@ -84,7 +84,7 @@ also ask:
 
 
 
-> has this execution already happened?
+- has this execution already happened?
 
 
 
@@ -96,11 +96,11 @@ That record allows retries to resolve safely against prior execution instead of 
 
 
 
-\---
+---
 
 
 
-\## Minimal flow
+## Minimal flow
 
 
 
@@ -116,11 +116,11 @@ That record allows retries to resolve safely against prior execution instead of 
 
 
 
-\---
+---
 
 
 
-\## Why this matters
+## Why this matters
 
 
 
@@ -158,11 +158,11 @@ This is common in:
 
 
 
-\---
+---
 
 
 
-\## What it is not
+## What it is not
 
 
 
@@ -186,11 +186,11 @@ It is a narrow correctness layer for irreversible side effects.
 
 
 
-\---
+---
 
 
 
-\## Relationship to idempotency
+## Relationship to idempotency
 
 
 
@@ -206,11 +206,11 @@ Execution Guard is the reusable execution-side pattern that protects the side ef
 
 
 
-\---
+---
 
 
 
-\## Short version
+## Short version
 
 
 
@@ -218,11 +218,11 @@ Execution Guard makes retries resolve safely instead of running the same irrever
 
 
 
-\---
+---
 
 
 
-\## Reference implementation
+## Reference implementation
 
 
 
