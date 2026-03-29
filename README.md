@@ -60,10 +60,12 @@ A retry without protection can execute the same irreversible action twice.
 
 Execution Guard guarantees the side effect runs once — even if the agent retries.
 
-### Retry without protection → duplicate execution ❌
-### Retry with Execution Guard → executes once and blocks duplicate ✅
+### Same request ID. Same retry. Different result.
 
-![Before vs After](assets/before_after_demo.gif)
+Without an execution boundary, retries can re-run irreversible side effects.  
+With Execution Guard, the second attempt returns the original receipt instead of executing again.
+
+![Execution Guard Demo](assets/execution_guard_demo.gif)
 
 SafeAgent is a reference implementation of the Execution Guard pattern.
 
