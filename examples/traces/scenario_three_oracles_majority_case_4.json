@@ -1,0 +1,26 @@
+{
+  "scenario": "scenario_three_oracles_majority",
+  "case_id": "case_4",
+  "state": "CaseState.SETTLED",
+  "final_outcome": "NO",
+  "signals": [
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "144791be-0b8d-4088-9655-08631479c2ad"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "648859b6-6db4-43eb-80c5-28e87e542330"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "3d44adde-02d5-4d6d-a36a-c5d3cda521e7"
+    }
+  ],
+  "reconciliation_reason": null,
+  "settlement_id": "54d2c0a2-209c-4b8c-be6b-29da8f85e7e9",
+  "timestamp_utc": "2026-03-07T04:05:02.550184Z"
+}

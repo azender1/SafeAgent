@@ -1,0 +1,21 @@
+{
+  "scenario": "scenario_conflict",
+  "case_id": "case_2",
+  "state": "CaseState.SETTLED",
+  "final_outcome": "YES",
+  "signals": [
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "12fddb74-2e4f-46e9-9a1f-473d78e804fa"
+    },
+    {
+      "source": null,
+      "outcome": null,
+      "raw": "1183d194-e8f7-4d46-bbf7-8f1b43f13cbf"
+    }
+  ],
+  "reconciliation_reason": null,
+  "settlement_id": "4e8bd2ec-2911-4e7b-88aa-81d827816ca8",
+  "timestamp_utc": "2026-03-07T04:05:02.539182Z"
+}

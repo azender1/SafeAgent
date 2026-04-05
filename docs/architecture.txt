@@ -1,0 +1,1 @@
+﻿TODO: Replace with architecture diagram PNG. Create in draw.io and export to docs/architecture.png
