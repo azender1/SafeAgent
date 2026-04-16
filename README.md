@@ -1,93 +1,101 @@
-# SafeAgent / Execution Guard
 
-## Prevent duplicate or incorrect execution when retries happen
+# SafeAgent
 
-A missing execution boundary for **AI agents, trading bots, automations, and workflow systems**.
+![Trading Demo](assets/safeagent_trading_demo_v2.gif)
 
-When a system hits:
-
-- timeout
-- partial failure
-- retry
-- uncertain completion
-
-…it often **does not know whether the action already happened**.
-
-That is how you get:
-
-- duplicate trades
-- duplicate payments
-- duplicate emails
-- duplicate API mutations
-
-SafeAgent adds a durable execution boundary around **real side effects** so retries can be **reconciled instead of replayed**.
-
-> Most systems can retry. Very few can decide when a retry is still correct.
+> Deterministic execution for real-world actions under uncertainty.
 
 ---
 
-## Trading Bot Retry Demo
+## The Problem
 
-### Same workflow. Same retry. Different result.
+Agents don’t fail on decisions.  
+They fail on **uncertain completion**.
 
-A broker timeout does **not** mean the order failed.  
-It means the result is **uncertain**.
-
-Without SafeAgent:
-- the bot retries
-- the same logical order is submitted again
-- the position is duplicated
-
-With SafeAgent:
-- the retry resolves against the same execution record
-- the result is reconciled
-- the duplicate is blocked
-
-![SafeAgent Trading Demo](assets/safeagent_trading_demo_v2.gif)
-
-This is not just a trading problem.
-
-The same failure mode shows up in:
-- payments
-- browser workflows
-- background jobs
-- webhooks
-- ticket creation
-- agent tool calls
-- external API mutations
-
----
-
-## Try it now
-
-### Install
-
-```bash
-pip install safeagent-exec-guard
+```
+submit order
+timeout
+retry
+submit order   <-- duplicate
 ```
 
 ---
 
-## Mental model
+## Real Impact
 
-Without SafeAgent:
-retry → replay → duplicate
+```
+Position: 2 → 4 shares  
+Capital: $710.20 → $1420.40
+```
 
-With SafeAgent:
-retry → resolve → safe
-
----
-
-## Where this matters
-
-- trading
-- payments
-- APIs
-- agents
-- workflows
+Not bad logic.  
+Just no execution boundary.
 
 ---
 
-## License
+## The Fix
 
-Apache-2.0
+SafeAgent enforces:
+
+- request identity  
+- execution boundary  
+- deterministic retry resolution  
+
+```
+timeout
+retry
+SafeAgent: returning cached result
+```
+
+---
+
+## Core Idea
+
+```
+Agent → SafeAgent → Real World
+```
+
+Retries don’t replay.  
+They **resolve**.
+
+---
+
+## Failure Cases
+
+- Trading → double position  
+- Payments → duplicate charge  
+- Notifications → duplicate send  
+- State desync → unintended re-entry  
+
+See: `failure-cases/`
+
+---
+
+## Demo Assets
+
+### Trading
+![Trading Demo](assets/safeagent_trading_demo_v2.gif)
+
+### Before / After
+![Before After](assets/before_after_demo.gif)
+
+### Execution Guard
+![Execution Guard](assets/execution_guard_demo.gif)
+
+### Postgres
+![Postgres Demo](assets/postgres_demo.gif)
+
+### Full Video
+[Download MP4](assets/safeagent_trading_demo_v2.mp4)
+
+---
+
+## Status
+
+Early reference implementation.
+
+---
+
+## Repo
+
+https://github.com/azender1/SafeAgent
