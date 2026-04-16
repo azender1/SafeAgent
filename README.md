@@ -1,7 +1,8 @@
-
 # SafeAgent
 
-![Trading Demo](assets/safeagent_trading_demo_v2.gif)
+<p align="center">
+  <img src="assets/safeagent_trading_demo_v2.gif" alt="Trading Demo" width="960">
+</p>
 
 > Deterministic execution for real-world actions under uncertainty.
 
@@ -73,20 +74,27 @@ See: `failure-cases/`
 
 ## Demo Assets
 
-### Trading
-![Trading Demo](assets/safeagent_trading_demo_v2.gif)
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <h3>Before / After</h3>
+      <img src="assets/before_after_demo.gif" alt="Before After Demo" width="100%">
+    </td>
+    <td width="50%" valign="top">
+      <h3>Execution Guard</h3>
+      <img src="assets/execution_guard_demo.gif" alt="Execution Guard Demo" width="100%">
+    </td>
+  </tr>
+</table>
 
-### Before / After
-![Before After](assets/before_after_demo.gif)
-
-### Execution Guard
-![Execution Guard](assets/execution_guard_demo.gif)
-
-### Postgres
-![Postgres Demo](assets/postgres_demo.gif)
+<details>
+  <summary><strong>Show Postgres runtime proof</strong></summary>
+  <br>
+  <img src="assets/postgres_demo.gif" alt="Postgres Demo" width="960">
+</details>
 
 ### Full Video
-[Download MP4](https://github.com/azender1/SafeAgent/blob/main/assets/safeagent_trading_demo_v2.mp4?raw=1)
+[Download MP4](https://github.com/azender1/SafeAgent/raw/main/assets/safeagent_trading_demo_v2.mp4)
 
 ---
 
