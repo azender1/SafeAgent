@@ -12,7 +12,7 @@
 Agents don’t fail on decisions.  
 They fail on **uncertain completion**.
 
-```
+```text
 submit order
 timeout
 retry
@@ -23,8 +23,8 @@ submit order   <-- duplicate
 
 ## Real Impact
 
-```
-Position: 2 → 4 shares  
+```text
+Position: 2 → 4 shares
 Capital: $710.20 → $1420.40
 ```
 
@@ -37,11 +37,11 @@ Just no execution boundary.
 
 SafeAgent enforces:
 
-- request identity  
-- execution boundary  
-- deterministic retry resolution  
+- request identity
+- execution boundary
+- deterministic retry resolution
 
-```
+```text
 timeout
 retry
 SafeAgent: returning cached result
@@ -51,7 +51,7 @@ SafeAgent: returning cached result
 
 ## Core Idea
 
-```
+```text
 Agent → SafeAgent → Real World
 ```
 
@@ -62,10 +62,10 @@ They **resolve**.
 
 ## Failure Cases
 
-- Trading → double position  
-- Payments → duplicate charge  
-- Notifications → duplicate send  
-- State desync → unintended re-entry  
+- Trading → double position
+- Payments → duplicate charge
+- Notifications → duplicate send
+- State desync → unintended re-entry
 
 See: `failure-cases/`
 
@@ -86,16 +86,16 @@ See: `failure-cases/`
 ![Postgres Demo](assets/postgres_demo.gif)
 
 ### Full Video
-[Download MP4](assets/safeagent_trading_demo_v2.mp4)
+[Download MP4](https://github.com/azender1/SafeAgent/blob/main/assets/safeagent_trading_demo_v2.mp4?raw=1)
 
 ---
 
 ## Status
 
-Early reference implementation.
+Reference implementation for handling duplicate execution under uncertain completion.
 
 ---
 
 ## Repo
 
-https://github.com/azender1/SafeAgent
+[github.com/azender1/SafeAgent](https://github.com/azender1/SafeAgent)
