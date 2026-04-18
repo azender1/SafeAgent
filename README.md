@@ -61,18 +61,43 @@ They **resolve**.
 
 ---
 
+## PeerPlay Settlement Use Case
+
+SafeAgent is also the settlement guard for PeerPlay-style tournament payout flows.
+
+- tournament result verified
+- payout request sent
+- confirmation lost / timeout
+- retry fires
+
+Without an execution boundary, the same winner can be paid twice.
+With SafeAgent, the retry resolves against the prior request record and returns the original result.
+
+Start here:
+
+- `examples/peerplay_tournament_settlement_demo.py`
+- `failure-cases/05_peerplay_tournament_duplicate_payout/README.md`
+
+---
+
 ## Failure Cases
 
 - Trading → double position
 - Payments → duplicate charge
 - Notifications → duplicate send
 - State desync → unintended re-entry
+- PeerPlay → duplicate tournament payout
 
 See: `failure-cases/`
 
 ---
 
-## Demo Assets
+## Working Demos
+
+- Trading retry demo: `assets/safeagent_trading_demo_v2.gif`
+- Postgres runtime proof: `assets/postgres_demo.gif`
+- PeerPlay tournament settlement: `examples/peerplay_tournament_settlement_demo.py`
+- Deck: `deck/SAFEAGENT_DECK_PRO_V2_FINAL.pptx`
 
 <table>
   <tr>

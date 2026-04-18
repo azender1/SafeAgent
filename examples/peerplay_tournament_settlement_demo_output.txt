@@ -1,0 +1,84 @@
+================================================================================
+PEERPLAY TOURNAMENT SETTLEMENT DEMO
+Demonstrating SafeAgent's Exactly-Once Execution Guarantee
+================================================================================
+
+[TOURNAMENT SETUP]
+  16 players join tournament, $5 entry fee each
+  Tournament ID: TOURNAMENT_T123
+  Winner: PLAYER_W456
+  Entry Fees Collected: $80.0
+  Platform Rake: $8.0
+  Prize Pool: $72.0
+
+[ATTEMPT 1: FIRST SETTLEMENT]
+      [ESCROW] Releasing $72.0 to PLAYER_W456
+      [ESCROW] Rake collected: $8.0
+{
+    "ok": true,
+    "reason": "executed",
+    "request_id": "settlement:TOURNAMENT_T123:PLAYER_W456",
+    "execution_id": "8f000d01-bf27-4be4-9b90-6a536bae9187",
+    "action": "tournament_payout",
+    "payload": {
+        "tournament_id": "TOURNAMENT_T123",
+        "winner_id": "PLAYER_W456",
+        "prize_amount": 72.0,
+        "rake_amount": 8.0
+    },
+    "timestamp_utc": "2026-04-18T15:19:02Z"
+}
+
+  Payouts executed: 1
+
+================================================================================
+[RETRY SCENARIO]
+Verification layer retries settlement with the SAME request_id
+================================================================================
+
+[ATTEMPT 2: RETRY WITH SAME REQUEST_ID]
+{
+    "ok": true,
+    "reason": "dedup_same_request_id",
+    "request_id": "settlement:TOURNAMENT_T123:PLAYER_W456",
+    "execution_id": "8f000d01-bf27-4be4-9b90-6a536bae9187",
+    "action": "tournament_payout",
+    "payload": {
+        "tournament_id": "TOURNAMENT_T123",
+        "winner_id": "PLAYER_W456",
+        "prize_amount": 72.0,
+        "rake_amount": 8.0
+    },
+    "timestamp_utc": "2026-04-18T15:19:02Z"
+}
+
+  Payouts executed: 1
+
+================================================================================
+[VERIFICATION]
+================================================================================
+Receipt 1 == Receipt 2: False
+Payout count: 1
+Expected payout count: 1
+Status: PASS
+
+Total paid: $72.0
+Expected: $72.0
+Status: PASS
+
+Total rake: $8.0
+Expected: $8.0
+Status: PASS
+
+================================================================================
+[SUMMARY]
+================================================================================
+Without SafeAgent:
+  retry -> duplicate payout
+  retry -> duplicate rake
+  retry -> corrupted settlement state
+
+With SafeAgent:
+  retry -> cached receipt returned
+  retry -> no duplicate execution
+  retry -> settlement state remains consistent

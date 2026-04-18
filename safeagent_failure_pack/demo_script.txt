@@ -1,0 +1,20 @@
+# Demo Script (Record This)
+
+# WITHOUT SAFEAGENT
+[09:45:02] SUBMIT ORDER: BUY QQQ 2 @ 355.10
+[09:45:03] Broker response pending...
+[09:45:05] ERROR: timeout
+[09:45:05] Retrying request...
+[09:45:06] SUBMIT ORDER: BUY QQQ 2 @ 355.10   <-- DUPLICATE
+
+Position: 2 → 4 shares
+Capital: $710.20 → $1420.40
+
+# WITH SAFEAGENT
+[09:45:02] SUBMIT ORDER: BUY QQQ 2 @ 355.10
+[09:45:05] ERROR: timeout
+[09:45:05] Retrying request...
+[09:45:05] SafeAgent: returning cached result
+
+Position: 2 shares
+Capital: $710.20

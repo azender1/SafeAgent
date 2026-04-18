@@ -1,6 +1,11 @@
 import json
-import psycopg
-from psycopg.rows import dict_row
+
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except Exception:  # optional dependency for local/in-memory demos
+    psycopg = None
+    dict_row = None
 
 
 class PostgresExecutionStore:
@@ -8,6 +13,8 @@ class PostgresExecutionStore:
         self.dsn = dsn
 
     def _connect(self):
+        if psycopg is None:
+            raise RuntimeError("psycopg is not installed. Install psycopg[binary] to use the PostgresExecutionStore.")
         return psycopg.connect(self.dsn, row_factory=dict_row)
 
     def init_db(self):

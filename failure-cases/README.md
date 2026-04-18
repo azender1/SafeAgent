@@ -8,6 +8,7 @@ A set of concrete, reproducible failure cases showing how retries, ambiguous com
 2. **Payment Retry Duplicate** — a charge request times out and replays the same debit.
 3. **Notification Duplicate Send** — a delivery retry sends the same user message twice.
 4. **State Desync Replay** — local state says "flat" while reality already changed.
+5. **PeerPlay Tournament Duplicate Payout** — settlement retry would pay the same winner twice without execution control.
 
 ## Why this exists
 
@@ -25,6 +26,10 @@ Primary demo assets already in this repo:
 - `assets/safeagent_trading_demo_v2.gif`
 - `assets/safeagent_trading_demo_v2.mp4`
 - `assets/postgres_demo.gif`
+- `deck/SAFEAGENT_DECK_PRO_V2_FINAL.pptx`
+- `examples/peerplay_tournament_settlement_demo.py`
+- `deck/SAFEAGENT_DECK_PRO_V2_FINAL.pptx`
+- `examples/peerplay_tournament_settlement_demo.py`
 
 ## Challenge
 
