@@ -132,3 +132,21 @@ Reference implementation for handling duplicate execution under uncertain comple
 ## Repo
 
 [github.com/azender1/SafeAgent](https://github.com/azender1/SafeAgent)
+
+---
+
+## Need this fixed in your system?
+
+I offer a **Duplicate Execution Risk Audit**.
+
+I will:
+- Identify where retries + timeouts can cause duplicate execution (payments, trades, workflows, API calls)
+- Reproduce the failure cases
+- Provide the exact fix pattern (with SafeAgent or equivalent design)
+
+**Flat fee: $499**  
+(includes report + concrete fix recommendations)
+
+If you want a pilot integration or full production implementation, we can scope that after.
+
+DM me on X (@ZGT512666) or open an issue with "AUDIT".
