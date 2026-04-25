@@ -1,152 +1,126 @@
 # SafeAgent
 
-<p align="center">
-  <img src="assets/safeagent_trading_demo_v2.gif" alt="Trading Demo" width="960">
-</p>
+AI agents retry. Retries fire side effects twice.
 
-> Deterministic execution for real-world actions under uncertainty.
+Duplicate payment. Duplicate email. Duplicate trade. Duplicate ticket.
+
+SafeAgent is an execution guard that sits between an agent decision and an irreversible action. It gives every tool call a request ID, records a durable receipt on first execution, and returns that receipt on every retry — without running the side effect again.
+
+```bash
+pip install safeagent-exec-guard
+```
+
+Python 3.10+ · Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
 
 ---
 
-## The Problem
+## The problem
 
-Agents don’t fail on decisions.  
-They fail on **uncertain completion**.
+```
+agent calls tool
+    ↓
+network timeout
+    ↓
+agent retries
+    ↓
+side effect runs twice
+```
 
-```text
-submit order
-timeout
-retry
-submit order   <-- duplicate
+Most agent frameworks handle retries at the transport layer. None of them know whether the side effect already happened. SafeAgent does.
+
+---
+
+## Quickstart
+
+```python
+from settlement.settlement_requests import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+def send_invoice():
+    print("Sending invoice...")
+
+# First call — executes the side effect
+receipt = registry.execute(
+    request_id="invoice:C123",
+    action="send_invoice",
+    payload={"to": "c123@example.com"},
+    execute_fn=send_invoice,
+)
+
+# Retry with the same request_id — returns the original receipt, no second send
+receipt = registry.execute(
+    request_id="invoice:C123",
+    action="send_invoice",
+    payload={"to": "c123@example.com"},
+    execute_fn=send_invoice,
+)
+```
+
+Same `request_id` → original receipt returned → side effect runs exactly once.
+
+---
+
+## Works with any agent framework
+
+- **OpenAI** tool calls
+- **LangChain** tools
+- **CrewAI** actions
+- **Claude / MCP** tool execution
+- Any Python function that touches a real system
+
+---
+
+## How it works
+
+Every execution goes through a four-step control plane:
+
+```
+Agent decision
+    → Finality gate      (is this outcome confirmed?)
+    → Request-ID dedup   (has this exact call run before?)
+    → Execute once       (run the side effect)
+    → Receipt stored     (durable, survives restarts)
+```
+
+State machine: `OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED`
+
+Execution is only permitted from `FINAL`. Replays at any state return the stored receipt.
+
+---
+
+## Key properties
+
+- **Exactly-once execution** — same request_id never fires twice
+- **Durable receipts** — SQLite-backed, survives process restarts
+- **Finality gating** — blocks execution on ambiguous agent signals
+- **Confidence thresholds** — auto-finalizes when consensus exceeds threshold
+- **Audit trail** — every execution recorded with payload and outcome
+
+---
+
+## Run the demos
+
+```bash
+# Duplicate execution prevention
+python examples/safe_agent_demo.py
+
+# Stochastic agent signal simulation
+python examples/simulate_ai.py
+
+# Restart safety (run twice)
+python examples/persist_demo.py
+python examples/persist_demo.py
 ```
 
 ---
 
-## Real Impact
+## Production use
 
-```text
-Position: 2 → 4 shares
-Capital: $710.20 → $1420.40
-```
-
-Not bad logic.  
-Just no execution boundary.
+SafeAgent is a reference implementation and pattern library. If you're deploying this in a production agent system, see `LICENSING.md` for commercial options.
 
 ---
 
-## The Fix
+## License
 
-SafeAgent enforces:
-
-- request identity
-- execution boundary
-- deterministic retry resolution
-
-```text
-timeout
-retry
-SafeAgent: returning cached result
-```
-
----
-
-## Core Idea
-
-```text
-Agent → SafeAgent → Real World
-```
-
-Retries don’t replay.  
-They **resolve**.
-
----
-
-## PeerPlay Settlement Use Case
-
-SafeAgent is also the settlement guard for PeerPlay-style tournament payout flows.
-
-- tournament result verified
-- payout request sent
-- confirmation lost / timeout
-- retry fires
-
-Without an execution boundary, the same winner can be paid twice.
-With SafeAgent, the retry resolves against the prior request record and returns the original result.
-
-Start here:
-
-- `examples/peerplay_tournament_settlement_demo.py`
-- `failure-cases/05_peerplay_tournament_duplicate_payout/README.md`
-
----
-
-## Failure Cases
-
-- Trading → double position
-- Payments → duplicate charge
-- Notifications → duplicate send
-- State desync → unintended re-entry
-- PeerPlay → duplicate tournament payout
-
-See: `failure-cases/`
-
----
-
-## Working Demos
-
-- Trading retry demo: `assets/safeagent_trading_demo_v2.gif`
-- Postgres runtime proof: `assets/postgres_demo.gif`
-- PeerPlay tournament settlement: `examples/peerplay_tournament_settlement_demo.py`
-- Deck: `deck/SAFEAGENT_DECK_PRO_V2_FINAL.pptx`
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <h3>Before / After</h3>
-      <img src="assets/before_after_demo.gif" alt="Before After Demo" width="100%">
-    </td>
-    <td width="50%" valign="top">
-      <h3>Execution Guard</h3>
-      <img src="assets/execution_guard_demo.gif" alt="Execution Guard Demo" width="100%">
-    </td>
-  </tr>
-</table>
-
-<details>
-  <summary><strong>Show Postgres runtime proof</strong></summary>
-  <br>
-  <img src="assets/postgres_demo.gif" alt="Postgres Demo" width="960">
-</details>
-
-### Full Video
-[Download MP4](https://github.com/azender1/SafeAgent/raw/main/assets/safeagent_trading_demo_v2.mp4)
-
----
-
-## Status
-
-Reference implementation for handling duplicate execution under uncertain completion.
-
----
-
-## Repo
-
-[github.com/azender1/SafeAgent](https://github.com/azender1/SafeAgent)
-
----
-
-## Need this fixed in your system?
-
-I offer a **Duplicate Execution Risk Audit**.
-
-I will:
-- Identify where retries + timeouts can cause duplicate execution (payments, trades, workflows, API calls)
-- Reproduce the failure cases
-- Provide the exact fix pattern (with SafeAgent or equivalent design)
-
-**Flat fee: $499**  
-(includes report + concrete fix recommendations)
-
-If you want a pilot integration or full production implementation, we can scope that after.
-
-DM me on X (@ZGT512666) or open an issue with "AUDIT".
+Apache-2.0
