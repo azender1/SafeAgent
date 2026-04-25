@@ -1,3 +1,4 @@
+<!-- mcp-name: io.github.azender1/safeagent -->
 # SafeAgent
 
 AI agents retry. Retries fire side effects twice.
