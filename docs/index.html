@@ -1,0 +1,328 @@
+
+<h2 class="sr-only">SafeAgent interactive demo — simulate duplicate execution with and without an execution guard</h2>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans)}
+.wrap{padding:1.5rem 0}
+.header{margin-bottom:1.5rem}
+.header h1{font-size:18px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.header p{font-size:14px;color:var(--color-text-secondary)}
+.scenario-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:8px;margin-bottom:1.5rem}
+.scenario-btn{padding:10px 12px;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);background:var(--color-background-primary);cursor:pointer;font-size:13px;font-weight:400;color:var(--color-text-primary);text-align:left;transition:border-color 0.15s}
+.scenario-btn:hover{border-color:var(--color-border-secondary)}
+.scenario-btn.active{border:1.5px solid #185FA5;color:#185FA5}
+.scenario-btn .label{font-weight:500;font-size:13px;display:block;margin-bottom:2px}
+.scenario-btn .sub{font-size:12px;color:var(--color-text-secondary)}
+.scenario-btn.active .sub{color:#378ADD}
+.controls{display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap}
+.control-group{display:flex;align-items:center;gap:8px}
+.control-group label{font-size:13px;color:var(--color-text-secondary)}
+.retry-val{font-size:13px;font-weight:500;min-width:20px}
+.toggle-row{display:flex;align-items:center;gap:12px;margin-bottom:1.5rem}
+.toggle-label{font-size:14px;color:var(--color-text-secondary)}
+.toggle{display:flex;border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);overflow:hidden}
+.toggle button{padding:7px 16px;border:none;background:var(--color-background-primary);cursor:pointer;font-size:13px;color:var(--color-text-secondary);transition:background 0.15s}
+.toggle button.on{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500}
+.run-btn{padding:9px 20px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);cursor:pointer;font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.run-btn:hover{background:var(--color-background-secondary)}
+.run-btn:active{transform:scale(0.98)}
+.panels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:1.5rem}
+.panel{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:1rem;background:var(--color-background-primary);min-height:280px}
+.panel-header{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:10px;border-bottom:0.5px solid var(--color-border-tertiary)}
+.panel-title{font-size:14px;font-weight:500;color:var(--color-text-primary)}
+.badge{font-size:11px;padding:3px 8px;border-radius:100px;font-weight:500}
+.badge-bad{background:#FCEBEB;color:#A32D2D}
+.badge-good{background:#EAF3DE;color:#3B6D11}
+.log-area{font-family:var(--font-mono);font-size:12px;line-height:1.7;color:var(--color-text-secondary);min-height:200px}
+.log-line{margin:1px 0}
+.log-action{color:#185FA5}
+.log-warn{color:#BA7517}
+.log-danger{color:#A32D2D}
+.log-success{color:#3B6D11}
+.log-dim{color:var(--color-text-tertiary)}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1.5rem}
+.metric{background:var(--color-background-secondary);border-radius:var(--border-radius-md);padding:12px 14px}
+.metric-label{font-size:12px;color:var(--color-text-secondary);margin-bottom:4px}
+.metric-val{font-size:22px;font-weight:500;color:var(--color-text-primary)}
+.metric-val.danger{color:#A32D2D}
+.metric-val.success{color:#3B6D11}
+.insight{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:12px 14px;font-size:13px;color:var(--color-text-secondary);line-height:1.6;margin-bottom:1rem}
+.insight strong{color:var(--color-text-primary);font-weight:500}
+.ask-btn{padding:8px 16px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:var(--color-background-primary);cursor:pointer;font-size:13px;color:var(--color-text-secondary)}
+.ask-btn:hover{background:var(--color-background-secondary)}
+</style>
+
+<div class="wrap">
+  <div class="header">
+    <h1>SafeAgent execution simulator</h1>
+    <p>Pick a scenario, set retry count, toggle the guard on or off, then run it.</p>
+  </div>
+
+  <div class="scenario-grid" id="scenarios">
+    <button class="scenario-btn active" data-scenario="payment" onclick="setScenario(this)">
+      <span class="label">Payment</span>
+      <span class="sub">Stripe charge on retry</span>
+    </button>
+    <button class="scenario-btn" data-scenario="trade" onclick="setScenario(this)">
+      <span class="label">Trade order</span>
+      <span class="sub">Broker ACK timeout</span>
+    </button>
+    <button class="scenario-btn" data-scenario="email" onclick="setScenario(this)">
+      <span class="label">Email send</span>
+      <span class="sub">SMTP retry duplicate</span>
+    </button>
+    <button class="scenario-btn" data-scenario="webhook" onclick="setScenario(this)">
+      <span class="label">Webhook</span>
+      <span class="sub">n8n concurrent trigger</span>
+    </button>
+  </div>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>Retries</label>
+      <input type="range" min="1" max="5" value="3" id="retrySlider" oninput="document.getElementById('retryVal').textContent=this.value" style="width:100px">
+      <span class="retry-val" id="retryVal">3</span>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <span class="toggle-label">Execution guard</span>
+    <div class="toggle">
+      <button class="on" id="btnOff" onclick="setGuard(false)">Off</button>
+      <button id="btnOn" onclick="setGuard(true)">On</button>
+    </div>
+    <button class="run-btn" onclick="runSim()">Run simulation ↗</button>
+  </div>
+
+  <div class="panels">
+    <div class="panel" id="brokenPanel">
+      <div class="panel-header">
+        <span class="panel-title">Without guard</span>
+        <span class="badge badge-bad" id="brokenBadge">waiting</span>
+      </div>
+      <div class="log-area" id="brokenLog"><span class="log-dim">Press run to simulate...</span></div>
+    </div>
+    <div class="panel" id="guardedPanel">
+      <div class="panel-header">
+        <span class="panel-title">With SafeAgent</span>
+        <span class="badge badge-good" id="guardedBadge">waiting</span>
+      </div>
+      <div class="log-area" id="guardedLog"><span class="log-dim">Press run to simulate...</span></div>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">Without guard — executions</div>
+      <div class="metric-val danger" id="mBroken">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">With guard — executions</div>
+      <div class="metric-val success" id="mGuarded">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Financial impact prevented</div>
+      <div class="metric-val success" id="mImpact">—</div>
+    </div>
+  </div>
+
+  <div class="insight" id="insight">Run a simulation to see the execution analysis.</div>
+
+  <button class="ask-btn" onclick="sendPrompt('How would I integrate SafeAgent into my system to prevent this exact failure?')">Ask Claude how to integrate this into your system ↗</button>
+</div>
+
+<script>
+const SCENARIOS = {
+  payment: {
+    label: 'Stripe charge',
+    amount: 299,
+    currency: '$',
+    unit: 'charges',
+    actionLog: (n) => [
+      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">POST /v1/charges amount=29900</span>`,
+      `<span class="log-dim">   → broker response pending...</span>`,
+      `<span class="log-warn">   → timeout after 5s</span>`,
+    ],
+    executeLog: (n) => [
+      `<span class="log-danger">   → CHARGE EXECUTED — $299.00 debited</span>`,
+    ],
+    blockLog: (n) => [
+      `<span class="log-success">   → request_id found in store</span>`,
+      `<span class="log-success">   → returning cached receipt (no charge)</span>`,
+    ],
+    firstLog: () => [
+      `<span class="log-success">   → CHARGE EXECUTED — $299.00 debited</span>`,
+      `<span class="log-success">   → receipt stored: req_abc123</span>`,
+    ],
+    insight: (broken, guarded, retries) => `<strong>Without the guard:</strong> the $299 charge fires ${broken} times — once per retry. The customer is overbilled by <strong>$${(broken-1)*299}</strong>. <strong>With SafeAgent:</strong> the execution guard stores a receipt on the first success. Every retry resolves against that receipt and returns the cached result. Exactly 1 charge, regardless of retry count.`,
+  },
+  trade: {
+    label: 'BUY QQQ 2 @ 355.10',
+    amount: 710.20,
+    currency: '$',
+    unit: 'orders',
+    actionLog: (n) => [
+      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">SUBMIT ORDER: BUY QQQ 2 @ 355.10</span>`,
+      `<span class="log-dim">   request_id: rv_qqq_${Date.now()}</span>`,
+      `<span class="log-warn">   → broker ACK timeout → RESULT_UNKNOWN</span>`,
+    ],
+    executeLog: (n) => [
+      `<span class="log-danger">   → ORDER FILLED — position +2 shares</span>`,
+    ],
+    blockLog: (n) => [
+      `<span class="log-success">   → execution_id found in store</span>`,
+      `<span class="log-success">   → RETURN CACHED RESULT (no new order)</span>`,
+    ],
+    firstLog: () => [
+      `<span class="log-success">   → ORDER FILLED — position +2 shares</span>`,
+      `<span class="log-success">   → execution recorded: ex_${Date.now()}</span>`,
+    ],
+    insight: (broken, guarded, retries) => `<strong>Without the guard:</strong> ${broken} orders execute — position grows to ${broken*2} shares, capital used $${(broken*710.20).toFixed(2)} vs intended $710.20. <strong>With SafeAgent:</strong> the broker timeout triggers retries but the guard's durable receipt ensures only 1 order fires. Retries return the cached fill instead of submitting again.`,
+  },
+  email: {
+    label: 'Invoice email',
+    amount: 0,
+    currency: '',
+    unit: 'sends',
+    actionLog: (n) => [
+      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">SMTP SEND to: user@example.com</span>`,
+      `<span class="log-dim">   subject: "Your invoice #INV-2026-001"</span>`,
+      `<span class="log-warn">   → SMTP timeout — delivery status unknown</span>`,
+    ],
+    executeLog: (n) => [
+      `<span class="log-danger">   → EMAIL SENT (duplicate)</span>`,
+    ],
+    blockLog: (n) => [
+      `<span class="log-success">   → message_id found in store</span>`,
+      `<span class="log-success">   → SKIP — already delivered</span>`,
+    ],
+    firstLog: () => [
+      `<span class="log-success">   → EMAIL SENT</span>`,
+      `<span class="log-success">   → message_id stored: msg_${Date.now()}</span>`,
+    ],
+    insight: (broken, guarded, retries) => `<strong>Without the guard:</strong> the user receives ${broken} identical invoices — creating confusion and support tickets. <strong>With SafeAgent:</strong> the first successful delivery is recorded. All retries check the store and skip. Exactly 1 email delivered.`,
+  },
+  webhook: {
+    label: 'n8n workflow trigger',
+    amount: 0,
+    currency: '',
+    unit: 'executions',
+    actionLog: (n) => [
+      `<span class="log-dim">[trigger ${n}]</span> <span class="log-action">IMAP uid=18842 picked up</span>`,
+      `<span class="log-dim">   worker_id: worker-${n}</span>`,
+      `<span class="log-warn">   → no global execution claim — proceeding</span>`,
+    ],
+    executeLog: (n) => [
+      `<span class="log-danger">   → WORKFLOW EXECUTED (duplicate run)</span>`,
+    ],
+    blockLog: (n) => [
+      `<span class="log-success">   → event_id claimed by worker-1</span>`,
+      `<span class="log-success">   → SKIP — execution already in progress</span>`,
+    ],
+    firstLog: () => [
+      `<span class="log-success">   → WORKFLOW EXECUTED</span>`,
+      `<span class="log-success">   → event_id claimed: imap:inbox:uid18842</span>`,
+    ],
+    insight: (broken, guarded, retries) => `<strong>Without the guard:</strong> ${broken} concurrent workers all pick up the same IMAP event — ${broken} workflow executions fire, causing duplicate notifications/DB writes. <strong>With SafeAgent:</strong> the first worker atomically claims the event_id. All others see the existing claim and skip. Exactly 1 execution.`,
+  }
+};
+
+let currentScenario = 'payment';
+let guardOn = false;
+let running = false;
+
+function setScenario(btn) {
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentScenario = btn.dataset.scenario;
+  reset();
+}
+
+function setGuard(on) {
+  guardOn = on;
+  document.getElementById('btnOff').classList.toggle('on', !on);
+  document.getElementById('btnOn').classList.toggle('on', on);
+}
+
+function reset() {
+  document.getElementById('brokenLog').innerHTML = '<span class="log-dim">Press run to simulate...</span>';
+  document.getElementById('guardedLog').innerHTML = '<span class="log-dim">Press run to simulate...</span>';
+  document.getElementById('brokenBadge').textContent = 'waiting';
+  document.getElementById('guardedBadge').textContent = 'waiting';
+  document.getElementById('mBroken').textContent = '—';
+  document.getElementById('mGuarded').textContent = '—';
+  document.getElementById('mImpact').textContent = '—';
+  document.getElementById('insight').textContent = 'Run a simulation to see the execution analysis.';
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function appendLog(id, html, delay) {
+  await sleep(delay);
+  const el = document.getElementById(id);
+  if (el.querySelector('.log-dim')) el.innerHTML = '';
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = html;
+  el.appendChild(line);
+}
+
+async function runSim() {
+  if (running) return;
+  running = true;
+  reset();
+  const retries = parseInt(document.getElementById('retrySlider').value);
+  const sc = SCENARIOS[currentScenario];
+  let t = 0;
+
+  // broken side always shows all executions
+  for (let i = 1; i <= retries; i++) {
+    for (const line of sc.actionLog(i)) {
+      await appendLog('brokenLog', line, t);
+      t += 180;
+    }
+    for (const line of sc.executeLog(i)) {
+      await appendLog('brokenLog', line, t);
+      t += 180;
+    }
+    t += 80;
+  }
+  document.getElementById('brokenBadge').textContent = `${retries} executions`;
+
+  // guarded side: first attempt executes, rest are blocked
+  let gt = 300;
+  for (let i = 1; i <= retries; i++) {
+    for (const line of sc.actionLog(i)) {
+      await appendLog('guardedLog', line, gt);
+      gt += 180;
+    }
+    if (i === 1) {
+      for (const line of sc.firstLog()) {
+        await appendLog('guardedLog', line, gt);
+        gt += 180;
+      }
+    } else {
+      for (const line of sc.blockLog(i)) {
+        await appendLog('guardedLog', line, gt);
+        gt += 180;
+      }
+    }
+    gt += 80;
+  }
+  document.getElementById('guardedBadge').textContent = '1 execution';
+
+  await sleep(Math.max(t, gt) + 200);
+
+  document.getElementById('mBroken').textContent = retries;
+  document.getElementById('mGuarded').textContent = '1';
+
+  const impact = sc.amount > 0
+    ? `${sc.currency}${((retries - 1) * sc.amount).toFixed(2)} saved`
+    : `${retries - 1} extra ${sc.unit} blocked`;
+  document.getElementById('mImpact').textContent = impact;
+  document.getElementById('insight').innerHTML = sc.insight(retries, 1, retries);
+
+  running = false;
+}
+</script>
