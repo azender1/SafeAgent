@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeAgent — Execution Guard Demo</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #070707;
+  --bg2: #111;
+  --bg3: #181818;
+  --border: rgba(255,255,255,0.07);
+  --text: #f0ede8;
+  --muted: #666;
+  --accent: #e8ff47;
+  --danger: #ff3b3b;
+  --safe: #3bff8a;
+  --mono: 'IBM Plex Mono', monospace;
+  --display: 'Syne', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem 1rem 4rem;
+  -webkit-font-smoothing: antialiased;
+}
+
+.header {
+  text-align: center;
+  margin-bottom: 3rem;
+  max-width: 700px;
+}
+
+.tag {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  display: block;
+}
+
+h1 {
+  font-family: var(--display);
+  font-size: clamp(1.8rem, 5vw, 3rem);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin-bottom: 1rem;
+}
+
+h1 span { color: var(--danger); }
+
+.sub {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+/* SCENARIO SELECTOR */
+.scenarios {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 2.5rem;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.scenario-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 14px;
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  color: var(--muted);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.15s;
+  letter-spacing: 0.05em;
+}
+
+.scenario-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(232,255,71,0.06);
+}
+
+/* MAIN DEMO */
+.demo-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  width: 100%;
+  max-width: 900px;
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+.panel {
+  background: var(--bg2);
+  padding: 1.75rem;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 0.5px solid var(--border);
+}
+
+.panel-label {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.panel-label.bad { color: var(--danger); }
+.panel-label.good { color: var(--safe); }
+
+.panel-status {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 3px 8px;
+  border: 0.5px solid var(--border);
+  border-radius: 2px;
+}
+
+/* EXECUTION LOG */
+.log {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 200px;
+}
+
+.log-entry {
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-radius: 2px;
+  border-left: 2px solid transparent;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.3s, transform 0.3s;
+}
+
+.log-entry.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.log-entry.info { 
+  color: var(--muted); 
+  border-left-color: var(--border);
+  background: var(--bg3);
+}
+
+.log-entry.action { 
+  color: var(--text); 
+  border-left-color: var(--accent);
+  background: rgba(232,255,71,0.04);
+}
+
+.log-entry.error { 
+  color: var(--danger); 
+  border-left-color: var(--danger);
+  background: rgba(255,59,59,0.06);
+}
+
+.log-entry.success { 
+  color: var(--safe); 
+  border-left-color: var(--safe);
+  background: rgba(59,255,138,0.06);
+}
+
+.log-entry.blocked { 
+  color: var(--safe); 
+  border-left-color: var(--safe);
+  background: rgba(59,255,138,0.06);
+}
+
+/* COUNTER */
+.counter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 0.5px solid var(--border);
+}
+
+.counter-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.counter-val {
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  transition: color 0.3s;
+}
+
+.counter-val.bad { color: var(--danger); }
+.counter-val.good { color: var(--safe); }
+
+.counter-sub {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* RUN BUTTON */
+.run-btn {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 14px 40px;
+  background: var(--accent);
+  color: #070707;
+  border: none;
+  border-radius: 2px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  transition: opacity 0.15s, transform 0.1s;
+  text-transform: uppercase;
+}
+
+.run-btn:hover { opacity: 0.88; }
+.run-btn:active { transform: scale(0.98); }
+.run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* IMPACT BAR */
+.impact {
+  width: 100%;
+  max-width: 900px;
+  background: var(--bg2);
+  border: 0.5px solid var(--border);
+  border-radius: 4px;
+  padding: 1.5rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.impact-item {
+  text-align: center;
+}
+
+.impact-val {
+  font-family: var(--display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  transition: color 0.4s;
+}
+
+.impact-val.danger { color: var(--danger); }
+.impact-val.safe { color: var(--safe); }
+
+.impact-label {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
+.impact-divider {
+  width: 0.5px;
+  height: 40px;
+  background: var(--border);
+}
+
+/* VERDICT */
+.verdict {
+  width: 100%;
+  max-width: 900px;
+  padding: 1.25rem 2rem;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: center;
+  display: none;
+  margin-bottom: 2rem;
+}
+
+.verdict.bad {
+  background: rgba(255,59,59,0.06);
+  border: 0.5px solid rgba(255,59,59,0.2);
+  color: var(--danger);
+}
+
+.verdict.good {
+  background: rgba(59,255,138,0.06);
+  border: 0.5px solid rgba(59,255,138,0.2);
+  color: var(--safe);
+}
+
+/* FOOTER */
+.footer-links {
+  display: flex;
+  gap: 2rem;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.footer-links a { color: var(--muted); transition: color 0.15s; }
+.footer-links a:hover { color: var(--accent); }
+
+/* MOBILE */
+@media (max-width: 600px) {
+  .demo-grid { grid-template-columns: 1fr; }
+  .impact { flex-direction: column; gap: 1rem; }
+  .impact-divider { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <span class="tag">Execution Guard Demo · SafeAgent</span>
+  <h1>AI agents are <span>double-paying</span><br>your users right now.</h1>
+  <p class="sub">Pick a scenario. Hit run. Watch what happens without an execution guard — then with one.</p>
+</div>
+
+<div class="scenarios">
+  <button class="scenario-btn active" onclick="setScenario('payment')">💳 Payment</button>
+  <button class="scenario-btn" onclick="setScenario('trade')">📈 Trade order</button>
+  <button class="scenario-btn" onclick="setScenario('email')">📧 Email send</button>
+  <button class="scenario-btn" onclick="setScenario('payout')">🏆 Tournament payout</button>
+</div>
+
+<div class="demo-grid">
+  <!-- WITHOUT -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label bad">❌ Without execution guard</span>
+      <span class="panel-status" id="status-bad">idle</span>
+    </div>
+    <div class="log" id="log-bad"></div>
+    <div class="counter-row">
+      <div>
+        <div class="counter-label">Executions fired</div>
+        <div class="counter-sub" id="sub-bad">—</div>
+      </div>
+      <div class="counter-val bad" id="count-bad">0</div>
+    </div>
+  </div>
+
+  <!-- WITH -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-label good">✅ With SafeAgent execution guard</span>
+      <span class="panel-status" id="status-good">idle</span>
+    </div>
+    <div class="log" id="log-good"></div>
+    <div class="counter-row">
+      <div>
+        <div class="counter-label">Executions fired</div>
+        <div class="counter-sub" id="sub-good">—</div>
+      </div>
+      <div class="counter-val good" id="count-good">0</div>
+    </div>
+  </div>
+</div>
+
+<div class="impact">
+  <div class="impact-item">
+    <div class="impact-val danger" id="impact-loss">$0</div>
+    <div class="impact-label">Duplicate loss (no guard)</div>
+  </div>
+  <div class="impact-divider"></div>
+  <div class="impact-item">
+    <div class="impact-val safe" id="impact-saved">$0 saved</div>
+    <div class="impact-label">Prevented by execution guard</div>
+  </div>
+  <div class="impact-divider"></div>
+  <div class="impact-item">
+    <div class="impact-val" id="impact-attempts" style="color: var(--muted)">0</div>
+    <div class="impact-label">Retry attempts simulated</div>
+  </div>
+</div>
+
+<div class="verdict bad" id="verdict-bad">
+  ⚠️ Without an execution guard — <span id="verdict-bad-text"></span>
+</div>
+<div class="verdict good" id="verdict-good">
+  ✅ SafeAgent execution guard — same request_id returned the original receipt. Side effect fired exactly once.
+</div>
+
+<button class="run-btn" id="run-btn" onclick="runDemo()">Run simulation →</button>
+
+<br><br>
+
+<div class="footer-links">
+  <a href="https://github.com/azender1/SafeAgent">GitHub</a>
+  <a href="https://pypi.org/project/safeagent-exec-guard/">pip install</a>
+  <a href="https://azender1.github.io/SafeAgent">Landing page</a>
+  <a href="https://dev.to/azender1">Dev.to</a>
+</div>
+
+<script>
+const SCENARIOS = {
+  payment: {
+    amount: 149,
+    unit: '$',
+    label: 'Stripe charge',
+    steps_bad: [
+      { type: 'info', text: 'Agent: charge customer $149 for subscription renewal' },
+      { type: 'action', text: 'request_id: charge:cus_C123:2026-04-26' },
+      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
+      { type: 'error', text: '✗ Network timeout (28s). No confirmation received.' },
+      { type: 'info', text: 'Agent: no confirmation — retrying...' },
+      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
+      { type: 'error', text: '✗ DUPLICATE CHARGE PROCESSED — $149 charged again' },
+      { type: 'error', text: 'Customer billed $298. Support ticket incoming.' },
+    ],
+    steps_good: [
+      { type: 'info', text: 'Agent: charge customer $149 for subscription renewal' },
+      { type: 'action', text: 'request_id: charge:cus_C123:2026-04-26' },
+      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
+      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
+      { type: 'error', text: '✗ Network timeout (28s). Receipt stored.' },
+      { type: 'info', text: 'Agent: no confirmation — retrying...' },
+      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
+      { type: 'success', text: '✓ Returning original receipt. Charge NOT re-submitted.' },
+      { type: 'success', text: 'Customer billed $149. Exactly once.' },
+    ],
+    verdict_bad: 'customer charged $298 instead of $149. Duplicate execution. No recovery without manual refund.',
+  },
+  trade: {
+    amount: 3100,
+    unit: '$',
+    label: 'TQQQ order',
+    steps_bad: [
+      { type: 'info', text: 'Bot: BUY 10 TQQQ — momentum signal confirmed' },
+      { type: 'action', text: 'request_id: trade:TQQQ:buy:09:47:00' },
+      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
+      { type: 'error', text: '✗ Broker ACK timeout. Order status unknown.' },
+      { type: 'info', text: 'Bot: no confirmation — retrying (attempt 2/3)...' },
+      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
+      { type: 'error', text: '✗ SECOND ORDER FILLED — 20 shares purchased' },
+      { type: 'error', text: 'Position doubled. 3x leveraged ETF. Unintended exposure.' },
+    ],
+    steps_good: [
+      { type: 'info', text: 'Bot: BUY 10 TQQQ — momentum signal confirmed' },
+      { type: 'action', text: 'request_id: trade:TQQQ:buy:09:47:00' },
+      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
+      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
+      { type: 'error', text: '✗ Broker ACK timeout. Receipt stored.' },
+      { type: 'info', text: 'Bot: no confirmation — retrying (attempt 2/3)...' },
+      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
+      { type: 'success', text: '✓ Returning original order receipt. No second submission.' },
+      { type: 'success', text: '10 shares. Intended position. Exactly once.' },
+    ],
+    verdict_bad: 'position doubled on a 3x leveraged ETF. Unintended $3,100+ exposure from a single retry.',
+  },
+  email: {
+    amount: 0,
+    unit: '',
+    label: 'Transactional email',
+    steps_bad: [
+      { type: 'info', text: 'Agent: send password reset email to user@example.com' },
+      { type: 'action', text: 'request_id: email:reset:user_789:2026-04-26' },
+      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
+      { type: 'error', text: '✗ SMTP delivery timeout. Status unknown.' },
+      { type: 'info', text: 'Agent: no confirmation — retrying...' },
+      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
+      { type: 'error', text: '✗ DUPLICATE EMAIL SENT — user receives 2 reset links' },
+      { type: 'error', text: 'Confusing UX. First link now invalid. Support load.' },
+    ],
+    steps_good: [
+      { type: 'info', text: 'Agent: send password reset email to user@example.com' },
+      { type: 'action', text: 'request_id: email:reset:user_789:2026-04-26' },
+      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
+      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
+      { type: 'error', text: '✗ SMTP timeout. Receipt stored.' },
+      { type: 'info', text: 'Agent: no confirmation — retrying...' },
+      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
+      { type: 'success', text: '✓ Returning original send receipt. Email NOT re-sent.' },
+      { type: 'success', text: 'One email. One reset link. User not confused.' },
+    ],
+    verdict_bad: 'user received 2 password reset emails. Both links active, creating security confusion.',
+  },
+  payout: {
+    amount: 450,
+    unit: '$',
+    label: 'Tournament prize',
+    steps_bad: [
+      { type: 'info', text: 'PeerPlay: tournament T-901 complete — pay winner $450' },
+      { type: 'action', text: 'request_id: payout:T-901:winner_456' },
+      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
+      { type: 'error', text: '✗ Verification agent timeout. Retrying confirmation...' },
+      { type: 'info', text: 'Agent: re-verifying match result...' },
+      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
+      { type: 'error', text: '✗ DUPLICATE PAYOUT — $900 released from escrow' },
+      { type: 'error', text: 'Escrow pool overdrafted. Other players underpaid.' },
+    ],
+    steps_good: [
+      { type: 'info', text: 'PeerPlay: tournament T-901 complete — pay winner $450' },
+      { type: 'action', text: 'request_id: payout:T-901:winner_456' },
+      { type: 'action', text: '→ SafeAgent finality gate: confidence 94% > threshold ✓' },
+      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
+      { type: 'error', text: '✗ Verification agent timeout. Receipt stored.' },
+      { type: 'info', text: 'Agent: re-verifying match result...' },
+      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
+      { type: 'success', text: '✓ Original payout receipt returned. Escrow NOT re-released.' },
+      { type: 'success', text: '$450 paid. Exactly once. Escrow intact.' },
+    ],
+    verdict_bad: 'winner paid $900 instead of $450. Escrow overdrafted. Built-in financial invariant broken.',
+  },
+};
+
+let currentScenario = 'payment';
+let running = false;
+
+function setScenario(s) {
+  currentScenario = s;
+  document.querySelectorAll('.scenario-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['payment','trade','email','payout'][i] === s);
+  });
+  resetDemo();
+}
+
+function resetDemo() {
+  document.getElementById('log-bad').innerHTML = '';
+  document.getElementById('log-good').innerHTML = '';
+  document.getElementById('count-bad').textContent = '0';
+  document.getElementById('count-good').textContent = '0';
+  document.getElementById('sub-bad').textContent = '—';
+  document.getElementById('sub-good').textContent = '—';
+  document.getElementById('status-bad').textContent = 'idle';
+  document.getElementById('status-good').textContent = 'idle';
+  document.getElementById('impact-loss').textContent = '$0';
+  document.getElementById('impact-saved').textContent = '$0 saved';
+  document.getElementById('impact-attempts').textContent = '0';
+  document.getElementById('verdict-bad').style.display = 'none';
+  document.getElementById('verdict-good').style.display = 'none';
+  document.getElementById('run-btn').disabled = false;
+}
+
+function addLog(panelId, type, text, delay) {
+  return new Promise(resolve => {
+    setTimeout(() => {
+      const log = document.getElementById(panelId);
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = text;
+      log.appendChild(entry);
+      requestAnimationFrame(() => entry.classList.add('visible'));
+      log.scrollTop = log.scrollHeight;
+      resolve();
+    }, delay);
+  });
+}
+
+async function runDemo() {
+  if (running) return;
+  running = true;
+  document.getElementById('run-btn').disabled = true;
+  resetDemo();
+
+  const s = SCENARIOS[currentScenario];
+  const badLog = 'log-bad';
+  const goodLog = 'log-good';
+
+  document.getElementById('status-bad').textContent = 'running';
+  document.getElementById('status-good').textContent = 'running';
+
+  let badCount = 0;
+  let goodCount = 0;
+  let attempts = 0;
+
+  const baseDelay = 600;
+
+  // Run both panels simultaneously
+  const badPromises = s.steps_bad.map((step, i) => {
+    const delay = i * baseDelay;
+    return addLog(badLog, step.type, step.text, delay).then(() => {
+      if (step.type === 'action' && step.text.includes('POST') || step.text.includes('escrow.release') || step.text.includes('send_invoice')) {
+        // count executions
+      }
+      if (step.type === 'error' && step.text.includes('DUPLICATE')) {
+        badCount++;
+        setTimeout(() => {
+          document.getElementById('count-bad').textContent = '2';
+          document.getElementById('sub-bad').textContent = 'side effect fired twice';
+        }, 100);
+      }
+      if (step.type === 'error' && step.text.includes('timeout')) {
+        attempts++;
+      }
+    });
+  });
+
+  const goodPromises = s.steps_good.map((step, i) => {
+    const delay = i * baseDelay;
+    return addLog(goodLog, step.type, step.text, delay);
+  });
+
+  await Promise.all([...badPromises, ...goodPromises]);
+
+  // Final state
+  document.getElementById('count-bad').textContent = '2';
+  document.getElementById('count-good').textContent = '1';
+  document.getElementById('sub-bad').textContent = 'duplicate execution';
+  document.getElementById('sub-good').textContent = 'exactly once ✓';
+  document.getElementById('status-bad').textContent = 'complete';
+  document.getElementById('status-good').textContent = 'complete';
+
+  // Impact
+  const loss = s.amount;
+  if (loss > 0) {
+    document.getElementById('impact-loss').textContent = `$${loss} lost`;
+    document.getElementById('impact-saved').textContent = `$${loss} saved`;
+  } else {
+    document.getElementById('impact-loss').textContent = '1 duplicate';
+    document.getElementById('impact-saved').textContent = '0 duplicates';
+  }
+  document.getElementById('impact-attempts').textContent = '2';
+
+  // Verdict
+  const vBad = document.getElementById('verdict-bad');
+  const vGood = document.getElementById('verdict-good');
+  document.getElementById('verdict-bad-text').textContent = s.verdict_bad;
+  vBad.style.display = 'block';
+  vGood.style.display = 'block';
+
+  document.getElementById('run-btn').disabled = false;
+  document.getElementById('run-btn').textContent = 'Run again →';
+  running = false;
+}
+</script>
+</body>
+</html>
