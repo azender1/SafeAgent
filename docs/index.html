@@ -3,712 +3,833 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Execution Simulator</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<title>SafeAgent — Execution Guard for AI Agents</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #0d0f12;
-  --surface: #141720;
-  --surface2: #1c2030;
-  --border: rgba(255,255,255,0.07);
-  --border2: rgba(255,255,255,0.13);
-  --text: #e8eaf0;
-  --muted: #6b7280;
-  --dim: #3d4455;
-  --accent: #4f8eff;
-  --accent-dim: rgba(79,142,255,0.12);
-  --green: #22c55e;
-  --green-dim: rgba(34,197,94,0.1);
-  --red: #ef4444;
-  --red-dim: rgba(239,68,68,0.1);
-  --amber: #f59e0b;
-  --mono: 'JetBrains Mono', monospace;
-  --sans: 'DM Sans', sans-serif;
-}
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080808;
+    --bg2: #0f0f0f;
+    --bg3: #161616;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #f0ede8;
+    --muted: #888580;
+    --accent: #e8ff47;
+    --accent2: #47ffd4;
+    --danger: #ff4747;
+    --mono: 'IBM Plex Mono', monospace;
+    --display: 'Syne', sans-serif;
+    --body: 'Inter', sans-serif;
+  }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  min-height: 100vh;
-  padding: 0;
-  overflow-x: hidden;
-}
+  html { scroll-behavior: smooth; }
 
-.grid-bg {
-  position: fixed;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(79,142,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(79,142,255,0.03) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-  z-index: 0;
-}
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
 
-.wrap {
-  position: relative;
-  z-index: 1;
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 48px 24px 64px;
-}
+  a { color: inherit; text-decoration: none; }
 
-.header {
-  margin-bottom: 48px;
-}
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2rem; height: 56px;
+    background: rgba(8,8,8,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
 
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--accent-dim);
-  border: 1px solid rgba(79,142,255,0.2);
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 4px 10px;
-  border-radius: 100px;
-  margin-bottom: 16px;
-}
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
 
-.badge-dot {
-  width: 6px; height: 6px;
-  background: var(--accent);
-  border-radius: 50%;
-  animation: pulse 2s infinite;
-}
+  .nav-links {
+    display: flex; gap: 2rem;
+    font-size: 13px; color: var(--muted);
+    list-style: none;
+  }
 
-@keyframes pulse {
-  0%,100%{ opacity:1; transform:scale(1); }
-  50%{ opacity:0.5; transform:scale(0.8); }
-}
+  .nav-links a:hover { color: var(--text); }
 
-h1 {
-  font-size: clamp(28px, 4vw, 42px);
-  font-weight: 600;
-  color: var(--text);
-  line-height: 1.15;
-  letter-spacing: -0.02em;
-  margin-bottom: 12px;
-}
+  .nav-cta {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 6px 16px;
+    border: 0.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 2px;
+    transition: background 0.15s;
+  }
 
-h1 span { color: var(--accent); }
+  .nav-cta:hover { background: rgba(232,255,71,0.08); }
 
-.subtitle {
-  font-size: 15px;
-  color: var(--muted);
-  line-height: 1.6;
-  max-width: 520px;
-}
+  /* HERO */
+  .hero {
+    min-height: 100vh;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 7rem 2rem 4rem;
+    max-width: 1100px; margin: 0 auto;
+    position: relative;
+  }
 
-.section-label {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--dim);
-  margin-bottom: 10px;
-}
+  .hero-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 11px;
+    color: var(--accent2);
+    border: 0.5px solid rgba(71,255,212,0.25);
+    padding: 4px 12px; border-radius: 2px;
+    margin-bottom: 2rem;
+    width: fit-content;
+  }
 
-/* SCENARIOS */
-.scenarios {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-bottom: 28px;
-}
+  .badge-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--accent2);
+    animation: pulse 2s ease-in-out infinite;
+  }
 
-@media(max-width:600px){ .scenarios{ grid-template-columns:repeat(2,1fr); } }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
 
-.sc-btn {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 14px;
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-}
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(2.8rem, 6vw, 5rem);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+  }
 
-.sc-btn:hover { border-color: var(--border2); background: var(--surface2); }
+  .hero h1 em {
+    font-style: normal;
+    color: var(--accent);
+  }
 
-.sc-btn.active {
-  border-color: var(--accent);
-  background: var(--accent-dim);
-}
+  .hero-sub {
+    font-size: 1.15rem;
+    color: var(--muted);
+    max-width: 580px;
+    line-height: 1.65;
+    margin-bottom: 2.5rem;
+  }
 
-.sc-btn.active::before {
-  content: '';
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 10px 10px 0 0;
-}
+  .hero-sub strong {
+    color: var(--text);
+    font-weight: 500;
+  }
 
-.sc-icon {
-  font-size: 20px;
-  margin-bottom: 8px;
-  display: block;
-}
+  .hero-actions {
+    display: flex; gap: 1rem; flex-wrap: wrap;
+    margin-bottom: 3.5rem;
+  }
 
-.sc-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
-  display: block;
-  margin-bottom: 2px;
-}
+  .btn-primary {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 24px;
+    background: var(--accent);
+    color: #080808;
+    border: none; border-radius: 2px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+  }
 
-.sc-sub {
-  font-size: 11px;
-  color: var(--muted);
-  display: block;
-  line-height: 1.4;
-}
+  .btn-primary:hover { opacity: 0.88; }
 
-.sc-btn.active .sc-name { color: var(--accent); }
+  .btn-ghost {
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 12px 24px;
+    background: transparent;
+    color: var(--muted);
+    border: 0.5px solid var(--border2);
+    border-radius: 2px;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+  }
 
-/* CONTROLS */
-.controls-row {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  margin-bottom: 24px;
-  flex-wrap: wrap;
-}
+  .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
 
-.ctrl-group {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  /* INSTALL STRIP */
+  .install-strip {
+    display: flex; align-items: center; gap: 1rem;
+    font-family: var(--mono); font-size: 13px;
+    color: var(--muted);
+  }
 
-.ctrl-label {
-  font-size: 13px;
-  color: var(--muted);
-}
+  .install-cmd {
+    background: var(--bg3);
+    border: 0.5px solid var(--border);
+    border-radius: 2px;
+    padding: 8px 16px;
+    color: var(--accent);
+    display: flex; align-items: center; gap: 10px;
+  }
 
-input[type=range] {
-  -webkit-appearance: none;
-  width: 120px;
-  height: 4px;
-  background: var(--surface2);
-  border-radius: 2px;
-  outline: none;
-  border: 1px solid var(--border);
-}
+  .install-meta {
+    display: flex; gap: 1.5rem; font-size: 11px;
+  }
 
-input[type=range]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 16px; height: 16px;
-  background: var(--accent);
-  border-radius: 50%;
-  cursor: pointer;
-  border: 2px solid var(--bg);
-}
+  .install-meta span { display: flex; align-items: center; gap: 4px; }
 
-.retry-num {
-  font-family: var(--mono);
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--accent);
-  min-width: 18px;
-}
+  /* THE PROBLEM */
+  .section {
+    max-width: 1100px; margin: 0 auto;
+    padding: 6rem 2rem;
+  }
 
-/* GUARD TOGGLE */
-.guard-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
 
-.toggle-track {
-  width: 48px; height: 26px;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 100px;
-  cursor: pointer;
-  position: relative;
-  transition: background 0.2s, border-color 0.2s;
-}
+  .section h2 {
+    font-family: var(--display);
+    font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin-bottom: 1.5rem;
+  }
 
-.toggle-track.on {
-  background: var(--green-dim);
-  border-color: var(--green);
-}
+  /* FLOW DIAGRAM */
+  .flow {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+    align-items: center;
+    gap: 0;
+    margin: 3rem 0;
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 2.5rem 2rem;
+  }
 
-.toggle-thumb {
-  width: 18px; height: 18px;
-  background: var(--muted);
-  border-radius: 50%;
-  position: absolute;
-  top: 3px; left: 3px;
-  transition: transform 0.2s, background 0.2s;
-}
+  .flow-step {
+    text-align: center;
+    padding: 0 0.5rem;
+  }
 
-.toggle-track.on .toggle-thumb {
-  transform: translateX(22px);
-  background: var(--green);
-}
+  .flow-icon {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 0.5rem;
+  }
 
-.toggle-text {
-  font-size: 13px;
-  color: var(--muted);
-  min-width: 28px;
-}
+  .flow-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
 
-.toggle-track.on + .toggle-text { color: var(--green); }
+  .flow-sub {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+  }
 
-.run-btn {
-  margin-left: auto;
-  background: var(--accent);
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 22px;
-  font-family: var(--sans);
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: opacity 0.15s, transform 0.1s;
-  letter-spacing: -0.01em;
-}
+  .flow-arrow {
+    color: var(--border2);
+    font-size: 18px;
+    padding: 0 0.25rem;
+  }
 
-.run-btn:hover { opacity: 0.88; }
-.run-btn:active { transform: scale(0.97); }
-.run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .flow-step.bad .flow-label { color: var(--danger); }
+  .flow-step.bad .flow-sub { color: rgba(255,71,71,0.6); }
 
-/* PANELS */
-.panels {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 20px;
-}
+  /* ORIGIN STORY */
+  .origin {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-left: 2px solid var(--accent);
+    border-radius: 0 4px 4px 0;
+    padding: 2rem 2.5rem;
+    margin: 3rem 0;
+  }
 
-@media(max-width:580px){ .panels{ grid-template-columns:1fr; } }
+  .origin-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 1rem;
+  }
 
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
+  .origin p {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 680px;
+  }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface2);
-}
+  .origin p strong {
+    color: var(--text);
+    font-weight: 500;
+  }
 
-.panel-header-dots {
-  display: flex;
-  gap: 5px;
-}
+  .origin-patent {
+    margin-top: 1.5rem;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex; gap: 2rem;
+  }
 
-.dot {
-  width: 10px; height: 10px;
-  border-radius: 50%;
-}
+  .origin-patent span { color: var(--accent2); }
 
-.dot-r { background: #ff5f57; }
-.dot-y { background: #ffbd2e; }
-.dot-g { background: #28c840; }
+  /* HOW IT WORKS */
+  .how-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 3rem;
+  }
 
-.panel-title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--muted);
-  font-family: var(--mono);
-}
+  .how-card {
+    background: var(--bg2);
+    padding: 2rem 1.75rem;
+  }
 
-.panel-status {
-  font-size: 11px;
-  font-family: var(--mono);
-  padding: 3px 8px;
-  border-radius: 4px;
-  font-weight: 500;
-}
+  .how-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
 
-.panel-status.waiting { background: var(--surface); color: var(--dim); border: 1px solid var(--border); }
-.panel-status.bad { background: var(--red-dim); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
-.panel-status.good { background: var(--green-dim); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+  .how-title {
+    font-family: var(--display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.75rem;
+    line-height: 1.2;
+  }
 
-.log {
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.8;
-  padding: 16px;
-  min-height: 220px;
-  color: var(--muted);
-}
+  .how-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.65;
+  }
 
-.log-dim { color: var(--dim); }
-.log-action { color: #93c5fd; }
-.log-warn { color: var(--amber); }
-.log-danger { color: var(--red); font-weight: 500; }
-.log-success { color: var(--green); font-weight: 500; }
-.log-info { color: var(--muted); }
+  /* CODE BLOCK */
+  .code-block {
+    background: var(--bg3);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1.75rem 2rem;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.8;
+    overflow-x: auto;
+    margin: 2rem 0;
+  }
 
-/* METRICS */
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(3,1fr);
-  gap: 10px;
-  margin-bottom: 20px;
-}
+  .code-block .cm { color: #555; }
+  .code-block .ck { color: #c792ea; }
+  .code-block .cs { color: #c3e88d; }
+  .code-block .cf { color: #82aaff; }
+  .code-block .cv { color: var(--accent2); }
+  .code-block .ca { color: var(--accent); }
 
-@media(max-width:480px){ .metrics{ grid-template-columns:1fr 1fr; } }
+  /* REGISTRY PROOF */
+  .registry-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin: 2rem 0;
+    flex-wrap: wrap;
+  }
 
-.metric {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
-}
+  .registry-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    background: rgba(71,255,212,0.08);
+    border: 0.5px solid rgba(71,255,212,0.25);
+    color: var(--accent2);
+    border-radius: 2px;
+    white-space: nowrap;
+  }
 
-.metric-label {
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 6px;
-  line-height: 1.4;
-}
+  .registry-name {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+  }
 
-.metric-val {
-  font-family: var(--mono);
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--dim);
-}
+  .registry-meta {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 4px;
+  }
 
-.metric-val.danger { color: var(--red); }
-.metric-val.success { color: var(--green); }
+  /* USE CASES */
+  .use-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    margin-top: 3rem;
+  }
 
-/* INSIGHT */
-.insight {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
-  border-radius: 0 10px 10px 0;
-  padding: 14px 18px;
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.7;
-  margin-bottom: 20px;
-}
+  .use-card {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 4px;
+    padding: 1.75rem;
+    transition: border-color 0.15s;
+  }
 
-.insight strong { color: var(--text); font-weight: 500; }
+  .use-card:hover { border-color: var(--border2); }
 
-/* ASK BTN */
-.ask-row {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+  .use-icon {
+    font-family: var(--mono);
+    font-size: 20px;
+    margin-bottom: 1rem;
+    color: var(--accent);
+  }
 
-.ask-btn {
-  background: transparent;
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  padding: 9px 16px;
-  font-family: var(--sans);
-  font-size: 13px;
-  color: var(--muted);
-  cursor: pointer;
-  transition: all 0.15s;
-  text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
+  .use-title {
+    font-family: var(--display);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 0.5rem;
+  }
 
-.ask-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-dim);
-}
+  .use-example {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--danger);
+    margin-bottom: 0.75rem;
+  }
 
-.log-line { display: block; animation: fadeIn 0.15s ease; }
-@keyframes fadeIn { from{ opacity:0; transform:translateY(2px); } to{ opacity:1; transform:none; } }
+  .use-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* AUDIT CTA */
+  .audit-section {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-top: 2px solid var(--accent);
+    border-radius: 0 0 4px 4px;
+    padding: 3.5rem 3rem;
+    text-align: center;
+    max-width: 1100px;
+    margin: 0 auto 6rem;
+  }
+
+  .audit-price {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 1.5rem;
+  }
+
+  .audit-section h2 {
+    font-family: var(--display);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 700;
+    margin-bottom: 1rem;
+  }
+
+  .audit-section p {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 500px;
+    margin: 0 auto 2rem;
+    line-height: 1.65;
+  }
+
+  /* FOOTER */
+  footer {
+    border-top: 0.5px solid var(--border);
+    padding: 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+
+  .footer-left {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .footer-links {
+    display: flex; gap: 1.5rem;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    list-style: none;
+  }
+
+  .footer-links a:hover { color: var(--text); }
+
+  /* DIVIDER */
+  .divider {
+    height: 0.5px;
+    background: var(--border);
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  /* STATE MACHINE */
+  .state-flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    margin: 2rem 0;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .state {
+    padding: 6px 14px;
+    border-radius: 2px;
+    border: 0.5px solid var(--border2);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .state.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(232,255,71,0.06);
+  }
+
+  .state-sep {
+    color: var(--border2);
+    padding: 0 2px;
+  }
+
+  /* FRAMEWORKS */
+  .framework-list {
+    display: flex; flex-wrap: wrap; gap: 8px;
+    margin-top: 1.5rem;
+  }
+
+  .fw-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border: 0.5px solid var(--border2);
+    border-radius: 2px;
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
-<div class="grid-bg"></div>
-<div class="wrap">
 
-  <div class="header">
-    <div class="badge"><span class="badge-dot"></span>Live simulator</div>
-    <h1>Execution simulator<br><span>SafeAgent</span></h1>
-    <p class="subtitle">Pick a scenario, set retry count, toggle the guard, then run. See exactly what breaks — and what the guard prevents.</p>
+<nav>
+  <div class="nav-logo">SAFEAGENT</div>
+  <ul class="nav-links">
+    <li><a href="#how">How it works</a></li>
+    <li><a href="#usecases">Use cases</a></li>
+    <li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+    <li><a href="https://pypi.org/project/safeagent-exec-guard/">PyPI</a></li>
+  </ul>
+  <a href="#audit" class="nav-cta">Get audit →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">
+    <div class="badge-dot"></div>
+    Now listed in the official MCP registry — io.github.azender1/safeagent
   </div>
 
-  <div class="section-label">Scenario</div>
-  <div class="scenarios" id="scenarios">
-    <button class="sc-btn active" data-s="payment" onclick="setScenario(this)">
-      <span class="sc-icon">💳</span>
-      <span class="sc-name">Payment</span>
-      <span class="sc-sub">Stripe charge on retry</span>
-    </button>
-    <button class="sc-btn" data-s="trade" onclick="setScenario(this)">
-      <span class="sc-icon">📈</span>
-      <span class="sc-name">Trade order</span>
-      <span class="sc-sub">Broker ACK timeout</span>
-    </button>
-    <button class="sc-btn" data-s="email" onclick="setScenario(this)">
-      <span class="sc-icon">✉️</span>
-      <span class="sc-name">Email send</span>
-      <span class="sc-sub">SMTP retry duplicate</span>
-    </button>
-    <button class="sc-btn" data-s="webhook" onclick="setScenario(this)">
-      <span class="sc-icon">⚡</span>
-      <span class="sc-name">Webhook</span>
-      <span class="sc-sub">n8n concurrent trigger</span>
-    </button>
+  <h1>AI agents retry.<br>Retries <em>kill you.</em><br>SafeAgent doesn't.</h1>
+
+  <p class="hero-sub">
+    An execution guard that sits between your agent and any irreversible action.
+    <strong>Same request_id returns the original receipt — side effect never fires twice.</strong>
+    Built from a real financial system. Proven in production.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://pypi.org/project/safeagent-exec-guard/" class="btn-primary">Install from PyPI</a>
+    <a href="https://github.com/azender1/SafeAgent" class="btn-ghost">View on GitHub</a>
+    <a href="https://azender1.github.io/SafeAgent" class="btn-ghost">Live demo</a>
   </div>
 
-  <div class="controls-row">
-    <div class="ctrl-group">
-      <span class="ctrl-label">Retries</span>
-      <input type="range" min="1" max="5" value="3" id="retrySlider" step="1" oninput="document.getElementById('retryVal').textContent=this.value">
-      <span class="retry-num" id="retryVal">3</span>
-    </div>
-    <div class="ctrl-group guard-toggle">
-      <span class="ctrl-label">Guard</span>
-      <div class="toggle-track" id="toggleTrack" onclick="toggleGuard()">
-        <div class="toggle-thumb"></div>
-      </div>
-      <span class="toggle-text" id="toggleText">Off</span>
-    </div>
-    <button class="run-btn" id="runBtn" onclick="runSim()">Run simulation</button>
-  </div>
-
-  <div class="panels">
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-header-dots">
-          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
-        </div>
-        <span class="panel-title">without_guard.py</span>
-        <span class="panel-status waiting" id="badgeA">idle</span>
-      </div>
-      <div class="log" id="logA"><span class="log-dim">$ waiting for simulation...</span></div>
-    </div>
-    <div class="panel">
-      <div class="panel-header">
-        <div class="panel-header-dots">
-          <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
-        </div>
-        <span class="panel-title">with_safeagent.py</span>
-        <span class="panel-status waiting" id="badgeB">idle</span>
-      </div>
-      <div class="log" id="logB"><span class="log-dim">$ waiting for simulation...</span></div>
+  <div class="install-strip">
+    <div class="install-cmd">pip install safeagent-exec-guard</div>
+    <div class="install-meta">
+      <span>Python 3.10+</span>
+      <span>Apache-2.0</span>
+      <span>v0.1.14</span>
     </div>
   </div>
+</section>
 
-  <div class="metrics">
-    <div class="metric">
-      <div class="metric-label">Without guard<br>executions</div>
-      <div class="metric-val danger" id="mA">—</div>
+<div class="divider"></div>
+
+<!-- THE PROBLEM -->
+<section class="section">
+  <div class="section-label">01 — The problem</div>
+  <h2>Without a guard, every retry is a loaded gun.</h2>
+
+  <div class="flow">
+    <div class="flow-step">
+      <div class="flow-icon">AGENT</div>
+      <div class="flow-label">Decides to act</div>
+      <div class="flow-sub">call tool</div>
     </div>
-    <div class="metric">
-      <div class="metric-label">With guard<br>executions</div>
-      <div class="metric-val success" id="mB">—</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon">NETWORK</div>
+      <div class="flow-label">Times out</div>
+      <div class="flow-sub">no confirmation</div>
     </div>
-    <div class="metric">
-      <div class="metric-label">Impact<br>prevented</div>
-      <div class="metric-val success" id="mImpact">—</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="flow-icon">AGENT</div>
+      <div class="flow-label">Retries</div>
+      <div class="flow-sub">same call again</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step bad">
+      <div class="flow-icon">RESULT</div>
+      <div class="flow-label">Fires twice</div>
+      <div class="flow-sub">$$$, email, trade</div>
     </div>
   </div>
 
-  <div class="insight" id="insight">Run a simulation to see the execution analysis.</div>
+  <p style="color: var(--muted); font-size: 14px; max-width: 640px; line-height: 1.7;">
+    Agent frameworks handle retries at the transport layer. None of them know whether the side effect already happened. That gap — between the agent decision and the irreversible action — is where SafeAgent lives.
+  </p>
+</section>
 
-  <div class="ask-row">
-    <a class="ask-btn" href="https://github.com/azender1/SafeAgent" target="_blank">View repo on GitHub ↗</a>
-    <a class="ask-btn" href="https://pypi.org/project/safeagent-exec-guard/" target="_blank">pip install safeagent-exec-guard ↗</a>
+<div class="divider"></div>
+
+<!-- ORIGIN -->
+<section class="section" style="padding-top: 5rem; padding-bottom: 5rem;">
+  <div class="section-label">02 — Origin</div>
+  <h2>Discovered building a patented financial system.</h2>
+
+  <div class="origin">
+    <div class="origin-tag">Real stakes. Real discovery.</div>
+    <p>
+      While designing <strong>PeerPlay</strong> — a patented P2P wagering exchange for skill-based tournaments — a critical reliability failure appeared in the settlement layer. When a verification agent timed out and retried, the payout engine fired twice. One tournament, one result, two prize transfers. The patent protected the architecture. Nothing protected the execution boundary.
+    </p>
+    <p style="margin-top: 1rem;">
+      SafeAgent is the fix, extracted as a standalone primitive. <strong>The same problem exists in every AI agent that touches a real system.</strong>
+    </p>
+    <div class="origin-patent">
+      <div>USPTO Provisional Patent: <span>63/914,036</span></div>
+      <div>Entity: <span>Zender Gaming Technologies LLC</span></div>
+      <div>MCP Registry: <span>io.github.azender1/safeagent</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- HOW IT WORKS -->
+<section class="section" id="how">
+  <div class="section-label">03 — How it works</div>
+  <h2>Four layers. Exactly-once semantics.</h2>
+
+  <div class="how-grid">
+    <div class="how-card">
+      <div class="how-num">01</div>
+      <div class="how-title">Request-ID deduplication</div>
+      <div class="how-desc">Every tool call gets a deterministic request_id before execution. Same id on retry → return cached receipt, no re-execution.</div>
+    </div>
+    <div class="how-card">
+      <div class="how-num">02</div>
+      <div class="how-title">Finality gating</div>
+      <div class="how-desc">Ambiguous agent signals block execution. Side effects only run when the outcome is confirmed final — not just probable.</div>
+    </div>
+    <div class="how-card">
+      <div class="how-num">03</div>
+      <div class="how-title">Durable receipts</div>
+      <div class="how-desc">SQLite-backed by default. Every execution stored with payload and outcome. Survives process restarts. Full audit trail.</div>
+    </div>
+    <div class="how-card">
+      <div class="how-num">04</div>
+      <div class="how-title">State machine enforcement</div>
+      <div class="how-desc">OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED. Execution only permitted from FINAL. Replays at any state return the stored receipt.</div>
+    </div>
   </div>
 
+  <div class="code-block">
+<span class="cm"># First call — side effect runs once</span>
+receipt = registry.<span class="cf">execute</span>(
+    <span class="cv">request_id</span>=<span class="cs">"payment:invoice-C123"</span>,
+    <span class="cv">action</span>=<span class="cs">"send_invoice"</span>,
+    <span class="cv">payload</span>={<span class="cs">"to"</span>: <span class="cs">"client@example.com"</span>, <span class="cs">"amount"</span>: 4500},
+    <span class="cv">execute_fn</span>=send_invoice,
+)
+
+<span class="cm"># Retry with same request_id — original receipt returned, zero re-execution</span>
+receipt = registry.<span class="cf">execute</span>(
+    <span class="cv">request_id</span>=<span class="cs">"payment:invoice-C123"</span>,  <span class="cm"># same id</span>
+    <span class="cv">action</span>=<span class="cs">"send_invoice"</span>,
+    <span class="cv">payload</span>={<span class="cs">"to"</span>: <span class="cs">"client@example.com"</span>, <span class="cs">"amount"</span>: 4500},
+    <span class="cv">execute_fn</span>=send_invoice,
+)
+<span class="cm"># ^ invoice was NOT sent twice</span>
+  </div>
+
+  <div class="section-label" style="margin-top: 2.5rem;">Works with any framework</div>
+  <div class="framework-list">
+    <div class="fw-tag">Claude / MCP</div>
+    <div class="fw-tag">OpenAI tool calls</div>
+    <div class="fw-tag">LangChain</div>
+    <div class="fw-tag">CrewAI</div>
+    <div class="fw-tag">n8n</div>
+    <div class="fw-tag">Any Python function</div>
+  </div>
+
+  <div class="registry-card" style="margin-top: 2rem;">
+    <div class="registry-badge">Official MCP Registry</div>
+    <div>
+      <div class="registry-name">io.github.azender1/safeagent</div>
+      <div class="registry-meta">Listed April 26, 2026 · v0.1.14 · PyPI verified · registry.modelcontextprotocol.io</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- TRADING BOT CASE STUDY -->
+<section class="section" id="usecases">
+  <div class="section-label">04 — Production proof</div>
+  <h2>Built alongside a live QQQ/TQQQ trading bot.</h2>
+
+  <div class="origin" style="border-left-color: var(--danger);">
+    <div class="origin-tag" style="color: var(--danger);">Real money. Real retries. Real problem.</div>
+    <p>
+      The <strong>rv_qqq bot</strong> trades QQQ signals into leveraged TQQQ/SQQQ positions via Alpaca Markets. It has retry logic built in — <strong>EXIT_RETRY_COUNT=3, EXECUTION_LOCK_SEC=15</strong> — because broker ACK timeouts are real. When a market order times out but actually filled, the retry fires a second order. On a leveraged ETF, that's a doubled position you didn't intend.
+    </p>
+    <p style="margin-top: 1rem;">
+      The bot already has a manual execution lock and state machine. SafeAgent replaces that hand-rolled logic with a formal, durable, tested guard. <strong>Same guarantee. Zero custom code.</strong>
+    </p>
+  </div>
+
+  <div class="code-block" style="margin-top: 2rem;">
+<span class="cm"># Without SafeAgent — hand-rolled retry guard (rv_qqq_v14_1 pattern)</span>
+<span class="ck">def</span> <span class="cf">place_order_with_retry</span>(symbol, qty, side):
+    last_err = <span class="ck">None</span>
+    <span class="ck">for</span> attempt <span class="ck">in</span> <span class="cf">range</span>(<span class="cs">1</span>, EXIT_RETRY_COUNT + <span class="cs">1</span>):
+        <span class="ck">try</span>:
+            <span class="ck">return</span> place_order(symbol, qty, side)  <span class="cm"># ← fires twice if first timed out but filled</span>
+        <span class="ck">except</span> Exception <span class="ck">as</span> e:
+            last_err = e
+            time.sleep(EXIT_RETRY_SLEEP_SEC)
+    <span class="ck">raise</span> last_err
+
+<span class="cm"># With SafeAgent — exactly-once guarantee, zero custom state machine</span>
+<span class="ck">def</span> <span class="cf">place_order_safe</span>(symbol, qty, side, request_id):
+    <span class="ck">return</span> registry.<span class="cf">execute</span>(
+        <span class="cv">request_id</span>=request_id,  <span class="cm"># e.g. "trade:TQQQ:buy:2026-04-26T09:47:00"</span>
+        <span class="cv">action</span>=<span class="cs">f"order_{side}_{symbol}"</span>,
+        <span class="cv">payload</span>={<span class="cs">"symbol"</span>: symbol, <span class="cs">"qty"</span>: qty, <span class="cs">"side"</span>: side},
+        <span class="cv">execute_fn</span>=<span class="ck">lambda</span>: place_order(symbol, qty, side),
+    )
+<span class="cm"># ↑ retry with same request_id → returns original order receipt, never re-submits</span>
+  </div>
+
+  <div class="section-label" style="margin-top: 3.5rem;">Use cases</div>
+  <div class="use-grid" style="margin-top: 1.5rem;">
+    <div class="use-card">
+      <div class="use-icon">[$]</div>
+      <div class="use-title">Trading bots</div>
+      <div class="use-example">Without guard → doubled position on broker timeout</div>
+      <div class="use-desc">Broker ACK timeout on a leveraged ETF order. Retry fires. Position is doubled. SafeAgent makes the order call idempotent at the execution level.</div>
+    </div>
+    <div class="use-card">
+      <div class="use-icon">[~]</div>
+      <div class="use-title">Tournament settlement</div>
+      <div class="use-example">Without guard → prize payout fires twice</div>
+      <div class="use-desc">Verification agent times out, retries, payout executes twice. The original failure mode that triggered SafeAgent's creation inside PeerPlay.</div>
+    </div>
+    <div class="use-card">
+      <div class="use-icon">[@]</div>
+      <div class="use-title">Payments & notifications</div>
+      <div class="use-example">Without guard → duplicate charge, double email</div>
+      <div class="use-desc">Stripe charge on retry. SMTP duplicate send. Any agent-triggered irreversible action where exactly-once is not optional.</div>
+    </div>
+    <div class="use-card">
+      <div class="use-icon">[>]</div>
+      <div class="use-title">MCP tool execution</div>
+      <div class="use-example">Without guard → tool fires before state confirmed</div>
+      <div class="use-desc">Claude or any MCP host retrying a tool call. SafeAgent sits above the tool layer — officially listed in the MCP registry as of April 26, 2026.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- AUDIT CTA -->
+<section class="section" id="audit" style="padding-bottom: 2rem;">
+  <div class="section-label">05 — Get help</div>
+</section>
+
+<div class="audit-section" style="margin-left: 2rem; margin-right: 2rem;">
+  <div class="audit-price">Duplicate Execution Risk Audit — $499</div>
+  <h2>Find every place your system executes twice.</h2>
+  <p>A focused audit of your agent architecture. Every retry path, every side effect boundary, every gap. Delivered as a written report with SafeAgent integration recommendations.</p>
+  <a href="mailto:azender1@yahoo.com?subject=SafeAgent Audit Request" class="btn-primary">Request audit →</a>
 </div>
 
-<script>
-const SC = {
-  payment: {
-    amount: 299, cur: '$', unit: 'charges',
-    action: n => [
-      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">POST /v1/charges amount=29900</span>`,
-      `<span class="log-info">   → processing charge...</span>`,
-      `<span class="log-warn">   → timeout: confirmation not received</span>`,
-    ],
-    exec: () => [`<span class="log-danger">   → CHARGE EXECUTED — $299.00 debited ✗</span>`],
-    block: () => [
-      `<span class="log-success">   → request_id exists in store</span>`,
-      `<span class="log-success">   → returning cached receipt (no charge) ✓</span>`,
-    ],
-    first: () => [
-      `<span class="log-success">   → CHARGE EXECUTED — $299.00 debited ✓</span>`,
-      `<span class="log-success">   → receipt stored: req_${Math.random().toString(36).slice(2,10)}</span>`,
-    ],
-    insight: (n) => `<strong>Without the guard:</strong> $299 fires ${n} times — customer is overbilled <strong>$${((n-1)*299).toLocaleString()}</strong>. <strong>With SafeAgent:</strong> the first charge records a durable receipt. Every retry resolves against it and returns the cached result. Exactly 1 charge.`,
-  },
-  trade: {
-    amount: 710.20, cur: '$', unit: 'orders',
-    action: n => [
-      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">SUBMIT ORDER: BUY QQQ 2 @ 355.10</span>`,
-      `<span class="log-info">   request_id: rv_qqq_${Date.now()}</span>`,
-      `<span class="log-warn">   → broker ACK timeout → RESULT_UNKNOWN</span>`,
-    ],
-    exec: () => [`<span class="log-danger">   → ORDER FILLED — position doubled ✗</span>`],
-    block: () => [
-      `<span class="log-success">   → execution_id found in store</span>`,
-      `<span class="log-success">   → RETURN CACHED RESULT — no new order ✓</span>`,
-    ],
-    first: () => [
-      `<span class="log-success">   → ORDER FILLED — 2 shares @ 355.10 ✓</span>`,
-      `<span class="log-success">   → execution recorded: ex_${Math.random().toString(36).slice(2,10)}</span>`,
-    ],
-    insight: (n) => `<strong>Without the guard:</strong> ${n} orders execute — position grows to ${n*2} shares, <strong>$${(n*710.20).toFixed(2)}</strong> capital used vs intended $710.20. <strong>With SafeAgent:</strong> broker timeout triggers retries but the durable receipt ensures exactly 1 order. Retries return the cached fill.`,
-  },
-  email: {
-    amount: 0, cur: '', unit: 'sends',
-    action: n => [
-      `<span class="log-dim">[attempt ${n}]</span> <span class="log-action">SMTP SEND → user@example.com</span>`,
-      `<span class="log-info">   subject: "Your invoice #INV-2026-001"</span>`,
-      `<span class="log-warn">   → SMTP timeout — delivery status unknown</span>`,
-    ],
-    exec: () => [`<span class="log-danger">   → EMAIL SENT (duplicate) ✗</span>`],
-    block: () => [
-      `<span class="log-success">   → message_id found in store</span>`,
-      `<span class="log-success">   → SKIP — already delivered ✓</span>`,
-    ],
-    first: () => [
-      `<span class="log-success">   → EMAIL SENT ✓</span>`,
-      `<span class="log-success">   → message_id stored: msg_${Math.random().toString(36).slice(2,10)}</span>`,
-    ],
-    insight: (n) => `<strong>Without the guard:</strong> user receives ${n} identical invoices — confusion, support tickets, broken trust. <strong>With SafeAgent:</strong> the first successful delivery is recorded. All retries check the store and skip. Exactly 1 email delivered.`,
-  },
-  webhook: {
-    amount: 0, cur: '', unit: 'executions',
-    action: n => [
-      `<span class="log-dim">[worker-${n}]</span> <span class="log-action">IMAP uid=18842 picked up</span>`,
-      `<span class="log-info">   no global execution claim found</span>`,
-      `<span class="log-warn">   → proceeding with execution</span>`,
-    ],
-    exec: () => [`<span class="log-danger">   → WORKFLOW EXECUTED (ghost run) ✗</span>`],
-    block: () => [
-      `<span class="log-success">   → event_id claimed by worker-1</span>`,
-      `<span class="log-success">   → SKIP — execution already claimed ✓</span>`,
-    ],
-    first: () => [
-      `<span class="log-success">   → WORKFLOW EXECUTED ✓</span>`,
-      `<span class="log-success">   → event_id claimed: imap:inbox:uid18842</span>`,
-    ],
-    insight: (n) => `<strong>Without the guard:</strong> ${n} concurrent workers all pick up uid=18842 — ${n} workflow executions fire, duplicate notifications/DB writes. <strong>With SafeAgent:</strong> the first worker atomically claims the event_id. All others see the claim and skip. Exactly 1 execution.`,
-  }
-};
+<!-- FOOTER -->
+<footer>
+  <div class="footer-left">
+    © 2026 Zender Gaming Technologies LLC · SafeAgent · USPTO 63/914,036
+  </div>
+  <ul class="footer-links">
+    <li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+    <li><a href="https://pypi.org/project/safeagent-exec-guard/">PyPI</a></li>
+    <li><a href="https://registry.modelcontextprotocol.io">MCP Registry</a></li>
+    <li><a href="mailto:azender1@yahoo.com">Contact</a></li>
+  </ul>
+</footer>
 
-let currentS = 'payment';
-let guardOn = false;
-let running = false;
-
-function setScenario(btn) {
-  document.querySelectorAll('.sc-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  currentS = btn.dataset.s;
-  resetUI();
-}
-
-function toggleGuard() {
-  guardOn = !guardOn;
-  const track = document.getElementById('toggleTrack');
-  const txt = document.getElementById('toggleText');
-  track.classList.toggle('on', guardOn);
-  txt.textContent = guardOn ? 'On' : 'Off';
-}
-
-function resetUI() {
-  document.getElementById('logA').innerHTML = '<span class="log-dim">$ waiting for simulation...</span>';
-  document.getElementById('logB').innerHTML = '<span class="log-dim">$ waiting for simulation...</span>';
-  document.getElementById('badgeA').className = 'panel-status waiting';
-  document.getElementById('badgeA').textContent = 'idle';
-  document.getElementById('badgeB').className = 'panel-status waiting';
-  document.getElementById('badgeB').textContent = 'idle';
-  document.getElementById('mA').textContent = '—';
-  document.getElementById('mB').textContent = '—';
-  document.getElementById('mImpact').textContent = '—';
-  document.getElementById('insight').textContent = 'Run a simulation to see the execution analysis.';
-}
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-async function appendLine(id, html, delay) {
-  await sleep(delay);
-  const el = document.getElementById(id);
-  if (el.querySelector('.log-dim')) el.innerHTML = '';
-  const span = document.createElement('span');
-  span.className = 'log-line';
-  span.innerHTML = html + '\n';
-  el.appendChild(span);
-  el.scrollTop = el.scrollHeight;
-}
-
-async function runSim() {
-  if (running) return;
-  running = true;
-  resetUI();
-  const btn = document.getElementById('runBtn');
-  btn.disabled = true;
-  btn.textContent = 'Running...';
-
-  const retries = parseInt(document.getElementById('retrySlider').value);
-  const sc = SC[currentS];
-  let t = 0, gt = 200;
-
-  for (let i = 1; i <= retries; i++) {
-    for (const line of sc.action(i)) { await appendLine('logA', line, t); t += 160; }
-    for (const line of sc.exec()) { await appendLine('logA', line, t); t += 160; }
-    t += 60;
-  }
-
-  for (let i = 1; i <= retries; i++) {
-    for (const line of sc.action(i)) { await appendLine('logB', line, gt); gt += 160; }
-    const lines = i === 1 ? sc.first() : sc.block();
-    for (const line of lines) { await appendLine('logB', line, gt); gt += 160; }
-    gt += 60;
-  }
-
-  await sleep(Math.max(t, gt) + 100);
-
-  const badgeA = document.getElementById('badgeA');
-  badgeA.className = 'panel-status bad';
-  badgeA.textContent = `${retries}x executed`;
-
-  const badgeB = document.getElementById('badgeB');
-  badgeB.className = 'panel-status good';
-  badgeB.textContent = '1x executed';
-
-  document.getElementById('mA').textContent = retries;
-  document.getElementById('mB').textContent = '1';
-
-  const impact = sc.amount > 0
-    ? `${sc.cur}${((retries - 1) * sc.amount).toFixed(2)} saved`
-    : `${retries - 1} extra ${sc.unit} blocked`;
-  document.getElementById('mImpact').textContent = impact;
-  document.getElementById('insight').innerHTML = sc.insight(retries);
-
-  btn.disabled = false;
-  btn.textContent = 'Run simulation';
-  running = false;
-}
-</script>
 </body>
 </html>
