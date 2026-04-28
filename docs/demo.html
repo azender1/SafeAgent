@@ -1,657 +1,420 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Execution Guard Demo</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Execution Guard Demo · SafeAgent</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
-  --bg: #070707;
-  --bg2: #111;
-  --bg3: #181818;
-  --border: rgba(255,255,255,0.07);
-  --text: #f0ede8;
-  --muted: #666;
-  --accent: #e8ff47;
-  --danger: #ff3b3b;
-  --safe: #3bff8a;
-  --mono: 'IBM Plex Mono', monospace;
-  --display: 'Syne', sans-serif;
-}
+    :root {
+      --bg: #0d0d0d;
+      --surface: #141414;
+      --border: #2a2a2a;
+      --red: #e53e3e;
+      --green: #38a169;
+      --yellow: #d69e2e;
+      --text: #e2e8f0;
+      --muted: #718096;
+      --accent: #4299e1;
+      --font: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--mono);
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem 1rem 4rem;
-  -webkit-font-smoothing: antialiased;
-}
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem 4rem;
+    }
 
-.header {
-  text-align: center;
-  margin-bottom: 3rem;
-  max-width: 700px;
-}
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
 
-.tag {
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  color: var(--accent);
-  text-transform: uppercase;
-  margin-bottom: 1rem;
-  display: block;
-}
+    header h1 {
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 0.5rem;
+    }
 
-h1 {
-  font-family: var(--display);
-  font-size: clamp(1.8rem, 5vw, 3rem);
-  font-weight: 800;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin-bottom: 1rem;
-}
+    header p {
+      color: var(--muted);
+      font-size: 0.85rem;
+      max-width: 560px;
+      line-height: 1.6;
+    }
 
-h1 span { color: var(--danger); }
+    .scenario-bar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 2rem;
+    }
 
-.sub {
-  font-size: 13px;
-  color: var(--muted);
-  line-height: 1.7;
-}
+    .scenario-bar button {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--font);
+      font-size: 0.8rem;
+      padding: 0.45rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
 
-/* SCENARIO SELECTOR */
-.scenarios {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 2.5rem;
-  flex-wrap: wrap;
-  justify-content: center;
-}
+    .scenario-bar button:hover,
+    .scenario-bar button.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(66,153,225,0.08);
+    }
 
-.scenario-btn {
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 6px 14px;
-  background: var(--bg2);
-  border: 0.5px solid var(--border);
-  color: var(--muted);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: all 0.15s;
-  letter-spacing: 0.05em;
-}
+    /* ── NEW: simulation label above buttons ── */
+    .sim-label {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--yellow);
+      letter-spacing: 0.04em;
+      margin-bottom: 1rem;
+      opacity: 0.9;
+    }
 
-.scenario-btn.active {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(232,255,71,0.06);
-}
+    .run-btn {
+      display: block;
+      margin: 0 auto 0.6rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-family: var(--font);
+      font-size: 0.9rem;
+      font-weight: 600;
+      padding: 0.65rem 2.2rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
 
-/* MAIN DEMO */
-.demo-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
-  width: 100%;
-  max-width: 900px;
-  border: 0.5px solid var(--border);
-  border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 2rem;
-}
+    .run-btn:hover { background: #3182ce; }
+    .run-btn:active { transform: scale(0.97); }
 
-.panel {
-  background: var(--bg2);
-  padding: 1.75rem;
-  min-height: 420px;
-  display: flex;
-  flex-direction: column;
-}
+    /* ── NEW: stat line under demo ── */
+    .stat-line {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+      letter-spacing: 0.03em;
+      margin-top: 0.5rem;
+      margin-bottom: 2rem;
+      font-style: italic;
+    }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 0.5px solid var(--border);
-}
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 1.5rem;
+    }
 
-.panel-label {
-  font-size: 11px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
+    @media (max-width: 620px) { .panels { grid-template-columns: 1fr; } }
 
-.panel-label.bad { color: var(--danger); }
-.panel-label.good { color: var(--safe); }
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
 
-.panel-status {
-  font-size: 10px;
-  color: var(--muted);
-  padding: 3px 8px;
-  border: 0.5px solid var(--border);
-  border-radius: 2px;
-}
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.82rem;
+      font-weight: 600;
+    }
 
-/* EXECUTION LOG */
-.log {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  min-height: 200px;
-}
+    .panel-header.bad  { background: rgba(229,62,62,0.08);  color: var(--red); }
+    .panel-header.good { background: rgba(56,161,105,0.08); color: var(--green); }
 
-.log-entry {
-  font-size: 11px;
-  line-height: 1.5;
-  padding: 8px 10px;
-  border-radius: 2px;
-  border-left: 2px solid transparent;
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity 0.3s, transform 0.3s;
-}
+    .log {
+      padding: 0.9rem 1rem;
+      min-height: 160px;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
 
-.log-entry.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
+    .log-line { color: var(--muted); }
+    .log-line.warn  { color: var(--yellow); }
+    .log-line.error { color: var(--red); font-weight: 700; }
+    .log-line.ok    { color: var(--green); font-weight: 700; }
+    .log-line.info  { color: var(--accent); }
 
-.log-entry.info { 
-  color: var(--muted); 
-  border-left-color: var(--border);
-  background: var(--bg3);
-}
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 1.5rem;
+    }
 
-.log-entry.action { 
-  color: var(--text); 
-  border-left-color: var(--accent);
-  background: rgba(232,255,71,0.04);
-}
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem 1.2rem;
+      text-align: center;
+    }
 
-.log-entry.error { 
-  color: var(--danger); 
-  border-left-color: var(--danger);
-  background: rgba(255,59,59,0.06);
-}
+    .stat-card .label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
 
-.log-entry.success { 
-  color: var(--safe); 
-  border-left-color: var(--safe);
-  background: rgba(59,255,138,0.06);
-}
+    .stat-card .value {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
 
-.log-entry.blocked { 
-  color: var(--safe); 
-  border-left-color: var(--safe);
-  background: rgba(59,255,138,0.06);
-}
+    .stat-card .value.red   { color: var(--red); }
+    .stat-card .value.green { color: var(--green); }
+    .stat-card .value.blue  { color: var(--accent); }
 
-/* COUNTER */
-.counter-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 1.25rem;
-  padding-top: 1rem;
-  border-top: 0.5px solid var(--border);
-}
+    .status-bar {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.2rem;
+      width: 100%;
+      max-width: 860px;
+      margin-bottom: 2rem;
+    }
 
-.counter-label {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
+    .status-msg {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.7rem 1rem;
+      font-size: 0.76rem;
+      line-height: 1.5;
+      color: var(--muted);
+    }
 
-.counter-val {
-  font-size: 1.4rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  transition: color 0.3s;
-}
+    .status-msg.bad  { border-color: rgba(229,62,62,0.4);  color: #fc8181; }
+    .status-msg.good { border-color: rgba(56,161,105,0.4); color: #68d391; }
 
-.counter-val.bad { color: var(--danger); }
-.counter-val.good { color: var(--safe); }
+    /* ── NEW: footer code line ── */
+    footer {
+      margin-top: 2.5rem;
+      text-align: center;
+    }
 
-.counter-sub {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 2px;
-}
+    .footer-code {
+      display: inline-block;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.6rem 1.4rem;
+      font-size: 0.82rem;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+      margin-bottom: 1.2rem;
+    }
 
-/* RUN BUTTON */
-.run-btn {
-  font-family: var(--mono);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 14px 40px;
-  background: var(--accent);
-  color: #070707;
-  border: none;
-  border-radius: 2px;
-  cursor: pointer;
-  letter-spacing: 0.05em;
-  transition: opacity 0.15s, transform 0.1s;
-  text-transform: uppercase;
-}
+    .footer-links {
+      display: flex;
+      gap: 1.5rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
 
-.run-btn:hover { opacity: 0.88; }
-.run-btn:active { transform: scale(0.98); }
-.run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.8rem;
+      transition: color 0.15s;
+    }
 
-/* IMPACT BAR */
-.impact {
-  width: 100%;
-  max-width: 900px;
-  background: var(--bg2);
-  border: 0.5px solid var(--border);
-  border-radius: 4px;
-  padding: 1.5rem 2rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 2rem;
-  flex-wrap: wrap;
-  margin-bottom: 2rem;
-}
-
-.impact-item {
-  text-align: center;
-}
-
-.impact-val {
-  font-family: var(--display);
-  font-size: 1.6rem;
-  font-weight: 700;
-  transition: color 0.4s;
-}
-
-.impact-val.danger { color: var(--danger); }
-.impact-val.safe { color: var(--safe); }
-
-.impact-label {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-top: 4px;
-}
-
-.impact-divider {
-  width: 0.5px;
-  height: 40px;
-  background: var(--border);
-}
-
-/* VERDICT */
-.verdict {
-  width: 100%;
-  max-width: 900px;
-  padding: 1.25rem 2rem;
-  border-radius: 4px;
-  font-size: 13px;
-  text-align: center;
-  display: none;
-  margin-bottom: 2rem;
-}
-
-.verdict.bad {
-  background: rgba(255,59,59,0.06);
-  border: 0.5px solid rgba(255,59,59,0.2);
-  color: var(--danger);
-}
-
-.verdict.good {
-  background: rgba(59,255,138,0.06);
-  border: 0.5px solid rgba(59,255,138,0.2);
-  color: var(--safe);
-}
-
-/* FOOTER */
-.footer-links {
-  display: flex;
-  gap: 2rem;
-  font-size: 11px;
-  color: var(--muted);
-}
-
-.footer-links a { color: var(--muted); transition: color 0.15s; }
-.footer-links a:hover { color: var(--accent); }
-
-/* MOBILE */
-@media (max-width: 600px) {
-  .demo-grid { grid-template-columns: 1fr; }
-  .impact { flex-direction: column; gap: 1rem; }
-  .impact-divider { display: none; }
-}
-</style>
+    .footer-links a:hover { color: var(--accent); }
+  </style>
 </head>
 <body>
 
-<div class="header">
-  <span class="tag">Execution Guard Demo · SafeAgent</span>
-  <h1>AI agents are <span>double-paying</span><br>your users right now.</h1>
-  <p class="sub">Pick a scenario. Hit run. Watch what happens without an execution guard — then with one.</p>
-</div>
+  <header>
+    <h1>AI agents are double-paying<br>your users right now.</h1>
+    <p>Pick a scenario. Hit run. Watch what happens without an execution guard — then with one.</p>
+  </header>
 
-<div class="scenarios">
-  <button class="scenario-btn active" onclick="setScenario('payment')">💳 Payment</button>
-  <button class="scenario-btn" onclick="setScenario('trade')">📈 Trade order</button>
-  <button class="scenario-btn" onclick="setScenario('email')">📧 Email send</button>
-  <button class="scenario-btn" onclick="setScenario('payout')">🏆 Tournament payout</button>
-</div>
+  <div class="scenario-bar">
+    <button class="active" onclick="selectScenario(this,'payment')">💳 Payment</button>
+    <button onclick="selectScenario(this,'trade')">📈 Trade order</button>
+    <button onclick="selectScenario(this,'email')">📧 Email send</button>
+    <button onclick="selectScenario(this,'payout')">🏆 Tournament payout</button>
+  </div>
 
-<div class="demo-grid">
-  <!-- WITHOUT -->
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-label bad">❌ Without execution guard</span>
-      <span class="panel-status" id="status-bad">idle</span>
-    </div>
-    <div class="log" id="log-bad"></div>
-    <div class="counter-row">
-      <div>
-        <div class="counter-label">Executions fired</div>
-        <div class="counter-sub" id="sub-bad">—</div>
+  <!-- FIX 1: simulation flow label above buttons -->
+  <div class="sim-label">Simulating: timeout → retry → duplicate execution</div>
+
+  <button class="run-btn" onclick="runSim()">Run simulation →</button>
+
+  <!-- FIX 4: stat line under demo -->
+  <div class="stat-line">Retries + side effects = duplicate execution. Always.</div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header bad">❌ Without execution guard</div>
+      <div class="log" id="log-bad">
+        <span class="log-line">idle</span>
       </div>
-      <div class="counter-val bad" id="count-bad">0</div>
     </div>
-  </div>
-
-  <!-- WITH -->
-  <div class="panel">
-    <div class="panel-header">
-      <span class="panel-label good">✅ With SafeAgent execution guard</span>
-      <span class="panel-status" id="status-good">idle</span>
-    </div>
-    <div class="log" id="log-good"></div>
-    <div class="counter-row">
-      <div>
-        <div class="counter-label">Executions fired</div>
-        <div class="counter-sub" id="sub-good">—</div>
+    <div class="panel">
+      <div class="panel-header good">✅ With SafeAgent execution guard</div>
+      <div class="log" id="log-good">
+        <span class="log-line">idle</span>
       </div>
-      <div class="counter-val good" id="count-good">0</div>
     </div>
   </div>
-</div>
 
-<div class="impact">
-  <div class="impact-item">
-    <div class="impact-val danger" id="impact-loss">$0</div>
-    <div class="impact-label">Duplicate loss (no guard)</div>
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="label">Duplicate loss (no guard)</div>
+      <div class="value red" id="stat-loss">$0</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Prevented by execution guard</div>
+      <div class="value green" id="stat-saved">$0 saved</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Retry attempts simulated</div>
+      <div class="value blue" id="stat-retries">0</div>
+    </div>
   </div>
-  <div class="impact-divider"></div>
-  <div class="impact-item">
-    <div class="impact-val safe" id="impact-saved">$0 saved</div>
-    <div class="impact-label">Prevented by execution guard</div>
+
+  <div class="status-bar">
+    <div class="status-msg bad" id="msg-bad">⚠️ Without an execution guard —</div>
+    <div class="status-msg good" id="msg-good">✅ SafeAgent execution guard — same request_id returned the original receipt. Side effect fired exactly once.</div>
   </div>
-  <div class="impact-divider"></div>
-  <div class="impact-item">
-    <div class="impact-val" id="impact-attempts" style="color: var(--muted)">0</div>
-    <div class="impact-label">Retry attempts simulated</div>
-  </div>
-</div>
 
-<div class="verdict bad" id="verdict-bad">
-  ⚠️ Without an execution guard — <span id="verdict-bad-text"></span>
-</div>
-<div class="verdict good" id="verdict-good">
-  ✅ SafeAgent execution guard — same request_id returned the original receipt. Side effect fired exactly once.
-</div>
+  <!-- FIX 5: footer with wrap-any-tool-call line -->
+  <footer>
+    <div class="footer-code">Wrap any tool call: safe_execute(request_id, action, payload)</div>
+    <div class="footer-links">
+      <a href="https://github.com/azender1/SafeAgent" target="_blank">GitHub</a>
+      <a href="https://pypi.org/project/safeagent-exec-guard/" target="_blank">pip install</a>
+      <a href="https://azender1.github.io/SafeAgent" target="_blank">Landing page</a>
+      <a href="https://dev.to/azender1" target="_blank">Dev.to</a>
+    </div>
+  </footer>
 
-<button class="run-btn" id="run-btn" onclick="runDemo()">Run simulation →</button>
+  <script>
+    const scenarios = {
+      payment:  { label: 'payment',        amount: 149, loss: 298 },
+      trade:    { label: 'trade order',    amount: 500, loss: 1000 },
+      email:    { label: 'email',          amount: 0,   loss: 0 },
+      payout:   { label: 'tournament payout', amount: 250, loss: 500 },
+    };
 
-<br><br>
+    let current = 'payment';
 
-<div class="footer-links">
-  <a href="https://github.com/azender1/SafeAgent">GitHub</a>
-  <a href="https://pypi.org/project/safeagent-exec-guard/">pip install</a>
-  <a href="https://azender1.github.io/SafeAgent">Landing page</a>
-  <a href="https://dev.to/azender1">Dev.to</a>
-</div>
+    function selectScenario(btn, key) {
+      document.querySelectorAll('.scenario-bar button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      current = key;
+      reset();
+    }
 
-<script>
-const SCENARIOS = {
-  payment: {
-    amount: 149,
-    unit: '$',
-    label: 'Stripe charge',
-    steps_bad: [
-      { type: 'info', text: 'Agent: charge customer $149 for subscription renewal' },
-      { type: 'action', text: 'request_id: charge:cus_C123:2026-04-26' },
-      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
-      { type: 'error', text: '✗ Network timeout (28s). No confirmation received.' },
-      { type: 'info', text: 'Agent: no confirmation — retrying...' },
-      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
-      { type: 'error', text: '✗ DUPLICATE CHARGE PROCESSED — $149 charged again' },
-      { type: 'error', text: 'Customer billed $298. Support ticket incoming.' },
-    ],
-    steps_good: [
-      { type: 'info', text: 'Agent: charge customer $149 for subscription renewal' },
-      { type: 'action', text: 'request_id: charge:cus_C123:2026-04-26' },
-      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
-      { type: 'action', text: '→ POST /v1/charges  amount=14900  customer=cus_C123' },
-      { type: 'error', text: '✗ Network timeout (28s). Receipt stored.' },
-      { type: 'info', text: 'Agent: no confirmation — retrying...' },
-      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
-      { type: 'success', text: '✓ Returning original receipt. Charge NOT re-submitted.' },
-      { type: 'success', text: 'Customer billed $149. Exactly once.' },
-    ],
-    verdict_bad: 'customer charged $298 instead of $149. Duplicate execution. No recovery without manual refund.',
-  },
-  trade: {
-    amount: 3100,
-    unit: '$',
-    label: 'TQQQ order',
-    steps_bad: [
-      { type: 'info', text: 'Bot: BUY 10 TQQQ — momentum signal confirmed' },
-      { type: 'action', text: 'request_id: trade:TQQQ:buy:09:47:00' },
-      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
-      { type: 'error', text: '✗ Broker ACK timeout. Order status unknown.' },
-      { type: 'info', text: 'Bot: no confirmation — retrying (attempt 2/3)...' },
-      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
-      { type: 'error', text: '✗ SECOND ORDER FILLED — 20 shares purchased' },
-      { type: 'error', text: 'Position doubled. 3x leveraged ETF. Unintended exposure.' },
-    ],
-    steps_good: [
-      { type: 'info', text: 'Bot: BUY 10 TQQQ — momentum signal confirmed' },
-      { type: 'action', text: 'request_id: trade:TQQQ:buy:09:47:00' },
-      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
-      { type: 'action', text: '→ POST /v2/orders  symbol=TQQQ  qty=10  side=buy' },
-      { type: 'error', text: '✗ Broker ACK timeout. Receipt stored.' },
-      { type: 'info', text: 'Bot: no confirmation — retrying (attempt 2/3)...' },
-      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
-      { type: 'success', text: '✓ Returning original order receipt. No second submission.' },
-      { type: 'success', text: '10 shares. Intended position. Exactly once.' },
-    ],
-    verdict_bad: 'position doubled on a 3x leveraged ETF. Unintended $3,100+ exposure from a single retry.',
-  },
-  email: {
-    amount: 0,
-    unit: '',
-    label: 'Transactional email',
-    steps_bad: [
-      { type: 'info', text: 'Agent: send password reset email to user@example.com' },
-      { type: 'action', text: 'request_id: email:reset:user_789:2026-04-26' },
-      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
-      { type: 'error', text: '✗ SMTP delivery timeout. Status unknown.' },
-      { type: 'info', text: 'Agent: no confirmation — retrying...' },
-      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
-      { type: 'error', text: '✗ DUPLICATE EMAIL SENT — user receives 2 reset links' },
-      { type: 'error', text: 'Confusing UX. First link now invalid. Support load.' },
-    ],
-    steps_good: [
-      { type: 'info', text: 'Agent: send password reset email to user@example.com' },
-      { type: 'action', text: 'request_id: email:reset:user_789:2026-04-26' },
-      { type: 'action', text: '→ SafeAgent: checking receipt store...' },
-      { type: 'action', text: '→ POST /v3/mail/send  to=user@example.com' },
-      { type: 'error', text: '✗ SMTP timeout. Receipt stored.' },
-      { type: 'info', text: 'Agent: no confirmation — retrying...' },
-      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
-      { type: 'success', text: '✓ Returning original send receipt. Email NOT re-sent.' },
-      { type: 'success', text: 'One email. One reset link. User not confused.' },
-    ],
-    verdict_bad: 'user received 2 password reset emails. Both links active, creating security confusion.',
-  },
-  payout: {
-    amount: 450,
-    unit: '$',
-    label: 'Tournament prize',
-    steps_bad: [
-      { type: 'info', text: 'PeerPlay: tournament T-901 complete — pay winner $450' },
-      { type: 'action', text: 'request_id: payout:T-901:winner_456' },
-      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
-      { type: 'error', text: '✗ Verification agent timeout. Retrying confirmation...' },
-      { type: 'info', text: 'Agent: re-verifying match result...' },
-      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
-      { type: 'error', text: '✗ DUPLICATE PAYOUT — $900 released from escrow' },
-      { type: 'error', text: 'Escrow pool overdrafted. Other players underpaid.' },
-    ],
-    steps_good: [
-      { type: 'info', text: 'PeerPlay: tournament T-901 complete — pay winner $450' },
-      { type: 'action', text: 'request_id: payout:T-901:winner_456' },
-      { type: 'action', text: '→ SafeAgent finality gate: confidence 94% > threshold ✓' },
-      { type: 'action', text: '→ escrow.release(pool=T-901, to=winner_456, amount=450)' },
-      { type: 'error', text: '✗ Verification agent timeout. Receipt stored.' },
-      { type: 'info', text: 'Agent: re-verifying match result...' },
-      { type: 'blocked', text: '→ SafeAgent: request_id already executed.' },
-      { type: 'success', text: '✓ Original payout receipt returned. Escrow NOT re-released.' },
-      { type: 'success', text: '$450 paid. Exactly once. Escrow intact.' },
-    ],
-    verdict_bad: 'winner paid $900 instead of $450. Escrow overdrafted. Built-in financial invariant broken.',
-  },
-};
+    function reset() {
+      document.getElementById('log-bad').innerHTML  = '<span class="log-line">idle</span>';
+      document.getElementById('log-good').innerHTML = '<span class="log-line">idle</span>';
+      document.getElementById('stat-loss').textContent    = '$0';
+      document.getElementById('stat-saved').textContent   = '$0 saved';
+      document.getElementById('stat-retries').textContent = '0';
+      document.getElementById('msg-bad').textContent  = '⚠️ Without an execution guard —';
+      document.getElementById('msg-good').textContent = '✅ SafeAgent execution guard — same request_id returned the original receipt. Side effect fired exactly once.';
+    }
 
-let currentScenario = 'payment';
-let running = false;
+    function appendLog(id, text, cls='log-line') {
+      const el = document.getElementById(id);
+      const line = document.createElement('span');
+      line.className = cls;
+      line.textContent = text;
+      // remove idle placeholder
+      const idle = el.querySelector('.log-line');
+      if (idle && idle.textContent === 'idle') idle.remove();
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
 
-function setScenario(s) {
-  currentScenario = s;
-  document.querySelectorAll('.scenario-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['payment','trade','email','payout'][i] === s);
-  });
-  resetDemo();
-}
+    function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function resetDemo() {
-  document.getElementById('log-bad').innerHTML = '';
-  document.getElementById('log-good').innerHTML = '';
-  document.getElementById('count-bad').textContent = '0';
-  document.getElementById('count-good').textContent = '0';
-  document.getElementById('sub-bad').textContent = '—';
-  document.getElementById('sub-good').textContent = '—';
-  document.getElementById('status-bad').textContent = 'idle';
-  document.getElementById('status-good').textContent = 'idle';
-  document.getElementById('impact-loss').textContent = '$0';
-  document.getElementById('impact-saved').textContent = '$0 saved';
-  document.getElementById('impact-attempts').textContent = '0';
-  document.getElementById('verdict-bad').style.display = 'none';
-  document.getElementById('verdict-good').style.display = 'none';
-  document.getElementById('run-btn').disabled = false;
-}
+    async function runSim() {
+      reset();
+      const s = scenarios[current];
+      const fmt = n => n > 0 ? `$${n}` : '(no monetary side effect)';
 
-function addLog(panelId, type, text, delay) {
-  return new Promise(resolve => {
-    setTimeout(() => {
-      const log = document.getElementById(panelId);
-      const entry = document.createElement('div');
-      entry.className = `log-entry ${type}`;
-      entry.textContent = text;
-      log.appendChild(entry);
-      requestAnimationFrame(() => entry.classList.add('visible'));
-      log.scrollTop = log.scrollHeight;
-      resolve();
-    }, delay);
-  });
-}
+      // BAD side — runs independently
+      (async () => {
+        appendLog('log-bad', `→ Sending ${s.label}…`, 'log-line info');
+        await delay(700);
+        appendLog('log-bad', '⏱  Request timed out. Retrying…', 'log-line warn');
+        await delay(600);
+        appendLog('log-bad', `→ Retry 1: sending ${s.label}…`, 'log-line info');
+        await delay(500);
+        appendLog('log-bad', `✔ Execution 1 confirmed`, 'log-line ok');
+        await delay(300);
+        appendLog('log-bad', `→ Original request also went through`, 'log-line warn');
+        await delay(400);
+        appendLog('log-bad', `✔ Execution 2 confirmed (DUPLICATE)`, 'log-line warn');
+        await delay(300);
+        // FIX 2: final red line
+        appendLog('log-bad', `❌ CUSTOMER CHARGED TWICE ($${s.loss})`, 'log-line error');
+        document.getElementById('stat-loss').textContent = fmt(s.loss);
+        document.getElementById('stat-retries').textContent = '2';
+        document.getElementById('msg-bad').textContent =
+          `⚠️ Without an execution guard — duplicate ${s.label} fired. Customer charged ${fmt(s.loss)}.`;
+      })();
 
-async function runDemo() {
-  if (running) return;
-  running = true;
-  document.getElementById('run-btn').disabled = true;
-  resetDemo();
+      // GOOD side — runs independently
+      (async () => {
+        appendLog('log-good', `→ safe_execute(req_abc, ${s.label}, payload)`, 'log-line info');
+        await delay(700);
+        appendLog('log-good', '⏱  Request timed out. Retrying…', 'log-line warn');
+        await delay(600);
+        appendLog('log-good', `→ Retry 1: same request_id detected`, 'log-line info');
+        await delay(500);
+        appendLog('log-good', `↩  Returning original receipt (idempotent)`, 'log-line info');
+        await delay(400);
+        appendLog('log-good', `🛡  Duplicate execution blocked`, 'log-line ok');
+        await delay(300);
+        // FIX 3: right-side final green line
+        appendLog('log-good',
+          s.amount > 0
+            ? `✅ CHARGED ONCE ($${s.amount}) — DUPLICATE BLOCKED`
+            : `✅ SENT ONCE — DUPLICATE BLOCKED`,
+          'log-line ok');
+        document.getElementById('stat-saved').textContent = fmt(s.loss) + ' saved';
+        document.getElementById('msg-good').textContent =
+          `✅ SafeAgent execution guard — same request_id returned the original receipt. Side effect fired exactly once.`;
+      })();
+    }
+  </script>
 
-  const s = SCENARIOS[currentScenario];
-  const badLog = 'log-bad';
-  const goodLog = 'log-good';
-
-  document.getElementById('status-bad').textContent = 'running';
-  document.getElementById('status-good').textContent = 'running';
-
-  let badCount = 0;
-  let goodCount = 0;
-  let attempts = 0;
-
-  const baseDelay = 600;
-
-  // Run both panels simultaneously
-  const badPromises = s.steps_bad.map((step, i) => {
-    const delay = i * baseDelay;
-    return addLog(badLog, step.type, step.text, delay).then(() => {
-      if (step.type === 'action' && step.text.includes('POST') || step.text.includes('escrow.release') || step.text.includes('send_invoice')) {
-        // count executions
-      }
-      if (step.type === 'error' && step.text.includes('DUPLICATE')) {
-        badCount++;
-        setTimeout(() => {
-          document.getElementById('count-bad').textContent = '2';
-          document.getElementById('sub-bad').textContent = 'side effect fired twice';
-        }, 100);
-      }
-      if (step.type === 'error' && step.text.includes('timeout')) {
-        attempts++;
-      }
-    });
-  });
-
-  const goodPromises = s.steps_good.map((step, i) => {
-    const delay = i * baseDelay;
-    return addLog(goodLog, step.type, step.text, delay);
-  });
-
-  await Promise.all([...badPromises, ...goodPromises]);
-
-  // Final state
-  document.getElementById('count-bad').textContent = '2';
-  document.getElementById('count-good').textContent = '1';
-  document.getElementById('sub-bad').textContent = 'duplicate execution';
-  document.getElementById('sub-good').textContent = 'exactly once ✓';
-  document.getElementById('status-bad').textContent = 'complete';
-  document.getElementById('status-good').textContent = 'complete';
-
-  // Impact
-  const loss = s.amount;
-  if (loss > 0) {
-    document.getElementById('impact-loss').textContent = `$${loss} lost`;
-    document.getElementById('impact-saved').textContent = `$${loss} saved`;
-  } else {
-    document.getElementById('impact-loss').textContent = '1 duplicate';
-    document.getElementById('impact-saved').textContent = '0 duplicates';
-  }
-  document.getElementById('impact-attempts').textContent = '2';
-
-  // Verdict
-  const vBad = document.getElementById('verdict-bad');
-  const vGood = document.getElementById('verdict-good');
-  document.getElementById('verdict-bad-text').textContent = s.verdict_bad;
-  vBad.style.display = 'block';
-  vGood.style.display = 'block';
-
-  document.getElementById('run-btn').disabled = false;
-  document.getElementById('run-btn').textContent = 'Run again →';
-  running = false;
-}
-</script>
 </body>
 </html>
