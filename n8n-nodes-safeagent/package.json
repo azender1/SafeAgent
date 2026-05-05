@@ -1,0 +1,50 @@
+{
+  "name": "n8n-nodes-safeagent",
+  "version": "0.1.0",
+  "description": "n8n community node — SafeAgent execution guard (claim-before-execute idempotency pattern)",
+  "keywords": [
+    "n8n-community-node-package",
+    "safeagent",
+    "idempotency",
+    "execution-guard"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/your-org/n8n-nodes-safeagent",
+  "author": {
+    "name": "Your Name",
+    "email": "you@example.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/n8n-nodes-safeagent.git"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc && gulp build:icons",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials --write",
+    "lint": "eslint nodes credentials package.json",
+    "lintfix": "eslint nodes credentials package.json --fix",
+    "prepublishOnly": "npm run build && npm run lint && npm run format"
+  },
+  "files": [
+    "dist"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "credentials": [
+      "dist/credentials/PostgresApiCredentials.credentials.js"
+    ],
+    "nodes": [
+      "dist/nodes/SafeAgent/SafeAgent.node.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^18.16.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
