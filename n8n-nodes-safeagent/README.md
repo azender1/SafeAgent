@@ -1,5 +1,15 @@
 # n8n-nodes-safeagent
 
+## Requirements
+
+- Python 3.10+
+- `pip install safeagent-exec-guard`
+- `python3` must be available on PATH in the environment where n8n is running
+
+> **Note:** If you're running n8n via Docker, you'll need a custom image with Python installed, or use the Postgres backend via an external SafeAgent API endpoint.
+
+---
+
 An [n8n](https://n8n.io) community node that wraps the
 [`safeagent-exec-guard`](https://pypi.org/project/safeagent-exec-guard/) Python library to bring
 the **claim-before-execute** idempotency pattern to your n8n workflows.
