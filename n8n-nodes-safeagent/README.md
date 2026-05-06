@@ -7,11 +7,7 @@ Duplicate payment. Duplicate email. Duplicate trade. Duplicate ticket.
 
 SafeAgent is an execution guard that sits between an agent decision and an irreversible action. It gives every tool call a request ID, records a durable receipt on first execution, and returns that receipt on every retry — without running the side effect again.
 
-```bash
-pip install safeagent-exec-guard
-```
-
-Python 3.10+ · Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
+Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
 
 ---
 
