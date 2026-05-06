@@ -1,229 +1,132 @@
 # n8n-nodes-safeagent
 
-## Requirements
+Community node for [SafeAgent](https://github.com/azender1/SafeAgent) — exactly-once execution guard for n8n workflows.
 
-- Python 3.10+
-- `pip install safeagent-exec-guard`
-- `python3` must be available on PATH in the environment where n8n is running
-
-> **Note:** If you're running n8n via Docker, you'll need a custom image with Python installed, or use the Postgres backend via an external SafeAgent API endpoint.
+Prevents duplicate side effects (emails, payments, API calls) when webhooks fire twice, agents retry, or workflows restart mid-run.
 
 ---
 
-An [n8n](https://n8n.io) community node that wraps the
-[`safeagent-exec-guard`](https://pypi.org/project/safeagent-exec-guard/) Python library to bring
-the **claim-before-execute** idempotency pattern to your n8n workflows.
+## What it does
 
----
+n8n workflows can trigger the same action more than once — on retry, timeout, webhook replay, or agent loop. SafeAgent intercepts before the side effect happens and blocks the duplicate.
 
-## The Claim-Before-Execute Pattern
-
-AI agents and event-driven workflows face a hard problem: the same logical request can arrive more
-than once (webhook retries, queue redeliveries, user double-clicks). Without a guard, every
-duplicate triggers the side effect again — double charges, duplicate emails, duplicate DB rows.
-
-**Claim-before-execute** solves this with a single atomic database write:
+**Claim-before-execute pattern:**
 
 ```
-1. Before doing anything irreversible, claim the (requestId, actionName) pair.
-2. If the claim succeeds  → you are the first runner.  Proceed with the action.
-3. If the claim is denied → someone else already ran it.  Return the cached receipt and stop.
+Webhook fires → SafeAgent claims the request_id → action runs → marked SETTLED
+Webhook fires again → SafeAgent sees SETTLED → action is skipped
 ```
 
-The claim is implemented as a SQL `INSERT … ON CONFLICT DO NOTHING` (or equivalent), making it
-naturally atomic and race-condition-safe even under concurrent workers.
-
-```
-Incoming event
-     │
-     ▼
-┌────────────────────┐
-│  SafeAgent Guard   │  ← this n8n node
-│  insert_if_not_    │
-│  exists(rid, act)  │
-└────────┬───────────┘
-         │
-   ┌─────┴──────┐
-   │            │
-inserted=true  inserted=false
-   │            │
-   ▼            ▼
-Proceed     Return cached
-with        receipt → skip
-action      downstream nodes
-```
+One payment. One email. One trade. No matter how many times the workflow runs.
 
 ---
 
 ## Installation
 
-### Prerequisites
+In your n8n instance, go to **Settings → Community Nodes → Install** and enter:
 
-- n8n ≥ 0.190.0
-- Python 3.9+ in `PATH`
-- The `safeagent-exec-guard` Python package:
+```
+n8n-nodes-safeagent
+```
+
+> **Requires:** Python 3.10+ and `safeagent-exec-guard` installed on the host running n8n.
+>
+> ```bash
+> pip install safeagent-exec-guard
+> ```
+>
+> Docker users: extend the base n8n image with Python 3.10 and the pip package. See [Docker setup](#docker-setup) below.
+
+---
+
+## Usage
+
+Add the **SafeAgent** node before any irreversible action in your workflow.
+
+### Fields
+
+| Field | Description |
+|---|---|
+| `request_id` | Unique ID for this execution (use `{{ $json.headers["x-request-id"] }}` or similar) |
+| `action` | Short label for the action being guarded (e.g. `send_email`, `charge_card`) |
+| `db_path` | Path to SQLite file for state storage (default: `safeagent.db`) |
+
+### Outputs
+
+- **Proceed** — claim succeeded, run your action
+- **Skip** — duplicate detected, bypass the action
+
+### Example: Webhook → Email (duplicate-safe)
+
+```
+[Webhook] → [SafeAgent] → (Proceed) → [Send Email]
+                        → (Skip)    → [No-op / Log]
+```
+
+If the webhook fires twice with the same `request_id`, the email sends once. The second run exits through **Skip**.
+
+---
+
+## State lifecycle
+
+SafeAgent tracks each `request_id` through these states:
+
+```
+OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED
+```
+
+Execution is only permitted from `FINAL`. If the agent's signals are ambiguous, the state stays in `IN_RECONCILIATION` and the side effect is blocked until the outcome is clear.
+
+---
+
+## Docker setup
+
+Extend the official n8n image:
+
+```dockerfile
+FROM docker.n8n.io/n8nio/n8n
+
+USER root
+RUN apk add --no-cache python3 py3-pip && \
+    pip3 install safeagent-exec-guard --break-system-packages
+USER node
+```
+
+Build and run:
 
 ```bash
-pip install safeagent-exec-guard
-# or, for Postgres support:
-pip install "safeagent-exec-guard[postgres]"
+docker build -t n8n-safeagent .
+docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n n8n-safeagent
 ```
 
-### Add to n8n
+---
+
+## Distributed / Postgres
+
+For multi-instance n8n setups, use Postgres instead of SQLite:
 
 ```bash
-# In your n8n data directory
-npm install n8n-nodes-safeagent
+pip install safeagent-exec-guard[postgres]
 ```
 
-Or use the n8n **Settings → Community Nodes → Install** UI and enter `n8n-nodes-safeagent`.
-
----
-
-## Node Fields
-
-| Field | Type | Description |
-|---|---|---|
-| **Request ID** | String | Unique identifier for the logical request (e.g. webhook event ID, message UUID). Supports n8n expressions like `{{ $json["id"] }}`. |
-| **Action Name** | String | Name of the side-effectful action being guarded (e.g. `send_invoice`, `charge_card`). Together with Request ID it forms the idempotency key. |
-| **Backend** | Dropdown | `SQLite (local file)` — zero-config, good for dev / single-instance. `PostgreSQL` — distributed-safe, recommended for production / multi-worker. |
-| **SQLite Database Path** | String *(SQLite only)* | Path to the `.db` file. Defaults to `safeagent.db` in the n8n working directory. |
-| **Postgres Credentials** | Credential *(Postgres only)* | Host, port, database, user, password, SSL toggle. |
-
----
-
-## Output Fields
-
-The node adds the following fields to the item's JSON:
-
-| Field | Type | Meaning |
-|---|---|---|
-| `requestId` | string | Echo of the input Request ID |
-| `actionName` | string | Echo of the input Action Name |
-| `backend` | string | `"sqlite"` or `"postgres"` |
-| `isDuplicate` | boolean | `true` if this (requestId, actionName) was already claimed |
-| `shouldProceed` | boolean | `true` if this is a new claim and the action should run |
-| `inserted` | boolean | Raw value from the guard library |
-| `receipt` | object | The stored execution record (timestamps, metadata, etc.) |
-
----
-
-## Usage in a Workflow
-
-### Pattern A — IF branch
-
+Set `db_path` to your Postgres connection string:
 ```
-Webhook → SafeAgent Guard → IF (shouldProceed == true)
-                                   ├─ true  → Charge Card → Mark Complete
-                                   └─ false → Return Cached Receipt
-```
-
-### Pattern B — Stop-and-error on duplicate
-
-Add an **IF** node after the guard:
-
-- **Condition**: `{{ $json.isDuplicate }}` equals `true`
-- **True branch**: Stop And Error (or Respond to Webhook with the cached receipt)
-- **False branch**: continue with the real work
-
-### Minimal inline example
-
-```json
-{
-  "nodes": [
-    {
-      "type": "n8n-nodes-safeagent.safeAgent",
-      "parameters": {
-        "requestId": "={{ $json[\"webhookEventId\"] }}",
-        "actionName": "send_welcome_email",
-        "backend": "sqlite",
-        "sqlitePath": "/data/safeagent.db"
-      }
-    }
-  ]
-}
+postgresql://user:password@host:5432/safeagent
 ```
 
 ---
 
-## Postgres Setup
+## Links
 
-1. Create a dedicated database and user:
-
-```sql
-CREATE DATABASE safeagent;
-CREATE USER safeagent_user WITH PASSWORD 'secret';
-GRANT ALL PRIVILEGES ON DATABASE safeagent TO safeagent_user;
-```
-
-2. The guard library creates the `execution_claims` table automatically on first run (`init_db()`).
-
-3. In n8n, add a **SafeAgent Postgres Credentials** credential and select it in the node.
-
-For high-throughput use-cases add an index:
-
-```sql
-CREATE UNIQUE INDEX IF NOT EXISTS ux_execution_claims
-  ON execution_claims (request_id, action_name);
-```
-
----
-
-## How the Subprocess Works
-
-The node calls the guard library via `python3 -c "..."` so that:
-
-- No additional n8n-side dependencies are needed beyond Node.js.
-- The Python environment (virtualenv, system packages, etc.) is fully under your control.
-- The library can be upgraded independently of the n8n node.
-
-The script follows this pattern:
-
-```python
-import json
-from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
-
-store = SQLiteExecutionStore('safeagent.db')
-store.init_db()
-result = store.insert_if_not_exists('<requestId>', '<actionName>')
-print(json.dumps(result))
-```
-
-The JSON printed to stdout is parsed and merged into the n8n item.
-
----
-
-## Security Considerations
-
-- Request ID and Action Name values are single-quote–escaped before being embedded in the Python
-  string literal to prevent injection.
-- Postgres credentials are never written to disk; they are passed via an in-memory DSN string
-  constructed at runtime.
-- The subprocess timeout is 15 seconds. Long-running `init_db()` migrations (first run on a large
-  Postgres cluster) may need the timeout raised in the source.
-
----
-
-## Development
-
-```bash
-git clone https://github.com/your-org/n8n-nodes-safeagent
-cd n8n-nodes-safeagent
-npm install
-npm run build      # compiles TypeScript → dist/
-npm run dev        # watch mode
-npm run lint
-```
-
-To test locally against a running n8n instance:
-
-```bash
-export N8N_CUSTOM_EXTENSIONS="/path/to/n8n-nodes-safeagent"
-n8n start
-```
+- **PyPI:** [safeagent-exec-guard](https://pypi.org/project/safeagent-exec-guard/)
+- **GitHub:** [azender1/SafeAgent](https://github.com/azender1/SafeAgent)
+- **MCP registry:** `io.github.azender1/safeagent`
+- **Issues / feedback:** [GitHub Issues](https://github.com/azender1/SafeAgent/issues)
 
 ---
 
 ## License
 
-MIT © Your Name
+MIT © Anthony Zender — [azender1@yahoo.com](mailto:azender1@yahoo.com)
+
+Built in Dayton, OH. USPTO provisional 63/914,036 — Zender Gaming Technologies LLC.
