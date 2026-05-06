@@ -5,64 +5,84 @@ import {
   INodeTypeDescription,
   NodeOperationError,
 } from 'n8n-workflow';
-import { execSync } from 'child_process';
+import Database from 'better-sqlite3';
+import * as path from 'path';
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Database helpers
 // ---------------------------------------------------------------------------
 
-/** Escape single-quotes so the value is safe to embed in a Python string literal. */
-function pyStr(value: string): string {
-  return value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const TABLE_DDL = `
+  CREATE TABLE IF NOT EXISTS execution_claims (
+    request_id TEXT NOT NULL,
+    action     TEXT NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'OPEN',
+    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (request_id, action)
+  )
+`;
+
+function openDb(dbPath: string): Database.Database {
+  const resolved = path.isAbsolute(dbPath)
+    ? dbPath
+    : path.resolve(process.cwd(), dbPath);
+  const db = new Database(resolved);
+  db.pragma('journal_mode = WAL');
+  db.exec(TABLE_DDL);
+  return db;
 }
 
-/**
- * Build the inline Python snippet for the SQLite backend.
- *
- * Uses safeagent_exec_guard.sqlite_store.SQLiteExecutionStore which exposes:
- *   insert_if_not_exists(request_id, action_name) -> dict
- *
- * The dict has at minimum:
- *   { "inserted": bool, "receipt": { ... } }
- */
-function buildSQLiteScript(requestId: string, actionName: string, dbPath: string): string {
-  const rid = pyStr(requestId);
-  const act = pyStr(actionName);
-  const db = pyStr(dbPath);
-
-  return (
-    'import json; ' +
-    'from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore; ' +
-    `store = SQLiteExecutionStore('${db}'); ` +
-    'store.init_db(); ' +
-    `result = store.insert_if_not_exists('${rid}', '${act}'); ` +
-    'print(json.dumps(result))'
-  );
+interface ClaimRow {
+  status: string;
 }
 
-/**
- * Build the inline Python snippet for the Postgres backend.
- *
- * Uses safeagent_exec_guard.pg_store.PostgresExecutionStore which accepts a
- * libpq DSN string.
- */
-function buildPostgresScript(
+// ---------------------------------------------------------------------------
+// claim()  — INSERT OR IGNORE; returns whether the row was newly inserted
+// ---------------------------------------------------------------------------
+
+function claim(
+  db: Database.Database,
   requestId: string,
-  actionName: string,
-  dsn: string,
-): string {
-  const rid = pyStr(requestId);
-  const act = pyStr(actionName);
-  const d = pyStr(dsn);
-
-  return (
-    'import json; ' +
-    'from safeagent_exec_guard.pg_store import PostgresExecutionStore; ' +
-    `store = PostgresExecutionStore('${d}'); ` +
-    'store.init_db(); ' +
-    `result = store.insert_if_not_exists('${rid}', '${act}'); ` +
-    'print(json.dumps(result))'
+  action: string,
+): { inserted: boolean; status: string } {
+  const insert = db.prepare<[string, string]>(
+    `INSERT OR IGNORE INTO execution_claims (request_id, action, status)
+     VALUES (?, ?, 'OPEN')`,
   );
+  const result = insert.run(requestId, action);
+  const inserted = result.changes === 1;
+
+  if (inserted) {
+    return { inserted: true, status: 'OPEN' };
+  }
+
+  // Row already existed — fetch current status for the caller
+  const row = db
+    .prepare<[string, string], ClaimRow>(
+      `SELECT status FROM execution_claims WHERE request_id = ? AND action = ?`,
+    )
+    .get(requestId, action);
+
+  return { inserted: false, status: row?.status ?? 'UNKNOWN' };
+}
+
+// ---------------------------------------------------------------------------
+// settle()  — mark SETTLED after the action completed successfully
+// ---------------------------------------------------------------------------
+
+function settle(
+  db: Database.Database,
+  requestId: string,
+  action: string,
+): { settled: boolean } {
+  const update = db.prepare<[string, string]>(
+    `UPDATE execution_claims
+     SET status = 'SETTLED', updated_at = unixepoch()
+     WHERE request_id = ? AND action = ?`,
+  );
+  const result = update.run(requestId, action);
+  return { settled: result.changes > 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -73,33 +93,45 @@ export class SafeAgent implements INodeType {
   description: INodeTypeDescription = {
     displayName: 'SafeAgent Execution Guard',
     name: 'safeAgent',
-    // Built-in placeholder icon; replace with a custom SVG in nodes/SafeAgent/safeagent.svg
     icon: 'fa:shield-alt',
     group: ['transform'],
     version: 1,
-    subtitle: '={{$parameter["actionName"]}}',
+    subtitle: '={{$parameter["operation"] + ": " + $parameter["action"]}}',
     description:
-      'Claim-before-execute idempotency guard powered by the safeagent-exec-guard Python library. ' +
-      'Returns a cached receipt when the (requestId, actionName) pair was already processed, ' +
-      'or a "proceed" signal when it is new.',
-    defaults: {
-      name: 'SafeAgent Guard',
-    },
+      'Exactly-once execution guard. Claims a (request_id, action) slot before running ' +
+      'a side-effectful action, then routes to Proceed (new) or Skip (duplicate). ' +
+      'Call Settle after the action completes to mark the slot as done.',
+    defaults: { name: 'SafeAgent Guard' },
     inputs: ['main'],
-    outputs: ['main'],
-    credentials: [
-      {
-        name: 'postgresApiCredentials',
-        required: false,
-        displayOptions: {
-          show: {
-            backend: ['postgres'],
-          },
-        },
-      },
-    ],
+    // Two named outputs: index 0 = Proceed, index 1 = Skip.
+    // Settle always emits on index 0.
+    outputs: ['main', 'main'],
+    outputNames: ['Proceed', 'Skip'],
     properties: [
-      // ── Request ID ────────────────────────────────────────────────────────
+      // ── Operation ────────────────────────────────────────────────────────
+      {
+        displayName: 'Operation',
+        name: 'operation',
+        type: 'options',
+        noDataExpression: true,
+        options: [
+          {
+            name: 'Claim',
+            value: 'claim',
+            description:
+              'Atomically claim the (Request ID, Action) pair. ' +
+              'Routes to Proceed if new, Skip if already seen.',
+          },
+          {
+            name: 'Settle',
+            value: 'settle',
+            description:
+              'Mark a previously claimed pair as SETTLED once the action has completed successfully.',
+          },
+        ],
+        default: 'claim',
+      },
+      // ── Request ID ───────────────────────────────────────────────────────
       {
         displayName: 'Request ID',
         name: 'requestId',
@@ -108,54 +140,29 @@ export class SafeAgent implements INodeType {
         required: true,
         placeholder: '={{ $json["requestId"] }}',
         description:
-          'Unique identifier for this logical request (e.g. webhook event ID, message UUID). ' +
-          'Used together with Action Name to form the idempotency key.',
+          'Unique identifier for this logical request ' +
+          '(e.g. webhook event ID, message UUID, idempotency key).',
       },
-      // ── Action Name ───────────────────────────────────────────────────────
+      // ── Action ───────────────────────────────────────────────────────────
       {
-        displayName: 'Action Name',
-        name: 'actionName',
+        displayName: 'Action',
+        name: 'action',
         type: 'string',
         default: '',
         required: true,
-        placeholder: 'send_invoice',
+        placeholder: 'send_email',
         description:
-          'Name of the side-effectful action being guarded (e.g. "send_invoice", "charge_card"). ' +
-          'Combined with Request ID to create a unique execution claim.',
+          'Short label for the side-effectful action being guarded ' +
+          '(e.g. "send_email", "charge_card", "place_trade").',
       },
-      // ── Backend ───────────────────────────────────────────────────────────
+      // ── Database path ────────────────────────────────────────────────────
       {
-        displayName: 'Backend',
-        name: 'backend',
-        type: 'options',
-        options: [
-          {
-            name: 'SQLite (local file)',
-            value: 'sqlite',
-            description: 'Lightweight; good for single-instance or development use',
-          },
-          {
-            name: 'PostgreSQL',
-            value: 'postgres',
-            description: 'Distributed-safe; recommended for multi-worker / production deployments',
-          },
-        ],
-        default: 'sqlite',
-        description: 'Storage backend used by the execution-guard library',
-      },
-      // ── SQLite path (only shown when backend = sqlite) ────────────────────
-      {
-        displayName: 'SQLite Database Path',
-        name: 'sqlitePath',
+        displayName: 'Database Path',
+        name: 'dbPath',
         type: 'string',
         default: 'safeagent.db',
-        displayOptions: {
-          show: {
-            backend: ['sqlite'],
-          },
-        },
         description:
-          'Filesystem path to the SQLite database file. ' +
+          'Path to the SQLite database file. ' +
           'Relative paths are resolved from the n8n working directory.',
       },
     ],
@@ -165,90 +172,55 @@ export class SafeAgent implements INodeType {
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
-    const returnData: INodeExecutionData[] = [];
+    const proceedItems: INodeExecutionData[] = [];
+    const skipItems: INodeExecutionData[] = [];
 
     for (let i = 0; i < items.length; i++) {
-      const requestId = this.getNodeParameter('requestId', i) as string;
-      const actionName = this.getNodeParameter('actionName', i) as string;
-      const backend = this.getNodeParameter('backend', i) as 'sqlite' | 'postgres';
+      const operation = this.getNodeParameter('operation', i) as string;
+      const requestId = (this.getNodeParameter('requestId', i) as string).trim();
+      const action = (this.getNodeParameter('action', i) as string).trim();
+      const dbPath = (this.getNodeParameter('dbPath', i) as string) || 'safeagent.db';
 
-      if (!requestId.trim()) {
+      if (!requestId) {
         throw new NodeOperationError(this.getNode(), 'Request ID must not be empty.', {
           itemIndex: i,
         });
       }
-      if (!actionName.trim()) {
-        throw new NodeOperationError(this.getNode(), 'Action Name must not be empty.', {
+      if (!action) {
+        throw new NodeOperationError(this.getNode(), 'Action must not be empty.', {
           itemIndex: i,
         });
       }
 
-      let script: string;
-
-      if (backend === 'sqlite') {
-        const dbPath = this.getNodeParameter('sqlitePath', i) as string;
-        script = buildSQLiteScript(requestId, actionName, dbPath || 'safeagent.db');
-      } else {
-        // Build a libpq DSN from the stored credentials
-        const creds = await this.getCredentials('postgresApiCredentials');
-        const host = creds.host as string;
-        const port = creds.port as number;
-        const database = creds.database as string;
-        const user = creds.user as string;
-        const password = creds.password as string;
-        const ssl = creds.ssl as boolean;
-
-        const sslMode = ssl ? 'require' : 'disable';
-        const dsn = `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(
-          password,
-        )}@${host}:${port}/${database}?sslmode=${sslMode}`;
-
-        script = buildPostgresScript(requestId, actionName, dsn);
-      }
-
-      let rawOutput: string;
+      const db = openDb(dbPath);
       try {
-        rawOutput = execSync(`python3 -c "${script.replace(/"/g, '\\"')}"`, {
-          encoding: 'utf8',
-          timeout: 15_000,
-        }).trim();
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : String(err);
-        throw new NodeOperationError(
-          this.getNode(),
-          `safeagent-exec-guard subprocess failed: ${message}`,
-          { itemIndex: i },
-        );
+        if (operation === 'claim') {
+          const { inserted, status } = claim(db, requestId, action);
+
+          const outItem: INodeExecutionData = {
+            json: { requestId, action, dbPath, inserted, status },
+            pairedItem: { item: i },
+          };
+
+          if (inserted) {
+            proceedItems.push(outItem);
+          } else {
+            skipItems.push(outItem);
+          }
+        } else {
+          // settle
+          const { settled } = settle(db, requestId, action);
+
+          proceedItems.push({
+            json: { requestId, action, dbPath, settled, status: settled ? 'SETTLED' : 'NOT_FOUND' },
+            pairedItem: { item: i },
+          });
+        }
+      } finally {
+        db.close();
       }
-
-      let guardResult: Record<string, unknown>;
-      try {
-        guardResult = JSON.parse(rawOutput);
-      } catch {
-        throw new NodeOperationError(
-          this.getNode(),
-          `Unexpected output from safeagent-exec-guard (expected JSON): ${rawOutput}`,
-          { itemIndex: i },
-        );
-      }
-
-      // `inserted: true`  → new claim; caller should proceed with the action.
-      // `inserted: false` → already executed; caller should skip and use receipt.
-      const isDuplicate = guardResult.inserted === false;
-
-      returnData.push({
-        json: {
-          requestId,
-          actionName,
-          backend,
-          isDuplicate,
-          shouldProceed: !isDuplicate,
-          ...guardResult,
-        },
-        pairedItem: { item: i },
-      });
     }
 
-    return [returnData];
+    return [proceedItems, skipItems];
   }
 }
