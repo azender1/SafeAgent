@@ -1,132 +1,127 @@
-# n8n-nodes-safeagent
+<!-- mcp-name: io.github.azender1/safeagent -->
+# SafeAgent
 
-Community node for [SafeAgent](https://github.com/azender1/SafeAgent) — exactly-once execution guard for n8n workflows.
+AI agents retry. Retries fire side effects twice.
 
-Prevents duplicate side effects (emails, payments, API calls) when webhooks fire twice, agents retry, or workflows restart mid-run.
+Duplicate payment. Duplicate email. Duplicate trade. Duplicate ticket.
 
----
-
-## What it does
-
-n8n workflows can trigger the same action more than once — on retry, timeout, webhook replay, or agent loop. SafeAgent intercepts before the side effect happens and blocks the duplicate.
-
-**Claim-before-execute pattern:**
-
-```
-Webhook fires → SafeAgent claims the request_id → action runs → marked SETTLED
-Webhook fires again → SafeAgent sees SETTLED → action is skipped
-```
-
-One payment. One email. One trade. No matter how many times the workflow runs.
-
----
-
-## Installation
-
-In your n8n instance, go to **Settings → Community Nodes → Install** and enter:
-
-```
-n8n-nodes-safeagent
-```
-
-> **Requires:** Python 3.10+ and `safeagent-exec-guard` installed on the host running n8n.
->
-> ```bash
-> pip install safeagent-exec-guard
-> ```
->
-> Docker users: extend the base n8n image with Python 3.10 and the pip package. See [Docker setup](#docker-setup) below.
-
----
-
-## Usage
-
-Add the **SafeAgent** node before any irreversible action in your workflow.
-
-### Fields
-
-| Field | Description |
-|---|---|
-| `request_id` | Unique ID for this execution (use `{{ $json.headers["x-request-id"] }}` or similar) |
-| `action` | Short label for the action being guarded (e.g. `send_email`, `charge_card`) |
-| `db_path` | Path to SQLite file for state storage (default: `safeagent.db`) |
-
-### Outputs
-
-- **Proceed** — claim succeeded, run your action
-- **Skip** — duplicate detected, bypass the action
-
-### Example: Webhook → Email (duplicate-safe)
-
-```
-[Webhook] → [SafeAgent] → (Proceed) → [Send Email]
-                        → (Skip)    → [No-op / Log]
-```
-
-If the webhook fires twice with the same `request_id`, the email sends once. The second run exits through **Skip**.
-
----
-
-## State lifecycle
-
-SafeAgent tracks each `request_id` through these states:
-
-```
-OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED
-```
-
-Execution is only permitted from `FINAL`. If the agent's signals are ambiguous, the state stays in `IN_RECONCILIATION` and the side effect is blocked until the outcome is clear.
-
----
-
-## Docker setup
-
-Extend the official n8n image:
-
-```dockerfile
-FROM docker.n8n.io/n8nio/n8n
-
-USER root
-RUN apk add --no-cache python3 py3-pip && \
-    pip3 install safeagent-exec-guard --break-system-packages
-USER node
-```
-
-Build and run:
+SafeAgent is an execution guard that sits between an agent decision and an irreversible action. It gives every tool call a request ID, records a durable receipt on first execution, and returns that receipt on every retry — without running the side effect again.
 
 ```bash
-docker build -t n8n-safeagent .
-docker run -it --rm -p 5678:5678 -v n8n_data:/home/node/.n8n n8n-safeagent
+pip install safeagent-exec-guard
 ```
+
+Python 3.10+ · Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
 
 ---
 
-## Distributed / Postgres
+## The problem
 
-For multi-instance n8n setups, use Postgres instead of SQLite:
+```
+agent calls tool
+    ↓
+network timeout
+    ↓
+agent retries
+    ↓
+side effect runs twice
+```
+
+Most agent frameworks handle retries at the transport layer. None of them know whether the side effect already happened. SafeAgent does.
+
+---
+
+## Quickstart
+
+```python
+from settlement.settlement_requests import SettlementRequestRegistry
+
+registry = SettlementRequestRegistry()
+
+def send_invoice():
+    print("Sending invoice...")
+
+# First call — executes the side effect
+receipt = registry.execute(
+    request_id="invoice:C123",
+    action="send_invoice",
+    payload={"to": "c123@example.com"},
+    execute_fn=send_invoice,
+)
+
+# Retry with the same request_id — returns the original receipt, no second send
+receipt = registry.execute(
+    request_id="invoice:C123",
+    action="send_invoice",
+    payload={"to": "c123@example.com"},
+    execute_fn=send_invoice,
+)
+```
+
+Same `request_id` → original receipt returned → side effect runs exactly once.
+
+---
+
+## Works with any agent framework
+
+- **OpenAI** tool calls
+- **LangChain** tools
+- **CrewAI** actions
+- **Claude / MCP** tool execution
+- Any Python function that touches a real system
+
+---
+
+## How it works
+
+Every execution goes through a four-step control plane:
+
+```
+Agent decision
+    → Finality gate      (is this outcome confirmed?)
+    → Request-ID dedup   (has this exact call run before?)
+    → Execute once       (run the side effect)
+    → Receipt stored     (durable, survives restarts)
+```
+
+State machine: `OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED`
+
+Execution is only permitted from `FINAL`. Replays at any state return the stored receipt.
+
+---
+
+## Key properties
+
+- **Exactly-once execution** — same request_id never fires twice
+- **Durable receipts** — SQLite-backed, survives process restarts
+- **Finality gating** — blocks execution on ambiguous agent signals
+- **Confidence thresholds** — auto-finalizes when consensus exceeds threshold
+- **Audit trail** — every execution recorded with payload and outcome
+
+---
+
+## Run the demos
 
 ```bash
-pip install safeagent-exec-guard[postgres]
-```
+# Duplicate execution prevention
+python examples/safe_agent_demo.py
 
-Set `db_path` to your Postgres connection string:
-```
-postgresql://user:password@host:5432/safeagent
+# Stochastic agent signal simulation
+python examples/simulate_ai.py
+
+# Restart safety (run twice)
+python examples/persist_demo.py
+python examples/persist_demo.py
 ```
 
 ---
 
-## Links
+## Production use
 
-- **PyPI:** [safeagent-exec-guard](https://pypi.org/project/safeagent-exec-guard/)
-- **GitHub:** [azender1/SafeAgent](https://github.com/azender1/SafeAgent)
-- **MCP registry:** `io.github.azender1/safeagent`
-- **Issues / feedback:** [GitHub Issues](https://github.com/azender1/SafeAgent/issues)
+SafeAgent is a reference implementation and pattern library. If you're deploying this in a production agent system, see `LICENSING.md` for commercial options.
 
 ---
 
 ## License
 
-MIT © Anthony Zender — [azender1@yahoo.com](mailto:azender1@yahoo.com)
-
-Built in Dayton, OH. USPTO provisional 63/914,036 — Zender Gaming Technologies LLC.
+Apache-2.0
