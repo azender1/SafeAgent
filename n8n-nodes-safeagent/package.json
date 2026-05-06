@@ -8,15 +8,12 @@
     "idempotency",
     "execution-guard"
   ],
-  "license": "MIT",
-  "homepage": "https://github.com/your-org/n8n-nodes-safeagent",
-  "author": {
-    "name": "Your Name",
-    "email": "you@example.com"
-  },
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/azender1/SafeAgent",
+  "author": "Anthony Zender",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/n8n-nodes-safeagent.git"
+    "url": "https://github.com/azender1/SafeAgent"
   },
   "main": "index.js",
   "scripts": {
