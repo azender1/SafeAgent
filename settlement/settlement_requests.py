@@ -9,6 +9,7 @@ from typing import Any, Callable, Dict, Optional
 from settlement.gate import SettlementError, attempt_settlement
 from settlement.models import Case
 from safeagent_exec_guard.postgres_store import PostgresExecutionStore
+from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
 
 
 # ----------------------------
@@ -61,7 +62,12 @@ class SettlementRequestRegistry:
        - pass postgres_dsn to persist execution receipts beyond process memory
     """
 
-    def __init__(self, postgres_dsn: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        postgres_dsn: Optional[str] = None,
+        sqlite_path: Optional[str] = None,
+        pending_ttl_seconds: float = 300.0,
+    ) -> None:
         # Settlement dedup
         self._settlement_requests: Dict[str, str] = {}
         self._settlement_created_at: Dict[str, float] = {}
@@ -70,7 +76,14 @@ class SettlementRequestRegistry:
         self._exec_receipts: Dict[str, SafeExecuteReceipt] = {}
         self._exec_created_at: Dict[str, float] = {}
 
-        # Optional Postgres durable store
+        # SQLite two-phase claim store (preferred local durable backend)
+        self.sqlite: Optional[SQLiteExecutionStore] = None
+        if sqlite_path is not None:
+            self.sqlite = SQLiteExecutionStore(
+                sqlite_path, pending_ttl_seconds=pending_ttl_seconds
+            )
+
+        # Optional Postgres durable store (existing, backward-compatible path)
         self.pg: Optional[PostgresExecutionStore] = None
         if postgres_dsn:
             self.pg = PostgresExecutionStore(postgres_dsn)
@@ -167,6 +180,10 @@ class SettlementRequestRegistry:
                 timestamp_utc=self._now_utc(),
             ).to_dict()
 
+        # 0) SQLite two-phase claim path (local durable store)
+        if self.sqlite:
+            return self._execute_sqlite(request_id, action, clean_payload, execute_fn)
+
         # 1) Postgres-backed path (durable)
         if self.pg:
             existing = self.pg.get(request_id)
@@ -224,6 +241,7 @@ class SettlementRequestRegistry:
                 return receipt.to_dict()
 
         # 2) In-memory fallback path
+        # (reached only when neither SQLite nor Postgres is configured)
         if request_id in self._exec_receipts:
             r = self._exec_receipts[request_id]
             return SafeExecuteReceipt(
@@ -262,3 +280,106 @@ class SettlementRequestRegistry:
         self._exec_receipts[request_id] = receipt
         self._exec_created_at[request_id] = time.time()
         return receipt.to_dict()
+
+    # ---------
+    # SQLite two-phase claim helpers
+    # ---------
+
+    def _execute_sqlite(
+        self,
+        request_id: str,
+        action: str,
+        clean_payload: Dict[str, Any],
+        execute_fn: Callable[..., Any],
+    ) -> Dict[str, Any]:
+        """Two-phase claim execution backed by SQLiteExecutionStore."""
+        existing = self.sqlite.get(request_id)  # type: ignore[union-attr]
+        if existing is not None:
+            if existing["status"] == "COMMITTED":
+                stored = existing.get("result") or {}
+                return SafeExecuteReceipt(
+                    ok=stored.get("ok", False),
+                    reason="dedup_same_request_id",
+                    request_id=request_id,
+                    execution_id=stored.get("execution_id"),
+                    action=stored.get("action") or action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                ).to_dict()
+            # PENDING: in-flight or a prior crash — caller should retry after TTL
+            return SafeExecuteReceipt(
+                ok=False,
+                reason="claim_pending",
+                request_id=request_id,
+                execution_id=None,
+                action=action,
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
+            ).to_dict()
+
+        # Phase 1: claim — atomic INSERT of PENDING row
+        if not self.sqlite.claim(request_id, action):  # type: ignore[union-attr]
+            # Lost the INSERT race; return current state
+            existing = self.sqlite.get(request_id)  # type: ignore[union-attr]
+            if existing and existing["status"] == "COMMITTED":
+                stored = existing.get("result") or {}
+                return SafeExecuteReceipt(
+                    ok=stored.get("ok", False),
+                    reason="dedup_same_request_id",
+                    request_id=request_id,
+                    execution_id=stored.get("execution_id"),
+                    action=stored.get("action") or action,
+                    payload=clean_payload,
+                    timestamp_utc=self._now_utc(),
+                ).to_dict()
+            return SafeExecuteReceipt(
+                ok=False,
+                reason="claim_pending",
+                request_id=request_id,
+                execution_id=None,
+                action=action,
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
+            ).to_dict()
+
+        # Execute the side-effecting function
+        try:
+            _ = self._invoke_execute_fn(execute_fn, clean_payload)
+            exec_id = str(uuid.uuid4())
+            receipt = SafeExecuteReceipt(
+                ok=True,
+                reason="executed",
+                request_id=request_id,
+                execution_id=exec_id,
+                action=action,
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
+            )
+        except Exception as e:
+            receipt = SafeExecuteReceipt(
+                ok=False,
+                reason=f"execute_failed:{type(e).__name__}",
+                request_id=request_id,
+                execution_id=None,
+                action=action,
+                payload=clean_payload,
+                timestamp_utc=self._now_utc(),
+            )
+
+        # Phase 2: settle — PENDING → COMMITTED (called even on fn failure)
+        # A crash before this line leaves the row PENDING; the sweeper will reset it.
+        self.sqlite.settle(request_id, receipt.to_dict())  # type: ignore[union-attr]
+        return receipt.to_dict()
+
+    def sweep_pending(self) -> int:
+        """
+        Reset stale PENDING executions to CLAIMABLE.
+
+        Delegates to the SQLiteExecutionStore when configured; returns 0
+        otherwise.  Intended to be called periodically (e.g. a cron job or
+        background thread) so that requests stranded by a crash can be
+        retried once their TTL expires.
+        """
+        if self.sqlite:
+            return self.sqlite.sweep_stale_pending()
+        return 0
