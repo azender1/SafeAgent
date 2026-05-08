@@ -1,0 +1,124 @@
+{
+  "name": "SafeAgent — Duplicate Blocking Demo",
+  "nodes": [
+    {
+      "id": "6f3a1e2b-0001-4c8d-b7f5-a9e2c3d40001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "safeagent-demo",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "webhookId": "safeagent-demo-webhook"
+    },
+    {
+      "id": "6f3a1e2b-0002-4c8d-b7f5-a9e2c3d40002",
+      "name": "SafeAgent Guard",
+      "type": "n8n-nodes-safeagent.safeAgent",
+      "typeVersion": 1,
+      "position": [480, 300],
+      "parameters": {
+        "operation": "claim",
+        "requestId": "={{ $json.body.request_id }}",
+        "action": "send_email",
+        "dbPath": "safeagent.db"
+      }
+    },
+    {
+      "id": "6f3a1e2b-0003-4c8d-b7f5-a9e2c3d40003",
+      "name": "Proceed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [720, 180],
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.inserted }}",
+              "value2": true
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "6f3a1e2b-0004-4c8d-b7f5-a9e2c3d40004",
+      "name": "Send Email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [960, 80],
+      "parameters": {
+        "mode": "manual",
+        "fields": {
+          "values": [
+            {
+              "name": "email_sent",
+              "type": "booleanValue",
+              "booleanValue": true
+            }
+          ]
+        },
+        "include": "none",
+        "options": {}
+      }
+    },
+    {
+      "id": "6f3a1e2b-0005-4c8d-b7f5-a9e2c3d40005",
+      "name": "Duplicate Blocked",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [720, 440],
+      "parameters": {
+        "mode": "manual",
+        "fields": {
+          "values": [
+            {
+              "name": "duplicate_blocked",
+              "type": "booleanValue",
+              "booleanValue": true
+            }
+          ]
+        },
+        "include": "none",
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          { "node": "SafeAgent Guard", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "SafeAgent Guard": {
+      "main": [
+        [
+          { "node": "Proceed?", "type": "main", "index": 0 }
+        ],
+        [
+          { "node": "Duplicate Blocked", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Proceed?": {
+      "main": [
+        [
+          { "node": "Send Email", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "instanceId": "safeagent-demo"
+  }
+}
