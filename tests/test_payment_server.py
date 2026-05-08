@@ -182,6 +182,205 @@ class TestSweepRoute:
 # 2. x402 gate tests
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# 2. agent_id extraction helper (no middleware needed)
+# ---------------------------------------------------------------------------
+
+
+class TestAgentIdExtraction:
+    def test_no_payment_state_returns_none(self) -> None:
+        from safeagent_exec_guard.payment_server import _extract_agent_id
+        from unittest.mock import MagicMock
+
+        req = MagicMock()
+        req.state = MagicMock(spec=[])  # no payment_payload attr
+        assert _extract_agent_id(req) is None
+
+    def test_payment_payload_from_address_snake_case(self) -> None:
+        from safeagent_exec_guard.payment_server import _extract_agent_id
+        from unittest.mock import MagicMock
+
+        addr = "0xAbCd1234AbCd1234AbCd1234AbCd1234AbCd1234"
+        payload = MagicMock()
+        payload.payload = {"authorization": {"from_address": addr}}
+        req = MagicMock()
+        req.state.payment_payload = payload
+        assert _extract_agent_id(req) == addr
+
+    def test_payment_payload_from_address_camel_case(self) -> None:
+        from safeagent_exec_guard.payment_server import _extract_agent_id
+        from unittest.mock import MagicMock
+
+        addr = "0xDeAd000000000000000000000000000000000001"
+        payload = MagicMock()
+        payload.payload = {"authorization": {"fromAddress": addr}}
+        req = MagicMock()
+        req.state.payment_payload = payload
+        assert _extract_agent_id(req) == addr
+
+    def test_claim_stores_agent_id_when_injected(
+        self, store: SQLiteExecutionStore
+    ) -> None:
+        """If the middleware injects a payment_payload, agent_id is persisted."""
+        from safeagent_exec_guard.payment_server import create_app
+        from unittest.mock import patch, MagicMock
+
+        app = create_app(store=store)
+        addr = "0xBeEf000000000000000000000000000000000002"
+
+        # Patch _extract_agent_id so it returns our test address
+        with patch(
+            "safeagent_exec_guard.payment_server._extract_agent_id",
+            return_value=addr,
+        ):
+            with TestClient(app) as c:
+                resp = c.post(
+                    "/claim", json={"request_id": "aid-1", "action": "send"}
+                )
+
+        assert resp.json()["agent_id"] == addr
+        assert store.get("aid-1")["agent_id"] == addr
+
+
+# ---------------------------------------------------------------------------
+# 3. GET /audit endpoint
+# ---------------------------------------------------------------------------
+
+
+class TestAuditRoute:
+    def _seed(self, store: SQLiteExecutionStore) -> None:
+        """Insert a mix of rows for filter tests."""
+        store.claim("a1", "email.send", agent_id="0xAlice")
+        store.settle("a1", {"ok": True})
+        store.claim("a2", "webhook", agent_id="0xBob")
+        store.settle("a2", {"ok": True})
+        store.claim("a3", "email.send", agent_id="0xAlice")  # PENDING
+        store.claim("a4", "sms.send", agent_id=None)
+        store.settle("a4", {"ok": False})
+
+    def test_audit_returns_all_rows(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get("/audit")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 4
+        assert len(body["items"]) == 4
+
+    def test_audit_filter_by_agent_id(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get("/audit", params={"agent_id": "0xAlice"})
+        body = resp.json()
+        assert body["total"] == 2
+        assert all(i["agent_id"] == "0xAlice" for i in body["items"])
+
+    def test_audit_filter_by_action(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get("/audit", params={"action": "email.send"})
+        body = resp.json()
+        assert body["total"] == 2
+        assert all(i["action"] == "email.send" for i in body["items"])
+
+    def test_audit_filter_by_status_committed(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get("/audit", params={"status": "COMMITTED"})
+        body = resp.json()
+        assert body["total"] == 3
+        assert all(i["status"] == "COMMITTED" for i in body["items"])
+
+    def test_audit_filter_by_status_pending(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get("/audit", params={"status": "PENDING"})
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["items"][0]["request_id"] == "a3"
+
+    def test_audit_filter_by_date_range(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        now = time.time()
+        store.claim("ts1", "action", agent_id=None)
+        resp = client.get(
+            "/audit", params={"from_ts": now - 5, "to_ts": now + 60}
+        )
+        body = resp.json()
+        assert any(i["request_id"] == "ts1" for i in body["items"])
+
+    def test_audit_pagination(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp1 = client.get("/audit", params={"limit": 2, "offset": 0})
+        resp2 = client.get("/audit", params={"limit": 2, "offset": 2})
+        b1, b2 = resp1.json(), resp2.json()
+        assert b1["total"] == 4
+        assert len(b1["items"]) == 2
+        assert len(b2["items"]) == 2
+        ids = {i["request_id"] for i in b1["items"]} | {
+            i["request_id"] for i in b2["items"]
+        }
+        assert len(ids) == 4
+
+    def test_audit_combined_filters(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        self._seed(store)
+        resp = client.get(
+            "/audit",
+            params={"agent_id": "0xAlice", "status": "COMMITTED"},
+        )
+        body = resp.json()
+        assert body["total"] == 1
+        assert body["items"][0]["request_id"] == "a1"
+
+    def test_audit_empty_result(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        resp = client.get("/audit", params={"agent_id": "0xNobody"})
+        body = resp.json()
+        assert body["total"] == 0
+        assert body["items"] == []
+
+    def test_audit_not_payment_gated(self, store: SQLiteExecutionStore) -> None:
+        app = create_app(
+            store=store,
+            payment_address="0x1234567890abcdef1234567890abcdef12345678",
+        )
+        with TestClient(app, raise_server_exceptions=False) as c:
+            resp = c.get("/audit")
+            assert resp.status_code == 200
+
+    def test_audit_items_include_agent_id_field(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        store.claim("f1", "action", agent_id="0xFoo")
+        store.settle("f1", {"ok": True})
+        resp = client.get("/audit")
+        items = resp.json()["items"]
+        assert items[0]["agent_id"] == "0xFoo"
+
+    def test_audit_agent_id_null_when_unset(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        store.claim("f2", "action")  # no agent_id
+        resp = client.get("/audit")
+        items = resp.json()["items"]
+        assert items[0]["agent_id"] is None
+
+
+# ---------------------------------------------------------------------------
+# 4. x402 gate tests
+# ---------------------------------------------------------------------------
+
 x402 = pytest.importorskip("x402", reason="x402 not installed")
 
 _DUMMY_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"

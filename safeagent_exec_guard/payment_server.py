@@ -11,6 +11,14 @@ Quickstart
     export SAFEAGENT_PAYMENT_ADDRESS=0xYourBaseAddress
     uvicorn safeagent_exec_guard.payment_server:app --port 8402
 
+Endpoints
+---------
+    POST /claim           Pay-gated two-phase claim → PROCEED / SKIP / PENDING
+    POST /settle/{id}     Commit a PENDING claim with its result (free)
+    GET  /audit           Filterable claim history (free)
+    POST /sweep           Reset stale PENDING rows (free)
+    GET  /health          Liveness probe (free)
+
 Environment variables
 ---------------------
 SAFEAGENT_PAYMENT_ADDRESS   Recipient Base address for USDC (enables x402)
@@ -25,7 +33,7 @@ from __future__ import annotations
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
@@ -39,6 +47,34 @@ _USDC_BY_NETWORK: Dict[str, str] = {
     "eip155:84532": _USDC_BASE_SEPOLIA,  # Base Sepolia
     "eip155:8453": _USDC_BASE_MAINNET,   # Base mainnet
 }
+
+
+# ---------------------------------------------------------------------------
+# x402 payment helpers
+# ---------------------------------------------------------------------------
+
+
+def _extract_agent_id(request: Request) -> Optional[str]:
+    """
+    Extract the payer's EVM wallet address from the x402-verified payment.
+
+    Returns ``None`` when payment gating is disabled or the field is absent.
+    The address is drawn from the EIP-3009 ``from_address`` field inside
+    ``request.state.payment_payload``, which the x402 middleware injects
+    after successful on-chain verification.
+    """
+    payment = getattr(getattr(request, "state", None), "payment_payload", None)
+    if payment is None:
+        return None
+    raw: Dict[str, Any] = getattr(payment, "payload", {}) or {}
+    auth: Dict[str, Any] = raw.get("authorization") or {}
+    # Handle both snake_case and camelCase serialization styles
+    return (
+        auth.get("from_address")
+        or auth.get("fromAddress")
+        or raw.get("from")
+        or None
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +173,7 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/claim")
-    async def claim(body: ClaimRequest) -> Dict[str, Any]:
+    async def claim(body: ClaimRequest, request: Request) -> Dict[str, Any]:
         """
         Two-phase claim.
 
@@ -151,8 +187,10 @@ def create_app(
         retry after the pending TTL expires and the sweeper resets it.
 
         Requires x402 payment when the server is started with
-        ``SAFEAGENT_PAYMENT_ADDRESS`` set.
+        ``SAFEAGENT_PAYMENT_ADDRESS`` set.  The payer's EVM wallet address
+        is recorded as ``agent_id`` on every new claim row.
         """
+        agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(body.request_id)
         if existing is not None:
@@ -160,23 +198,37 @@ def create_app(
                 return {
                     "status": "SKIP",
                     "request_id": body.request_id,
+                    "agent_id": existing.get("agent_id"),
                     "existing": existing.get("result"),
                 }
-            return {"status": "PENDING", "request_id": body.request_id}
+            return {
+                "status": "PENDING",
+                "request_id": body.request_id,
+                "agent_id": existing.get("agent_id"),
+            }
 
         # Phase 1: atomic INSERT of PENDING row
-        if not store.claim(body.request_id, body.action):
+        if not store.claim(body.request_id, body.action, agent_id=agent_id):
             # Lost the concurrent INSERT race
             existing = store.get(body.request_id)
             if existing and existing["status"] == "COMMITTED":
                 return {
                     "status": "SKIP",
                     "request_id": body.request_id,
+                    "agent_id": existing.get("agent_id"),
                     "existing": existing.get("result"),
                 }
-            return {"status": "PENDING", "request_id": body.request_id}
+            return {
+                "status": "PENDING",
+                "request_id": body.request_id,
+                "agent_id": existing.get("agent_id") if existing else None,
+            }
 
-        return {"status": "PROCEED", "request_id": body.request_id}
+        return {
+            "status": "PROCEED",
+            "request_id": body.request_id,
+            "agent_id": agent_id,
+        }
 
     @app.post("/settle/{request_id}")
     async def settle(request_id: str, body: SettleRequest) -> Dict[str, Any]:
@@ -193,6 +245,48 @@ def create_app(
             return {"status": "already_committed", "request_id": request_id}
         store.settle(request_id, body.result)
         return {"status": "committed", "request_id": request_id}
+
+    @app.get("/audit")
+    async def audit(
+        agent_id: Optional[str] = Query(
+            default=None,
+            description="Filter by agent EVM wallet address",
+        ),
+        action: Optional[str] = Query(
+            default=None,
+            description="Filter by action name",
+        ),
+        status: Optional[str] = Query(
+            default=None,
+            description="Filter by status: PENDING or COMMITTED",
+        ),
+        from_ts: Optional[float] = Query(
+            default=None,
+            description="Include rows with claimed_at >= this Unix timestamp",
+        ),
+        to_ts: Optional[float] = Query(
+            default=None,
+            description="Include rows with claimed_at <= this Unix timestamp",
+        ),
+        limit: int = Query(default=100, ge=1, le=1000, description="Page size"),
+        offset: int = Query(default=0, ge=0, description="Pagination offset"),
+    ) -> Dict[str, Any]:
+        """
+        Claim history, optionally filtered.
+
+        All parameters are optional and combinable.  Results are ordered
+        newest-first by ``claimed_at``.  Not payment-gated.
+        """
+        store: SQLiteExecutionStore = app.state.store
+        return store.audit_claims(
+            agent_id=agent_id,
+            action=action,
+            status=status,
+            from_ts=from_ts,
+            to_ts=to_ts,
+            limit=limit,
+            offset=offset,
+        )
 
     @app.post("/sweep")
     async def sweep() -> Dict[str, Any]:
