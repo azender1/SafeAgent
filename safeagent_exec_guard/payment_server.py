@@ -163,6 +163,106 @@ def create_app(
         _usdc_asset = _USDC_BY_NETWORK.get(_network, _USDC_BASE_SEPOLIA)
         _price_atomic = str(int(float(_price) * 1_000_000))  # USDC: 6 decimal places
 
+        # Bazaar discovery extension — describes this endpoint for agentic.market indexing.
+        # Built as a plain dict matching the x402 BodyDiscoveryExtension wire format so
+        # we avoid the jsonschema dependency required by x402.extensions.bazaar.
+        _bazaar_extension: Dict[str, Any] = {
+            "bazaar": {
+                "name": "SafeAgent",
+                "description": (
+                    "Exactly-once execution guard — claim-before-execute pattern for "
+                    "AI agents. Prevents duplicate payments, emails, trades on retry."
+                ),
+                "category": "infrastructure",
+                "info": {
+                    "input": {
+                        "type": "http",
+                        "bodyType": "json",
+                        "body": {
+                            "request_id": "req-550e8400",
+                            "action": "send_email",
+                        },
+                    },
+                    "output": {
+                        "type": "json",
+                        "example": {
+                            "status": "PROCEED",
+                            "request_id": "req-550e8400",
+                            "agent_id": "0xabc123…",
+                        },
+                    },
+                },
+                "schema": {
+                    "$schema": "https://json-schema.org/draft/2020-12/schema",
+                    "type": "object",
+                    "properties": {
+                        "input": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string", "const": "http"},
+                                "method": {
+                                    "type": "string",
+                                    "enum": ["POST", "PUT", "PATCH"],
+                                },
+                                "bodyType": {
+                                    "type": "string",
+                                    "enum": ["json", "form-data", "text"],
+                                },
+                                "body": {
+                                    "type": "object",
+                                    "properties": {
+                                        "request_id": {
+                                            "type": "string",
+                                            "description": "Idempotency key for the action",
+                                        },
+                                        "action": {
+                                            "type": "string",
+                                            "description": "Name of the action being guarded",
+                                        },
+                                    },
+                                    "required": ["request_id", "action"],
+                                },
+                            },
+                            "required": ["type", "method", "bodyType", "body"],
+                            "additionalProperties": False,
+                        },
+                        "output": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "example": {
+                                    "type": "object",
+                                    "properties": {
+                                        "status": {
+                                            "type": "string",
+                                            "enum": ["PROCEED", "SKIP", "PENDING"],
+                                            "description": (
+                                                "PROCEED — caller should execute and settle; "
+                                                "SKIP — duplicate, reuse stored result; "
+                                                "PENDING — another caller is in-flight"
+                                            ),
+                                        },
+                                        "request_id": {"type": "string"},
+                                        "agent_id": {
+                                            "type": "string",
+                                            "description": "Payer EVM wallet address",
+                                        },
+                                        "existing": {
+                                            "type": "object",
+                                            "description": "Stored result (SKIP only)",
+                                        },
+                                    },
+                                    "required": ["status", "request_id"],
+                                },
+                            },
+                            "required": ["type"],
+                        },
+                    },
+                    "required": ["input"],
+                },
+            }
+        }
+
         def _make_payment_required_response(url: str) -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
@@ -184,6 +284,7 @@ def create_app(
                         extra={"name": "USDC", "version": "2"},
                     )
                 ],
+                extensions=_bazaar_extension,
             )
             return JSONResponse(
                 content={},
