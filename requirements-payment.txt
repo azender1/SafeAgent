@@ -1,0 +1,4 @@
+fastapi
+uvicorn
+x402
+httpx
