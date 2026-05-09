@@ -177,6 +177,7 @@ def create_app(
                 "info": {
                     "input": {
                         "type": "http",
+                        "method": "POST",
                         "bodyType": "json",
                         "body": {
                             "request_id": "req-550e8400",
