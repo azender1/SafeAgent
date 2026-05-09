@@ -264,13 +264,13 @@ def create_app(
             }
         }
 
-        def _make_payment_required_response(url: str) -> JSONResponse:
+        def _make_payment_required_response() -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
                 x402_version=2,
                 error="Payment required",
                 resource=ResourceInfo(
-                    url=url,
+                    url="https://safeagent-production.up.railway.app/claim",
                     description="SafeAgent two-phase claim — returns PROCEED or SKIP",
                     mime_type="application/json",
                 ),
@@ -336,7 +336,7 @@ def create_app(
                 if not payment_header:
                     # Return proper 402 without touching x402 internals — safe even
                     # when the facilitator has not yet been contacted.
-                    return _make_payment_required_response(str(request.url))
+                    return _make_payment_required_response()
                 # Payment header present — delegate to x402 for verification/settlement.
                 return await _x402(request, call_next)
             return await call_next(request)
