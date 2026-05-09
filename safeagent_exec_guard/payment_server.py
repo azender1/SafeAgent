@@ -30,10 +30,13 @@ SAFEAGENT_PENDING_TTL       Stale-pending TTL secs   (default: 300)
 """
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
@@ -132,14 +135,61 @@ def create_app(
 
     # ------------------------------------------------------------------
     # x402 payment middleware — only attached when payment_address is set
+    #
+    # Architecture: two layers.
+    #
+    # 1. payment_gate (custom) — intercepts requests with no payment header
+    #    and returns a hand-built 402 immediately.  This never touches
+    #    x402's internal resource-server state, so it works even before
+    #    the facilitator has been contacted.
+    #
+    # 2. _x402 (x402 SDK) — only runs when a payment header IS present;
+    #    verifies and settles the on-chain payment.  We use
+    #    sync_facilitator_on_start=False so the first-request init call
+    #    never blocks the event loop; instead we initialize in a startup
+    #    event below.
     # ------------------------------------------------------------------
     if _payment_address:
-        from x402.http.middleware.fastapi import PaymentMiddlewareASGI
+        from x402.http.constants import PAYMENT_REQUIRED_HEADER
         from x402.http.facilitator_client import HTTPFacilitatorClient
         from x402.http.facilitator_client_base import FacilitatorConfig
-        from x402.http.types import RouteConfig, PaymentOption
-        from x402.server import x402ResourceServer
+        from x402.http.middleware.fastapi import payment_middleware
+        from x402.http.types import PaymentOption, RouteConfig
+        from x402.http.utils import encode_payment_required_header
         from x402.mechanisms.evm.exact import register_exact_evm_server
+        from x402.schemas import PaymentRequired, PaymentRequirements, ResourceInfo
+        from x402.server import x402ResourceServer
+
+        _usdc_asset = _USDC_BY_NETWORK.get(_network, _USDC_BASE_SEPOLIA)
+        _price_atomic = str(int(float(_price) * 1_000_000))  # USDC: 6 decimal places
+
+        def _make_payment_required_response(url: str) -> JSONResponse:
+            """Build a proper x402 v2 402 response without needing the facilitator."""
+            pr = PaymentRequired(
+                x402_version=2,
+                error="Payment required",
+                resource=ResourceInfo(
+                    url=url,
+                    description="SafeAgent two-phase claim — returns PROCEED or SKIP",
+                    mime_type="application/json",
+                ),
+                accepts=[
+                    PaymentRequirements(
+                        scheme="exact",
+                        network=_network,
+                        asset=_usdc_asset,
+                        amount=_price_atomic,
+                        pay_to=_payment_address,
+                        max_timeout_seconds=300,
+                        extra={"name": "USDC", "version": "2"},
+                    )
+                ],
+            )
+            return JSONResponse(
+                content={},
+                status_code=402,
+                headers={PAYMENT_REQUIRED_HEADER: encode_payment_required_header(pr)},
+            )
 
         facilitator_client = HTTPFacilitatorClient(
             FacilitatorConfig(url=_facilitator)
@@ -158,11 +208,36 @@ def create_app(
                 description="SafeAgent two-phase claim — returns PROCEED or SKIP",
             )
         }
-        app.add_middleware(
-            PaymentMiddlewareASGI,
-            routes=routes,
-            server=resource_server,
+        _x402 = payment_middleware(
+            routes, resource_server, sync_facilitator_on_start=False
         )
+
+        @app.on_event("startup")
+        async def _init_x402_server() -> None:
+            """Initialize x402 resource server (fetches facilitator support) async."""
+            loop = asyncio.get_event_loop()
+            try:
+                await loop.run_in_executor(None, resource_server.initialize)
+            except Exception as exc:
+                logging.getLogger(__name__).warning(
+                    "x402 facilitator init failed at startup (%s); "
+                    "payment verification may fail until the facilitator is reachable",
+                    exc,
+                )
+
+        @app.middleware("http")
+        async def payment_gate(request: Request, call_next):  # type: ignore[misc]
+            if request.method == "POST" and request.url.path == "/claim":
+                payment_header = request.headers.get(
+                    "x-payment"
+                ) or request.headers.get("payment-signature")
+                if not payment_header:
+                    # Return proper 402 without touching x402 internals — safe even
+                    # when the facilitator has not yet been contacted.
+                    return _make_payment_required_response(str(request.url))
+                # Payment header present — delegate to x402 for verification/settlement.
+                return await _x402(request, call_next)
+            return await call_next(request)
 
     # ------------------------------------------------------------------
     # Routes
@@ -173,7 +248,7 @@ def create_app(
         return {"status": "ok"}
 
     @app.post("/claim")
-    async def claim(body: ClaimRequest, request: Request) -> Dict[str, Any]:
+    async def claim(request: Request, body: Optional[ClaimRequest] = None) -> Dict[str, Any]:
         """
         Two-phase claim.
 
@@ -190,6 +265,11 @@ def create_app(
         ``SAFEAGENT_PAYMENT_ADDRESS`` set.  The payer's EVM wallet address
         is recorded as ``agent_id`` on every new claim row.
         """
+        if body is None:
+            raise HTTPException(
+                status_code=422,
+                detail="request_id and action are required",
+            )
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(body.request_id)
