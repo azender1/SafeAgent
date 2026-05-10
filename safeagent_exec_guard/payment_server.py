@@ -196,6 +196,12 @@ def create_app(
                 },
             ),
         )
+        # Patch method into the bazaar info.input block — required by the
+        # Coinbase Go SDK validator; declare_discovery_extension doesn't inject it.
+        try:
+            _bazaar_extension["bazaar"]["info"]["input"]["method"] = "POST"
+        except (KeyError, TypeError):
+            pass
         _payment_requirements = PaymentRequirements(
             scheme="exact",
             network=_network,
