@@ -264,27 +264,43 @@ def create_app(
             }
         }
 
+        _resource_url = "https://safeagent-production.up.railway.app/claim"
+        _payment_requirements = PaymentRequirements(
+            scheme="exact",
+            network=_network,
+            asset=_usdc_asset,
+            amount=_price_atomic,
+            pay_to=_payment_address,
+            max_timeout_seconds=300,
+            extra={"name": "USDC", "version": "2"},
+        )
+        # Discovery document (no error field — informational, not a rejection).
+        _well_known_doc = PaymentRequired(
+            x402_version=2,
+            resource=ResourceInfo(
+                url=_resource_url,
+                description="SafeAgent two-phase claim — returns PROCEED or SKIP",
+                mime_type="application/json",
+            ),
+            accepts=[_payment_requirements],
+            extensions=_bazaar_extension,
+        )
+        # Store on app.state so the /.well-known/x402 route can reach it.
+        app.state.well_known_x402 = _well_known_doc.model_dump(
+            by_alias=True, exclude_none=True
+        )
+
         def _make_payment_required_response() -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
                 x402_version=2,
                 error="Payment required",
                 resource=ResourceInfo(
-                    url="https://safeagent-production.up.railway.app/claim",
+                    url=_resource_url,
                     description="SafeAgent two-phase claim — returns PROCEED or SKIP",
                     mime_type="application/json",
                 ),
-                accepts=[
-                    PaymentRequirements(
-                        scheme="exact",
-                        network=_network,
-                        asset=_usdc_asset,
-                        amount=_price_atomic,
-                        pay_to=_payment_address,
-                        max_timeout_seconds=300,
-                        extra={"name": "USDC", "version": "2"},
-                    )
-                ],
+                accepts=[_payment_requirements],
                 extensions=_bazaar_extension,
             )
             return JSONResponse(
@@ -348,6 +364,22 @@ def create_app(
     @app.get("/health")
     async def health() -> Dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/.well-known/x402")
+    async def well_known_x402() -> Dict[str, Any]:
+        """
+        x402 discovery document.
+
+        Returns the PaymentRequired metadata for this server so that x402-aware
+        proxies (e.g. Orbis) can discover payment configuration without first
+        hitting a protected endpoint.  The response is the decoded form of the
+        ``PAYMENT-REQUIRED`` header value: x402Version, resource, accepts, and
+        bazaar extension.
+        """
+        doc = getattr(app.state, "well_known_x402", None)
+        if doc is None:
+            raise HTTPException(status_code=404, detail="x402 payment gating is not configured")
+        return doc
 
     @app.post("/claim")
     async def claim(request: Request, body: Optional[ClaimRequest] = None) -> Dict[str, Any]:
