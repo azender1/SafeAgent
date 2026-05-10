@@ -51,6 +51,7 @@ payment = [
     "fastapi>=0.115",
     "uvicorn>=0.30",
     "eth-account>=0.12",
+    "jsonschema>=4.0",
 ]
 # pip install safeagent-exec-guard[test]
 test = [
