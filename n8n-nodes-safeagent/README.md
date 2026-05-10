@@ -1,120 +1,100 @@
-<!-- mcp-name: io.github.azender1/safeagent -->
-# SafeAgent
+# n8n-nodes-safeagent
 
-AI agents retry. Retries fire side effects twice.
+n8n community node — **SafeAgent Execution Guard**
 
-Duplicate payment. Duplicate email. Duplicate trade. Duplicate ticket.
+Gives every workflow item a durable claim before a side-effectful action runs,
+then routes to **Proceed** (new) or **Skip** (duplicate already seen).
+Prevents double-sends, double-charges, and double-trades when agents or
+webhooks retry.
 
-SafeAgent is an execution guard that sits between an agent decision and an irreversible action. It gives every tool call a request ID, records a durable receipt on first execution, and returns that receipt on every retry — without running the side effect again.
-
-Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
+[![npm](https://img.shields.io/npm/v/n8n-nodes-safeagent)](https://www.npmjs.com/package/n8n-nodes-safeagent)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
 
-## The problem
+## Installation
+
+In your n8n instance go to **Settings → Community Nodes → Install** and enter:
 
 ```
-agent calls tool
-    ↓
-network timeout
-    ↓
-agent retries
-    ↓
-side effect runs twice
+n8n-nodes-safeagent
 ```
 
-Most agent frameworks handle retries at the transport layer. None of them know whether the side effect already happened. SafeAgent does.
-
----
-
-## Quickstart
-
-```python
-from settlement.settlement_requests import SettlementRequestRegistry
-
-registry = SettlementRequestRegistry()
-
-def send_invoice():
-    print("Sending invoice...")
-
-# First call — executes the side effect
-receipt = registry.execute(
-    request_id="invoice:C123",
-    action="send_invoice",
-    payload={"to": "c123@example.com"},
-    execute_fn=send_invoice,
-)
-
-# Retry with the same request_id — returns the original receipt, no second send
-receipt = registry.execute(
-    request_id="invoice:C123",
-    action="send_invoice",
-    payload={"to": "c123@example.com"},
-    execute_fn=send_invoice,
-)
-```
-
-Same `request_id` → original receipt returned → side effect runs exactly once.
-
----
-
-## Works with any agent framework
-
-- **OpenAI** tool calls
-- **LangChain** tools
-- **CrewAI** actions
-- **Claude / MCP** tool execution
-- Any Python function that touches a real system
-
----
-
-## How it works
-
-Every execution goes through a four-step control plane:
-
-```
-Agent decision
-    → Finality gate      (is this outcome confirmed?)
-    → Request-ID dedup   (has this exact call run before?)
-    → Execute once       (run the side effect)
-    → Receipt stored     (durable, survives restarts)
-```
-
-State machine: `OPEN → RESOLVED → IN_RECONCILIATION → FINAL → SETTLED`
-
-Execution is only permitted from `FINAL`. Replays at any state return the stored receipt.
-
----
-
-## Key properties
-
-- **Exactly-once execution** — same request_id never fires twice
-- **Durable receipts** — SQLite-backed, survives process restarts
-- **Finality gating** — blocks execution on ambiguous agent signals
-- **Confidence thresholds** — auto-finalizes when consensus exceeds threshold
-- **Audit trail** — every execution recorded with payload and outcome
-
----
-
-## Run the demos
+Or install manually:
 
 ```bash
-# Duplicate execution prevention
-python examples/safe_agent_demo.py
-
-# Stochastic agent signal simulation
-python examples/simulate_ai.py
-
-# Restart safety (run twice)
-python examples/persist_demo.py
-python examples/persist_demo.py
+npm install n8n-nodes-safeagent
 ```
 
 ---
 
-## Production use
+## Operations
 
-SafeAgent is a reference implementation and pattern library. If you're deploying this in a production agent system, see `LICENSING.md` for commercial options.
+### Claim
+
+Atomically reserves a `(Request ID, Action)` pair in a local SQLite database.
+
+| Output | When |
+|--------|------|
+| **Proceed** | Pair is new — run your action |
+| **Skip** | Pair already seen — skip the action |
+
+### Settle
+
+Marks a previously claimed pair as `SETTLED` once the action has completed
+successfully. Call this at the end of your Proceed branch.
+
+---
+
+## Quick test
+
+Build a workflow with three nodes:
+
+```
+[Manual Trigger] → [SafeAgent Guard (Claim)] → Proceed → [SafeAgent Guard (Settle)]
+                                              → Skip   → [No Operation]
+```
+
+1. Set **Request ID** to a fixed value, e.g. `test-001`.
+2. Set **Action** to `send_email` (or any label).
+3. Execute the workflow.
+   - First run: item exits **Proceed**.
+   - Second run with the same Request ID: item exits **Skip**.
+
+---
+
+## Node parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| Operation | `claim` or `settle` | `claim` |
+| Request ID | Unique idempotency key (e.g. webhook event ID, message UUID) | — |
+| Action | Short label for the action being guarded (e.g. `send_email`) | — |
+| Database Path | Path to the SQLite file (relative to n8n working directory) | `safeagent.db` |
+
+---
+
+## Output fields
+
+```json
+{
+  "requestId": "evt-abc123",
+  "action": "send_email",
+  "inserted": true,
+  "status": "OPEN"
+}
+```
+
+For **Settle**:
+
+```json
+{
+  "requestId": "evt-abc123",
+  "action": "send_email",
+  "settled": true,
+  "status": "SETTLED"
+}
+```
 
 ---
 
