@@ -80,6 +80,41 @@ Shared ID across composed tool boundaries for retry convergence without tight co
 
 
 
+\### 4. Execution receipt
+
+Post-execution proof anchored externally — independently verifiable without trusting the runtime that produced it.
+
+The guard proves "this ran exactly once." The receipt proves "this is what ran" to a party that does not trust the system that ran it.
+
+**Interface**
+
+\- `request\_id` (Layer 1) maps to `action\_ref` in the receipt layer. Both are derived from tool arguments before execution using the same SHA-256 content-addressing:
+
+```
+action_ref = SHA-256(agent_id + ":" + action_type + ":" + scope + ":" + timestamp)
+```
+
+No coupling changes needed on either side — the key is already content-addressed and consistent across layers.
+
+\- `payment\_hash` is the natural cross-rail key for x402-gated actions: it links the payment primitive to the execution receipt without coupling the payment and execution layers.
+
+**Anchor requirement for regulated workflows**
+
+For workflows subject to external audit (financial, compliance, regulated), the receipt should be anchored on an external chain — a verifier can replay from any RPC node without querying the runtime.
+
+**What an auditor can verify from the receipt alone**
+
+\- The action ran (trail exists, anchored on-chain)
+\- The action was authorized (scope field, optionally linked via delegation\_ref)
+\- The action was paid (payment\_hash cross-references the settlement layer)
+\- The action ran exactly once (idempotency enforced by Layer 2; receipt is write-once)
+
+**Reference implementation**
+
+[Mycelium Trails](https://argentum.rgiskard.xyz/trails/demo) — on-chain execution receipts anchored on Base mainnet, keyed by `action\_ref`. Joint interface spec: giskard09/argentum-core#7.
+
+
+
 \## Why This Matters
 
 
@@ -141,6 +176,10 @@ Execution records should support:
 \- What retention / TTL defaults make sense?
 
 \- How should partial multi-step side effects be coordinated?
+
+\- **Layer 4 scope** — should the RFC specify a canonical anchor chain, or leave that to the implementor? (Current reference: Base mainnet)
+
+\- **delegation\_ref format** — URL, content hash, or UUID? Currently caller-defined; Mycelium stores verbatim.
 
 
 
