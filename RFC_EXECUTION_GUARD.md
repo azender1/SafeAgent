@@ -218,6 +218,19 @@ action_ref = SHA-256(agent_id || action_type || scope || timestamp_ms)
 | `action_ref` / `request_id` | `request_id` | `idempotency_key` (caller-computed) | `action_ref` |
 | outcome endpoint | `POST /settle/{id}` | `GET /api/actions/:actionId/outcome` | reads after settle |
 
+### Byte encoding
+
+`timestamp_ms` is encoded as int64, 8 bytes, big-endian. All string fields are UTF-8 encoded. Implementations must use this exact encoding to produce compatible hashes across systems.
+
+```
+SHA-256(
+  agent_id.encode('utf-8') ||
+  action_type.encode('utf-8') ||
+  scope.encode('utf-8') ||
+  timestamp_ms.to_bytes(8, 'big')
+)
+```
+
 ### Key properties
 
 - Derived from tool arguments **before** execution — same inputs always produce the same `action_ref`
