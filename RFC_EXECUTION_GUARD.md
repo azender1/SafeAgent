@@ -193,3 +193,37 @@ SafeAgent is a reference implementation of the Execution Guard pattern using:
 
 \- Postgres for distributed / production environments
 
+## Canonical Key Derivation (v1)
+
+All four fields are required. No optional fields in the byte contract.
+
+action_ref = SHA-256(agent_id || action_type || scope || timestamp_ms)
+
+### Field definitions
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `agent_id` | string | Stable identifier of the executing agent. ERC-8004 compatible identifiers are preferred but not required for v1. |
+| `action_type` | string | The tool or action name (e.g. `stripe:charge`, `file:write`, `email:send`) |
+| `scope` | string | What the agent was authorized to do. Maps to DashClaw `authorization_scope`. |
+| `timestamp_ms` | int64 | Millisecond-precision Unix timestamp at claim time, before execution. |
+
+### Cross-system field mapping
+
+| Joint spec field | SafeAgent | DashClaw | Mycelium Trails |
+|-----------------|-----------|----------|-----------------|
+| `agent_id` | claim payload | `agent_id` | anchor key input |
+| `action_type` | claim payload | `action_type` | anchor key input |
+| `scope` | claim payload | `authorization_scope` | anchor key input |
+| `action_ref` / `request_id` | `request_id` | `idempotency_key` (caller-computed) | `action_ref` |
+| outcome endpoint | `POST /settle/{id}` | `GET /api/actions/:actionId/outcome` | reads after settle |
+
+### Key properties
+
+- Derived from tool arguments **before** execution — same inputs always produce the same `action_ref`
+- `agent_id` is required to prevent collision in multi-agent systems where two agents make identical calls
+- DashClaw consumes `action_ref` as `idempotency_key` opaquely — no runtime coupling required
+- Mycelium reads `GET /api/actions/:actionId/outcome` after SafeAgent settles and anchors on-chain using `action_ref`
+
+Joint interface spec: [giskard09/argentum-core#7](https://github.com/giskard09/argentum-core/issues/7)
+
