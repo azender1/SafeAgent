@@ -98,6 +98,9 @@ No coupling changes needed on either side — the key is already content-address
 
 \- `payment\_hash` is the natural cross-rail key for x402-gated actions: it links the payment primitive to the execution receipt without coupling the payment and execution layers.
 
+**x402 version compatibility**
+The canonical payment path uses x402 v1 (compatible with the CDP facilitator at api.cdp.coinbase.com). x402 v2 is supported via alternative facilitators (e.g. x402.org) but is not yet CDP-compatible. RFC implementations should target v1 for maximum interoperability until CDP adds v2 support.
+
 **Anchor requirement for regulated workflows**
 
 For workflows subject to external audit (financial, compliance, regulated), the receipt should be anchored on an external chain — a verifier can replay from any RPC node without querying the runtime.
