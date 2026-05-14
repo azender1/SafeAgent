@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "safeagent": {
+      "command": "python",
+      "args": ["-m", "safeagent_exec_guard.mcp_server"],
+      "env": {}
+    }
+  }
+}
