@@ -28,6 +28,7 @@ SAFEAGENT_FACILITATOR_URL   x402 facilitator URL     (default: https://api.cdp.c
 SAFEAGENT_RESOURCE_URL      Public URL of /claim     (default: https://safeagent-production.up.railway.app/claim)
 SAFEAGENT_DB_PATH           SQLite file path         (default: safeagent.db)
 SAFEAGENT_PENDING_TTL       Stale-pending TTL secs   (default: 300)
+SAFEAGENT_X402_VERSION      x402 protocol version    (default: 2; set to 1 for v1/CDP format)
 """
 from __future__ import annotations
 
@@ -136,6 +137,7 @@ def create_app(
     _network = os.getenv("SAFEAGENT_NETWORK", network)
     _facilitator = os.getenv("SAFEAGENT_FACILITATOR_URL", facilitator_url)
     _resource_url = os.getenv("SAFEAGENT_RESOURCE_URL", resource_url)
+    _x402_version: int = int(os.getenv("SAFEAGENT_X402_VERSION", "2"))
 
     app = FastAPI(
         title="SafeAgent Claim Server",
@@ -237,7 +239,7 @@ def create_app(
         )
         # Discovery document (no error field — informational, not a rejection).
         _well_known_doc = PaymentRequired(
-            x402_version=2,
+            x402_version=_x402_version,
             resource=ResourceInfo(
                 url=_resource_url,
                 description="SafeAgent two-phase claim — returns PROCEED or SKIP",
@@ -254,7 +256,7 @@ def create_app(
         def _make_payment_required_response() -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
-                x402_version=2,
+                x402_version=_x402_version,
                 error="Payment required",
                 resource=ResourceInfo(
                     url=_resource_url,
@@ -332,7 +334,7 @@ def create_app(
                         headers={
                             PAYMENT_REQUIRED_HEADER: encode_payment_required_header(
                                 PaymentRequired(
-                                    x402_version=2,
+                                    x402_version=_x402_version,
                                     error="Payment verification failed — please retry",
                                     resource=ResourceInfo(
                                         url=_resource_url,
