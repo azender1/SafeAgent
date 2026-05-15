@@ -1,0 +1,23 @@
+{
+  "server": {
+    "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+    "name": "io.github.azender1/safeagent",
+    "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, and trades on retry. x402 payment-gated on Base, Claude Desktop MCP tools, n8n community node, two-phase PENDING → COMMITTED crash-safe receipts.",
+    "title": "SafeAgent",
+    "repository": {
+      "url": "https://github.com/azender1/SafeAgent",
+      "source": "github"
+    },
+    "version": "0.1.16",
+    "packages": [
+      {
+        "registryType": "pypi",
+        "identifier": "safeagent-exec-guard",
+        "version": "0.1.16",
+        "transport": {
+          "type": "stdio"
+        }
+      }
+    ]
+  }
+}
