@@ -128,6 +128,36 @@ SAFEAGENT_X402_VERSION=1  # CDP facilitator direct
 
 ---
 
+## Claude Desktop (MCP)
+
+Use SafeAgent tools directly in Claude Desktop — no code required.
+
+**Install dependencies:**
+```bash
+pip install mcp httpx
+```
+
+**Add to your Claude Desktop config:**
+
+Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "safeagent": {
+      "command": "python",
+      "args": ["C:\\path\\to\\safeagent_exec_guard\\mcp_server.py"],
+      "cwd": "C:\\path\\to\\SAFEAGENT"
+    }
+  }
+}
+```
+
+Restart Claude Desktop. SafeAgent tools appear in the **+** menu. Claude can now call `safeagent_claim` and `safeagent_settle` directly in any conversation.
+
+---
+
 ## Two-phase execution receipts
 
 A crash mid-call leaves `PENDING`, not a false `COMMITTED`. The sweeper resets stuck claims automatically.
