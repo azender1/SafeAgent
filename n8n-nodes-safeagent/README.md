@@ -34,6 +34,16 @@ npm install n8n-nodes-safeagent
 - **Bazaar indexed** — discoverable by any x402-enabled agent
 ---
 
+## Also available as
+
+- **x402 pay-per-call API** — [Orbis listing](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02) — $0.001 USDC per claim, no signup, autonomously discoverable by AI agents on Base
+- **Python library** — `pip install safeagent-exec-guard`
+- **Claude Desktop MCP** — `safeagent_claim` and `safeagent_settle` tools available directly in Claude Desktop
+- **MCP Registry** — `io.github.azender1/safeagent`
+- **Bazaar indexed** — discoverable by any x402-enabled agent
+
+---
+
 ## Operations
 
 ### Claim
