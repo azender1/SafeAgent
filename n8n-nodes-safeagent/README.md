@@ -1,84 +1,120 @@
-# SafeAgent
+# n8n-nodes-safeagent
 
-> Deterministic execution for AI agents interacting with real-world systems.
+n8n community node — **SafeAgent Execution Guard**
 
----
+Gives every workflow item a durable claim before a side-effectful action runs,
+then routes to **Proceed** (new) or **Skip** (duplicate already seen).
+Prevents double-sends, double-charges, and double-trades when agents or
+webhooks retry.
 
-## The Problem
-
-Agents don’t fail on decisions.  
-They fail on **uncertain completion**.
-
-Timeout → retry → duplicate execution.
-
----
-
-## The Fix
-
-SafeAgent introduces an **execution boundary**:
-
-- prevents duplicate side effects  
-- resolves retries against prior attempts  
-- enforces exactly-once outcomes  
+[![npm](https://img.shields.io/npm/v/n8n-nodes-safeagent)](https://www.npmjs.com/package/n8n-nodes-safeagent)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 ---
 
-## Example
+## Installation
 
-### Without SafeAgent
+In your n8n instance go to **Settings → Community Nodes → Install** and enter:
 
 ```
-BUY QQQ 2 @ 355.10
-timeout
-retry
-BUY QQQ 2 @ 355.10   <-- duplicate
-
-Position: 4 shares
-Capital: $1420.40
+n8n-nodes-safeagent
 ```
 
-### With SafeAgent
+Or install manually:
+
+```bash
+npm install n8n-nodes-safeagent
+```
+## Also available as
+
+- **x402 pay-per-call API** — [Orbis listing](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02) — $0.001 USDC per claim, no signup, autonomously discoverable by AI agents on Base
+- **Python library** — `pip install safeagent-exec-guard`
+- **Claude Desktop MCP** — `safeagent_claim` and `safeagent_settle` tools available directly in Claude Desktop
+- **MCP Registry** — `io.github.azender1/safeagent`
+- **Bazaar indexed** — discoverable by any x402-enabled agent
+- **Guarantee model spec** — [argentum-core](https://github.com/giskard09/argentum-core) — documents what a COMMITTED SafeAgent claim proves vs a Mycelium TrailRecord
+---
+
+## Operations
+
+### Claim
+
+Atomically reserves a `(Request ID, Action)` pair in durable storage.
+Returns **PENDING** on the first call, then routes to **Proceed** or **Skip**.
+
+| Output | When |
+|--------|------|
+| **Proceed** | Pair is new — run your action, then call Settle |
+| **Skip** | Pair already COMMITTED — reuse the stored result |
+
+### Settle
+
+Transitions a PENDING claim to **COMMITTED** once the action has completed
+successfully. A crash mid-call leaves PENDING; a sweeper resets it so the
+next worker can retry cleanly.
+
+---
+
+## Quick test
+
+Build a workflow with three nodes:
 
 ```
-BUY QQQ 2 @ 355.10
-timeout
-retry
-SafeAgent: returning cached result
+[Manual Trigger] → [SafeAgent Guard (Claim)] → Proceed → [SafeAgent Guard (Settle)]
+                                              → Skip   → [No Operation]
+```
 
-Position: 2 shares
-Capital: $710.20
+1. Set **Request ID** to a fixed value, e.g. `test-001`.
+2. Set **Action** to `send_email` (or any label).
+3. Execute the workflow.
+   - First run: item exits **Proceed**.
+   - Second run with the same Request ID: item exits **Skip**.
+
+---
+
+## Node parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| Operation | `claim` or `settle` | `claim` |
+| Request ID | Unique idempotency key (e.g. webhook event ID, message UUID) | — |
+| Action | Short label for the action being guarded (e.g. `send_email`) | — |
+| Database Path | Path to the SQLite file (relative to n8n working directory) | `safeagent.db` |
+
+---
+
+## Output fields
+
+**Claim (Proceed):**
+```json
+{
+  "requestId": "evt-abc123",
+  "action": "send_email",
+  "status": "PENDING"
+}
+```
+
+**Claim (Skip):**
+```json
+{
+  "requestId": "evt-abc123",
+  "action": "send_email",
+  "status": "COMMITTED",
+  "existing": { ... }
+}
+```
+
+**Settle:**
+```json
+{
+  "requestId": "evt-abc123",
+  "action": "send_email",
+  "status": "COMMITTED"
+}
 ```
 
 ---
 
-## Core Idea
+## License
 
-```
-Agent → SafeAgent → Real World
-```
-
-Retries don’t replay.  
-They **resolve**.
-
----
-
-## Why It Matters
-
-Irreversible actions:
-- trades
-- payments
-- bookings
-
-cannot rely on “retry until success”.
-
----
-
-## Status
-
-Early reference implementation.
-
----
-
-## Demo
-
-Same retry. One doubles your position. One doesn’t.
+Apache-2.0
