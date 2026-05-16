@@ -6,7 +6,7 @@ a cached receipt instead of executing the side effect again.
 """
 
 from safeagent_exec_guard import SettlementRequestRegistry
-from safeagent_exec_guard.mcp import safe_mcp_tool
+from safeagent_exec_guard.mcp_adapter import safe_mcp_tool
 
 
 def mcp_tool(func):
