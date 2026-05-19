@@ -1,246 +1,250 @@
-<!-- mcp-name: io.github.azender1/safeagent -->
 # SafeAgent — Execution Guard for AI Agents
 
-AI agents retry. Retries fire side effects twice.
+**Pay per claim via x402.**  
+`POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
 
-Duplicate payment. Duplicate email. Duplicate trade. Duplicate ticket.
+```
+x-payment: <Base or Solana payment>
+POST /claim
+{ "agent_id": "...", "action_type": "order", "scope": "TQQQ:buy:bar:2026-05-19T13:31:00-04:00" }
+→ { "status": "COMMITTED" | "SKIP", "request_id": "..." }
+```
 
-SafeAgent is an execution guard that sits between an agent decision and an irreversible action. It gives every tool call a stable claim before execution, records a durable receipt on first run, and returns that receipt on every retry — without running the side effect again.
-
-Python 3.10+ · Apache-2.0 · [Live demo](https://azender1.github.io/SafeAgent)
+Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.
 
 ---
 
-## What it is
+## What it does
 
-| Component | Install | Description |
-|-----------|---------|-------------|
-| **Python library** | `pip install safeagent-exec-guard` | Decorator and registry for exactly-once tool execution |
-| **n8n community node** | `npm install n8n-nodes-safeagent` | Drop-in guard for any n8n workflow |
-| **x402-gated claim service** | [Orbis listing](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02) | Pay-per-call API, autonomously discoverable by AI agents on Base |
+SafeAgent is an exactly-once execution guard. It prevents AI agents from firing the same action twice — on crash-retry, duplicate signal, or concurrent execution across multiple instances.
 
----
+Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double orders. No double tool calls. No double payments.
 
-## The problem
-
-```
-agent calls tool
-    ↓
-network timeout
-    ↓
-agent retries
-    ↓
-side effect runs twice
-```
-
-Most agent frameworks handle retries at the transport layer. None of them know whether the side effect already happened. SafeAgent does.
-
-The failure is worse than it looks. When LangGraph Cloud sweeps a run as stale and re-dispatches it, the new worker starts fresh — any in-memory dedup guard is gone. The claim has to live in durable storage outside the process, keyed before execution starts.
+**State machine:** `PENDING → COMMITTED | SKIP`
 
 ---
 
-## Layer 2 in the agent execution stack
+## x402 API
 
-```
-DashClaw      — attribution + approval         (decision_id)
-    └── SafeAgent  — exactly-once execution guard   (request_id)
-            └── Mycelium Trails — on-chain receipt      (action_ref → Base/Arbitrum)
-```
+### POST /claim
 
-Joint interface spec: [giskard09/argentum-core#7](https://github.com/giskard09/argentum-core/issues/7)
+Gate an action. Returns COMMITTED on first call, SKIP on any repeat.
 
-Canonical key derivation:
-```
-action_ref = SHA-256(agent_id || action_type || scope || timestamp_ms)
-```
-All four fields required. `timestamp_ms` encoded as int64, 8 bytes, big-endian.
-
----
-
-## Quickstart — Python
-
-```python
-from settlement.settlement_requests import SettlementRequestRegistry
-
-registry = SettlementRequestRegistry()
-
-def send_invoice():
-    print("Sending invoice...")
-
-# First call — executes the side effect
-receipt = registry.execute(
-    request_id="invoice:C123",
-    action="send_invoice",
-    payload={"to": "c123@example.com"},
-    execute_fn=send_invoice,
-)
-
-# Retry with the same request_id — returns the original receipt, no second send
-receipt = registry.execute(
-    request_id="invoice:C123",
-    action="send_invoice",
-    payload={"to": "c123@example.com"},
-    execute_fn=send_invoice,
-)
-```
-
-Same `request_id` → original receipt returned → side effect runs exactly once.
-
----
-
-## Quickstart — n8n
-
-Install the community node:
-
-```
-n8n-nodes-safeagent
-```
-
-Build a workflow:
-
-```
-[Webhook] → [SafeAgent Guard (Claim)] → Proceed → [Your Action] → [SafeAgent Guard (Settle)]
-                                      → Skip   → [No Operation]
-```
-
-Webhook fires twice → action runs once.
-
----
-
-## x402 Claim Service
-
-SafeAgent runs as a live payment-gated claim server on Base mainnet. Any x402-enabled agent can call it autonomously — no signup, no API key.
-
-```
-POST https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02/claim
-```
-
-- `$0.001 USDC` per claim
-- Returns `PROCEED` (new claim) or `SKIP` (already ran)
-- Indexed on [Bazaar](https://bazaar-validate.vercel.app/) and [agentic.market](https://agentic.market)
-- Validated on Base and Solana
-
-Configure x402 version for your facilitator:
 ```bash
-SAFEAGENT_X402_VERSION=2  # Orbis proxy (default)
-SAFEAGENT_X402_VERSION=1  # CDP facilitator direct
+curl -X POST https://safeagent-production.up.railway.app/claim \
+  -H "Content-Type: application/json" \
+  -H "x-payment: <payment>" \
+  -d '{
+    "agent_id": "bot-1",
+    "action_type": "order",
+    "scope": "TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"
+  }'
 ```
-
----
-
-## Claude Desktop (MCP)
-
-Use SafeAgent tools directly in Claude Desktop — no code required.
-
-**Install dependencies:**
-```bash
-pip install mcp httpx
-```
-
-**Add to your Claude Desktop config:**
-
-Windows: `%APPDATA%\Claude\claude_desktop_config.json`
-Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
 ```json
-{
-  "mcpServers": {
-    "safeagent": {
-      "command": "python",
-      "args": ["C:\\path\\to\\safeagent_exec_guard\\mcp_server.py"],
-      "cwd": "C:\\path\\to\\SAFEAGENT"
-    }
-  }
-}
+{ "status": "COMMITTED", "request_id": "a3f9..." }
 ```
 
-Restart Claude Desktop. SafeAgent tools appear in the **+** menu. Claude can now call `safeagent_claim` and `safeagent_settle` directly in any conversation.
+Retry with the same payload:
+
+```json
+{ "status": "SKIP", "request_id": "a3f9...", "cached_result": "..." }
+```
+
+### GET /audit *(coming soon — gated behind x402)*
+
+Full claim history for an agent_id.
 
 ---
 
-## Two-phase execution receipts
+## Local guard (embedded SQLite)
 
-A crash mid-call leaves `PENDING`, not a false `COMMITTED`. The sweeper resets stuck claims automatically.
+The same guarantee without the network call. Drop this into any Python agent:
+
+```python
+import sqlite3
+
+_SA_DB = "safeagent_orders.db"
+_sa_con = sqlite3.connect(_SA_DB, check_same_thread=False)
+_sa_con.execute("""CREATE TABLE IF NOT EXISTS orders (
+    request_id TEXT PRIMARY KEY,
+    result     TEXT,
+    status     TEXT DEFAULT 'PENDING',
+    created_at TEXT DEFAULT (datetime('now'))
+)""")
+_sa_con.commit()
+
+def place_order_with_guard(symbol, qty, side, bar_ts):
+    request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"
+
+    # Atomic insert — silently ignored if key already exists
+    _sa_con.execute(
+        "INSERT OR IGNORE INTO orders (request_id, status) VALUES (?, 'PENDING')",
+        (request_id,)
+    )
+    _sa_con.commit()
+
+    # Check if already committed
+    row = _sa_con.execute(
+        "SELECT status, result FROM orders WHERE request_id = ?",
+        (request_id,)
+    ).fetchone()
+
+    if row and row[0] == 'COMMITTED':
+        print(f"SAFEAGENT SKIP: {request_id}")
+        return row[1]  # return original result, do not re-fire
+
+    # First time — fire the order
+    result = place_order(symbol, qty, side)
+
+    # Settle
+    _sa_con.execute(
+        "UPDATE orders SET status='COMMITTED', result=? WHERE request_id=?",
+        (json.dumps(str(result)), request_id)
+    )
+    _sa_con.commit()
+    return result
+```
+
+The `request_id` is stable: same symbol, same side, same quantity, same bar timestamp = same key. If the bot crashes between firing and settling, the next run sees `PENDING`, re-fires, and settles. If it crashed after settling, the next run sees `COMMITTED` and returns SKIP.
+
+---
+
+## Case study: crash-retry duplicate prevention
+
+**What actually happens without a guard.**
+
+A trading bot fires a market order to buy 6 shares of TQQQ. The broker accepts it. The bot crashes before updating state. On restart — same signal, same bar — the bot fires again. The broker fills it twice. The agent now holds 12 shares when it intended to hold 6.
+
+This is not theoretical. It happens on any unhandled exception between order submission and state persistence.
+
+**How SafeAgent blocks it.**
+
+The guard derives a stable key from the order parameters before touching the broker:
 
 ```
-CLAIMABLE → PENDING → COMMITTED
-                ↑
-            sweeper resets after timeout
+request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"
+# e.g. "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00"
 ```
 
+Then:
+
+1. `INSERT OR IGNORE` — atomic, no-op if the key already exists
+2. Check status — if `COMMITTED`, return cached result immediately
+3. Fire order — only reaches the broker if step 2 passed
+4. Settle — write `COMMITTED` + broker response
+
+On crash between steps 3 and 4: key is `PENDING`. Next run re-fires. This is safe — `PENDING` means the order may or may not have landed. The broker's own idempotency (duplicate `client_order_id`) handles the edge case.
+
+On crash after step 4: key is `COMMITTED`. Next run hits step 2, logs `SAFEAGENT SKIP`, returns the original order. The broker is never touched again.
+
+**Live proof from today's run.**
+
+`safeagent_orders.db` — 23 orders, 23 COMMITTED, 0 PENDING.
+
 ```
-POST /claim         — returns PROCEED or SKIP ($0.001 USDC)
-POST /settle/{id}   — marks COMMITTED after success (free)
-GET  /audit         — claim history by agent wallet (free)
-GET  /health        — server status (free)
+order:TQQQ:buy:6:2026-05-19T13:31:00-04:00          COMMITTED
+order:TQQQ:sell:18:2026-05-19T13:25:00-04:00:TRAIL   COMMITTED
+order:SQQQ:buy:11:2026-05-19T13:54:00-04:00          COMMITTED
+order:SQQQ:sell:22:2026-05-19T14:00:00-04:00:V20     COMMITTED
+order:TQQQ:buy:6:2026-05-19T14:02:00-04:00           COMMITTED
+order:TQQQ:buy:6:2026-05-19T14:05:00-04:00           COMMITTED
+order:TQQQ:sell:12:2026-05-19T14:18:00-04:00:V20     COMMITTED
+order:SQQQ:buy:11:2026-05-19T14:20:00-04:00          COMMITTED
+order:SQQQ:sell:11:2026-05-19T14:26:00-04:00:V20     COMMITTED
+order:TQQQ:buy:6:2026-05-19T14:26:00-04:00           COMMITTED
+order:TQQQ:sell:6:2026-05-19T14:31:00-04:00:FLIP     COMMITTED
+order:SQQQ:buy:11:2026-05-19T14:31:00-04:00          COMMITTED
+order:SQQQ:buy:11:2026-05-19T14:42:00-04:00          COMMITTED
+order:SQQQ:buy:11:2026-05-19T14:53:00-04:00          COMMITTED
+order:SQQQ:sell:33:2026-05-19T15:00:00-04:00:TRAIL   COMMITTED
+order:SQQQ:buy:11:2026-05-19T15:03:00-04:00          COMMITTED
+order:SQQQ:sell:11:2026-05-19T15:10:00-04:00:V20     COMMITTED
+order:TQQQ:buy:6:2026-05-19T15:14:00-04:00           COMMITTED
+order:TQQQ:sell:12:2026-05-19T15:20:00-04:00:V20     COMMITTED
+... (23 total)
+```
+
+Every order that fired today is in the db as COMMITTED. If either bot instance had crashed mid-flight and restarted with the same signal, it would have hit the COMMITTED row and stopped. The broker would never have seen a duplicate submission.
+
+**The two-bot scenario.**
+
+Two instances of the same bot ran today against the same shared `safeagent_orders.db`. They operated on different timelines — bot 1 entered the morning bull wave at 12:32, bot 2 was blocked by the broker's open-position check and entered later at 13:31. They never tried to fire the same `request_id` because they were acting on different bars.
+
+The scenario where the db guard fires instead of the broker check: two bots on *separate* broker accounts, both wired to the same `safeagent_orders.db`, both reading the same bar signal at the same second. Bot 1 fires `INSERT OR IGNORE` for `order:TQQQ:buy:6:2026-05-19T13:31:00-04:00` and wins the atomic write. Bot 2 fires the same insert — SQLite's `INSERT OR IGNORE` drops it silently. Bot 2 reads the row, sees `PENDING` (bot 1 hasn't settled yet), and proceeds to fire. Both orders land.
+
+This is the gap. `INSERT OR IGNORE` + status check handles crash-retry cleanly. For true concurrent multi-agent deduplication, the status check needs to happen inside a transaction with a row-level lock, or the guard needs to be the hosted endpoint where the write is serialized server-side.
+
+The hosted `/claim` endpoint is that serialization layer.
+
+---
+
+## Integration
+
+### Python (local db)
+
+Copy the guard block from the source above into `place_order_with_retry`. Works with any broker. No network dependency.
+
+### CrewAI
+
+```python
+from crewai import Agent
+import sqlite3
+
+guard_con = sqlite3.connect("safeagent_orders.db", check_same_thread=False)
+# ... same guard pattern, keyed on tool_name + input hash + session_id
+```
+
+PR [crewAIInc/crewAI#5822](https://github.com/crewAIInc/crewAI/pull/5822) adds pluggable idempotency backends. SafeAgent's SQLite schema is compatible.
+
+### x402 (hosted)
+
+```python
+import requests
+
+def claim(agent_id, action_type, scope, payment_header):
+    r = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"x-payment": payment_header, "Content-Type": "application/json"},
+        json={"agent_id": agent_id, "action_type": action_type, "scope": scope}
+    )
+    return r.json()  # {"status": "COMMITTED"|"SKIP", "request_id": "..."}
 ```
 
 ---
 
-## How it works
-
-Every execution goes through a four-step control plane:
+## Stack
 
 ```
-Agent decision
-    → Request-ID dedup   (has this exact call run before?)
-    → Execute once       (run the side effect)
-    → Receipt stored     (durable, survives restarts)
-    → Settle             (transition PENDING → COMMITTED)
+DashClaw (attribution + approval) → decision_id
+    └── SafeAgent (exactly-once guard) → request_id
+            └── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum
 ```
 
----
+Canonical action_ref derivation (aligned with APS, Nobulex, argentum-core):
 
-## Works with any agent framework
+```python
+import hashlib, struct
 
-- **OpenAI** tool calls
-- **LangChain** / **LangGraph** tools
-- **CrewAI** actions
-- **Claude / MCP** tool execution
-- **n8n** workflows
-- Any Python function that touches a real system
-
----
-
-## Key properties
-
-- **Exactly-once execution** — same `request_id` never fires twice
-- **Durable receipts** — SQLite-backed, survives process restarts
-- **Crash-safe** — two-phase PENDING → COMMITTED, no false receipts
-- **Audit trail** — every execution recorded with payload, outcome, and agent wallet
-- **Agent-native** — x402 payment-gated, Bazaar-indexed, autonomously discoverable
-
----
-
-## Execution Guard RFC
-
-The four-layer execution safety model is documented in [RFC_EXECUTION_GUARD.md](RFC_EXECUTION_GUARD.md):
-
-```
-Layer 1: Intent nonce       — caller-derived stable ID
-Layer 2: Execution guard    — insert-if-not-exists at side-effect boundary  ← SafeAgent
-Layer 3: Correlation ID     — shared ID across composed tool boundaries
-Layer 4: Execution receipt  — post-execution proof, anchored externally
+action_ref = hashlib.sha256(
+    agent_id.encode('utf-8') +
+    action_type.encode('utf-8') +
+    scope.encode('utf-8') +
+    struct.pack('>Q', timestamp_ms)
+).hexdigest()
 ```
 
 ---
 
-## Run the demos
+## Deployment
 
-```bash
-# Duplicate execution prevention
-python examples/safe_agent_demo.py
-
-# Stochastic agent signal simulation
-python examples/simulate_ai.py
-
-# Restart safety (run twice)
-python examples/persist_demo.py
-python examples/persist_demo.py
-```
+Railway · Serverless OFF · always-on  
+PyPI: `pip install safeagent-exec-guard`  
+npm: `npm install n8n-nodes-safeagent`  
+MCP Registry: `io.github.azender1/safeagent`
 
 ---
 
 ## License
 
-Apache-2.0
+MIT
