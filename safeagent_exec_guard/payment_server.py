@@ -28,22 +28,13 @@ SAFEAGENT_FACILITATOR_URL   x402 facilitator URL     (default: https://api.cdp.c
 SAFEAGENT_RESOURCE_URL      Public URL of /claim     (default: https://safeagent-production.up.railway.app/claim)
 SAFEAGENT_DB_PATH           SQLite file path         (default: safeagent.db)
 SAFEAGENT_PENDING_TTL       Stale-pending TTL secs   (default: 300)
-SAFEAGENT_X402_VERSION      x402 protocol version    (default: 2; set to 1 for v1/CDP format)
 """
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
-import traceback
 from typing import Any, Dict, Optional
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    handlers=[logging.StreamHandler()],
-)
-_log = logging.getLogger(__name__)
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -137,7 +128,6 @@ def create_app(
     _network = os.getenv("SAFEAGENT_NETWORK", network)
     _facilitator = os.getenv("SAFEAGENT_FACILITATOR_URL", facilitator_url)
     _resource_url = os.getenv("SAFEAGENT_RESOURCE_URL", resource_url)
-    _x402_version: int = int(os.getenv("SAFEAGENT_X402_VERSION", "2"))
 
     app = FastAPI(
         title="SafeAgent Claim Server",
@@ -145,22 +135,6 @@ def create_app(
         description="Two-phase claim endpoint with x402 per-claim payment gating.",
     )
     app.state.store = _store
-
-    @app.middleware("http")
-    async def _log_unhandled_errors(request: Request, call_next):  # type: ignore[misc]
-        try:
-            return await call_next(request)
-        except Exception:
-            _log.error(
-                "Unhandled exception on %s %s\n%s",
-                request.method,
-                request.url.path,
-                traceback.format_exc(),
-            )
-            return JSONResponse(
-                content={"error": "internal server error"},
-                status_code=500,
-            )
 
     # ------------------------------------------------------------------
     # x402 payment middleware — only attached when payment_address is set
@@ -239,7 +213,7 @@ def create_app(
         )
         # Discovery document (no error field — informational, not a rejection).
         _well_known_doc = PaymentRequired(
-            x402_version=_x402_version,
+            x402_version=2,
             resource=ResourceInfo(
                 url=_resource_url,
                 description="SafeAgent two-phase claim — returns PROCEED or SKIP",
@@ -256,7 +230,7 @@ def create_app(
         def _make_payment_required_response() -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
-                x402_version=_x402_version,
+                x402_version=2,
                 error="Payment required",
                 resource=ResourceInfo(
                     url=_resource_url,
@@ -302,7 +276,7 @@ def create_app(
             try:
                 await loop.run_in_executor(None, resource_server.initialize)
             except Exception as exc:
-                _log.warning(
+                logging.getLogger(__name__).warning(
                     "x402 facilitator init failed at startup (%s); "
                     "payment verification may fail until the facilitator is reachable",
                     exc,
@@ -319,34 +293,7 @@ def create_app(
                     # when the facilitator has not yet been contacted.
                     return _make_payment_required_response()
                 # Payment header present — delegate to x402 for verification/settlement.
-                try:
-                    return await _x402(request, call_next)
-                except Exception:
-                    _log.error(
-                        "x402 payment verification failed for %s %s\n%s",
-                        request.method,
-                        request.url.path,
-                        traceback.format_exc(),
-                    )
-                    return JSONResponse(
-                        content={"error": "payment verification failed"},
-                        status_code=402,
-                        headers={
-                            PAYMENT_REQUIRED_HEADER: encode_payment_required_header(
-                                PaymentRequired(
-                                    x402_version=_x402_version,
-                                    error="Payment verification failed — please retry",
-                                    resource=ResourceInfo(
-                                        url=_resource_url,
-                                        description="SafeAgent two-phase claim — returns PROCEED or SKIP",
-                                        mime_type="application/json",
-                                    ),
-                                    accepts=[_payment_requirements],
-                                    extensions=_bazaar_extension,
-                                )
-                            )
-                        },
-                    )
+                return await _x402(request, call_next)
             return await call_next(request)
 
     # ------------------------------------------------------------------
