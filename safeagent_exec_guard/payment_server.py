@@ -226,7 +226,11 @@ def create_app(
         app.state.well_known_x402 = _well_known_doc.model_dump(
             by_alias=True, exclude_none=True
         )
-
+	app.state.well_known_x402["description"] = (
+            "Claim-before-execute guard - prevents duplicate payments, "
+            "emails, and trades when AI agents retry"
+        )	
+	
         def _make_payment_required_response() -> JSONResponse:
             """Build a proper x402 v2 402 response without needing the facilitator."""
             pr = PaymentRequired(
