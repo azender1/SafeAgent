@@ -163,6 +163,7 @@ order:SQQQ:sell:11:2026-05-19T15:10:00-04:00:V20     COMMITTED
 order:TQQQ:buy:6:2026-05-19T15:14:00-04:00           COMMITTED
 order:TQQQ:sell:12:2026-05-19T15:20:00-04:00:V20     COMMITTED
 ... (23 total)
+...
 Case study: live duplicate blocking — May 21, 2026
 Six confirmed SKIP events from today's session on the full stack: DashClaw, SafeAgent, Mycelium Trails, Base/Arbitrum, broker Alpaca.
 
@@ -172,7 +173,7 @@ Six confirmed SKIP events from today's session on the full stack: DashClaw, Safe
 1000 ET: duplicate entry TQQQ qty=6 blocked, $454
 1014 ET: duplicate sell TQQQ qty=18 on V20 flip, $1,350
 1106 ET: duplicate SQQQ add during scale-in, $43
-
+```
 Gap surfaced: exit side has no guard
 At 1114 ET a legitimate SQQQ exit failed with 422 Unprocessable Entity after three retries. Broker API continued reporting an open TQQQ position. Bot logged ENTRY BLOCKED from 1133 through 1400 — three hours of blocked entries from a phantom position. Those blocks appear in any receipt chain as legitimate decisions with no trace of the upstream failure.
 Exit-side exactly-once semantics are the next spec item.
