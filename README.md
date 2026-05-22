@@ -252,4 +252,4 @@ MCP Registry: `io.github.azender1/safeagent`
 
 ## License
 
-MIT
+Apache-2.0
