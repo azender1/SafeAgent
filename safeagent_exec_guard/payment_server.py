@@ -200,6 +200,7 @@ def create_app(
         # Coinbase Go SDK validator; declare_discovery_extension doesn't inject it.
         try:
             _bazaar_extension["bazaar"]["info"]["input"]["method"] = "POST"
+            _bazaar_extension["bazaar"]["description"] = "Claim-before-execute guard for AI agents. Returns PROCEED on first call, SKIP with cached result on retry. Crash-safe. Works with CrewAI, LangGraph, n8n, MCP."
         except (KeyError, TypeError):
             pass
         _payment_requirements = PaymentRequirements(
