@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI-based SafeAgent claim server with x402 per-claim payment gating.
 
 Every POST /claim requires a micro-payment in USDC on Base before the
@@ -216,7 +216,7 @@ def create_app(
             x402_version=2,
             resource=ResourceInfo(
                 url=_resource_url,
-                description="SafeAgent two-phase claim — returns PROCEED or SKIP",
+                description="Claim-before-execute guard for AI agents. Atomically reserves a (request_id, action) pair before execution. Returns PROCEED on first call, SKIP with cached result on retry. Crash-safe - a failed mid-call leaves PENDING, not a false COMMITTED. Works with CrewAI, LangGraph, n8n, MCP.",
                 mime_type="application/json",
             ),
             accepts=[_payment_requirements],
@@ -234,7 +234,7 @@ def create_app(
                 error="Payment required",
                 resource=ResourceInfo(
                     url=_resource_url,
-                    description="SafeAgent two-phase claim — returns PROCEED or SKIP",
+                    description="Claim-before-execute guard for AI agents. Atomically reserves a (request_id, action) pair before execution. Returns PROCEED on first call, SKIP with cached result on retry. Crash-safe - a failed mid-call leaves PENDING, not a false COMMITTED. Works with CrewAI, LangGraph, n8n, MCP.",
                     mime_type="application/json",
                 ),
                 accepts=[_payment_requirements],
@@ -261,7 +261,7 @@ def create_app(
                     network=_network,
                     pay_to=_payment_address,
                 ),
-                description="SafeAgent two-phase claim — returns PROCEED or SKIP",
+                description="Claim-before-execute guard for AI agents. Atomically reserves a (request_id, action) pair before execution. Returns PROCEED on first call, SKIP with cached result on retry. Crash-safe - a failed mid-call leaves PENDING, not a false COMMITTED. Works with CrewAI, LangGraph, n8n, MCP.",
                 extensions=_bazaar_extension,
             )
         }
