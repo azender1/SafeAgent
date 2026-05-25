@@ -1,4 +1,5 @@
 # SafeAgent — Execution Guard for AI Agents
+<!-- mcp-name: io.github.azender1/safeagent -->
 
 **Pay per claim via x402.**  
 `POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
