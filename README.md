@@ -3,10 +3,13 @@
 
 **Pay per claim via x402.**  
 `POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
+
+```
 x-payment: <Base or Solana payment>
 POST /claim
 { "agent_id": "...", "action_type": "order", "scope": "TQQQ:buy:bar:2026-05-19T13:31:00-04:00" }
 → { "status": "COMMITTED" | "SKIP", "request_id": "..." }
+```
 
 Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.
 
