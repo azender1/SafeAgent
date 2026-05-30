@@ -17,11 +17,21 @@ Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02)
 
 ## What it does
 
-SafeAgent is an exactly-once execution guard. It prevents AI agents from firing the same action twice — on crash-retry, duplicate signal, or concurrent execution across multiple instances.
+SafeAgent is an exactly-once execution guard. It prevents AI agents and SaaS applications from firing the same action twice — on crash-retry, duplicate signal, webhook replay, or concurrent execution across multiple instances.
 
-Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double orders. No double tool calls. No double payments.
+Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double charges. No double emails. No double orders. No duplicate webhooks.
 
 **State machine:** `PENDING → COMMITTED | SKIP`
+
+**Common failure modes SafeAgent prevents:**
+
+| Scenario | Without SafeAgent | With SafeAgent |
+|---|---|---|
+| Stripe charge times out, retry fires | Customer charged twice | Second charge returns SKIP |
+| Welcome email on signup retried | User gets two welcome emails | Second send returns SKIP |
+| Webhook delivered twice (Stripe/GitHub/Twilio guarantee at-least-once) | Event processed twice | Second processing returns SKIP |
+| Workspace provisioned on retry | Two workspaces created | Second provision returns SKIP |
+| AI agent tool call retried after crash | Duplicate side effect | Second call returns SKIP |
 
 ---
 
@@ -221,6 +231,55 @@ def claim(agent_id, action_type, scope, payment_header):
         json={"agent_id": agent_id, "action_type": action_type, "scope": scope}
     )
     return r.json()  # {"status": "COMMITTED"|"SKIP", "request_id": "..."}
+```
+
+### SaaS (Stripe / email / webhooks)
+
+The same guard works for any SaaS side effect. Wrap your Stripe charge, email send, or webhook handler:
+
+```python
+import requests
+
+def safe_stripe_charge(customer_id, amount, idempotency_key, payment_header):
+    # Gate before touching Stripe
+    r = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"x-payment": payment_header, "Content-Type": "application/json"},
+        json={
+            "agent_id": "saas-billing",
+            "action_type": "stripe_charge",
+            "scope": f"customer:{customer_id}:amount:{amount}:key:{idempotency_key}"
+        }
+    )
+    result = r.json()
+    if result["status"] == "SKIP":
+        return result["cached_result"]  # Return original charge, don't hit Stripe again
+
+    charge = stripe.PaymentIntent.create(amount=amount, customer=customer_id)
+    # Settle with result
+    return charge
+```
+
+Same pattern for email sends, webhook processing, and resource provisioning. Any action that must not fire twice gets a claim before execution.
+
+**Webhook deduplication** — Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
+
+```python
+def handle_stripe_webhook(event):
+    r = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"x-payment": payment_header, "Content-Type": "application/json"},
+        json={
+            "agent_id": "saas-webhooks",
+            "action_type": "stripe_event",
+            "scope": event["id"]  # Stripe event ID is stable across retries
+        }
+    )
+    if r.json()["status"] == "SKIP":
+        return {"ok": True}  # Already processed
+
+    # Process event once
+    provision_subscription(event)
 ```
 
 ### WisePick
