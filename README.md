@@ -62,9 +62,19 @@ Retry with the same payload:
 { "status": "SKIP", "request_id": "a3f9...", "cached_result": "..." }
 ```
 
-### GET /audit *(coming soon — gated behind x402)*
+### GET /audit
 
-Full claim history for an agent_id.
+Full claim history. Filter by `agent_id`, `action`, `status`, or timestamp range.
+
+```bash
+curl "https://safeagent-production.up.railway.app/audit?agent_id=bot-1&status=COMMITTED"
+```
+
+```json
+{"items": [...], "total": 5, "limit": 100, "offset": 0}
+```
+
+Parameters: `agent_id`, `action`, `status`, `from_ts`, `to_ts`, `limit` (max 1000), `offset`.
 
 ---
 
