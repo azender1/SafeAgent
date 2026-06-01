@@ -4,11 +4,19 @@
 **Pay per claim via x402.**  
 `POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
 
-```
-x-payment: <Base or Solana payment>
-POST /claim
-{ "agent_id": "...", "action_type": "order", "scope": "TQQQ:buy:bar:2026-05-19T13:31:00-04:00" }
-→ { "status": "COMMITTED" | "SKIP", "request_id": "..." }
+```bash
+# Paid endpoint (x402)
+curl -s -X POST https://safeagent-production.up.railway.app/claim \
+  -H "Content-Type: application/json" \
+  -H "x-payment: <Base or Solana payment>" \
+  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:bar:2026-05-19T13:31:00-04:00"}'
+# → {"status":"PROCEED"|"SKIP","request_id":"..."}
+
+# Free test endpoint — verify your integration before paying (10 calls per IP)
+curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:bar:2026-05-19T13:31:00-04:00"}'
+# → {"status":"PROCEED"|"SKIP","request_id":"...","test":true,"calls_remaining":9}
 ```
 
 Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.
@@ -39,27 +47,37 @@ Every action gets a stable `request_id` derived from what the agent is doing and
 
 ### POST /claim
 
-Gate an action. Returns COMMITTED on first call, SKIP on any repeat.
+Gate an action. Returns PROCEED on first call, SKIP on any repeat.
 
 ```bash
-curl -X POST https://safeagent-production.up.railway.app/claim \
+curl -s -X POST https://safeagent-production.up.railway.app/claim \
   -H "Content-Type: application/json" \
   -H "x-payment: <payment>" \
-  -d '{
-    "agent_id": "bot-1",
-    "action_type": "order",
-    "scope": "TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"
-  }'
+  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"}'
 ```
 
 ```json
-{ "status": "COMMITTED", "request_id": "a3f9..." }
+{ "status": "PROCEED", "request_id": "bot-1:order:TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00" }
 ```
 
 Retry with the same payload:
 
 ```json
-{ "status": "SKIP", "request_id": "a3f9...", "cached_result": "..." }
+{ "status": "SKIP", "request_id": "bot-1:order:TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00", "existing": "..." }
+```
+
+### POST /claim/test
+
+Free test endpoint — same logic, no payment required. Limited to 10 calls per IP total.
+
+```bash
+curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"}'
+```
+
+```json
+{ "status": "PROCEED", "request_id": "...", "test": true, "calls_remaining": 9 }
 ```
 
 ### GET /audit

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.14"
+version = "0.1.19"
 description = "AI agent execution guard — prevents duplicate actions from retries with exactly-once execution, request-id dedup, and durable receipts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -61,3 +61,14 @@ test = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["safeagent_exec_guard", "settlement"]
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+  ".venv",
+  "*.db",
+  "__pycache__",
+  "dist",
+  "*.egg-info",
+  "examples",
+  ".git",
+]
