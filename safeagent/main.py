@@ -277,7 +277,7 @@ def create_app(
                 "POST /claim/test": {
                     "description": "Free test claim — verify your integration before paying",
                     "limit": f"{_TEST_RATE_LIMIT} calls per IP address total",
-                    "returns": "PROCEED | SKIP",
+                    "returns": "PROCEED (first call) | SKIP (duplicate)",
                 },
                 "POST /settle/{request_id}": {
                     "description": "Commit a PENDING claim with its result",
@@ -407,7 +407,7 @@ def create_app(
                     "calls_remaining": calls_remaining,
                 }
             return {
-                "status": "PENDING",
+                "status": "SKIP",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
@@ -424,7 +424,7 @@ def create_app(
                     "calls_remaining": calls_remaining,
                 }
             return {
-                "status": "PENDING",
+                "status": "SKIP",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
