@@ -65,6 +65,11 @@ def _extract_agent_id(request: Request) -> Optional[str]:
 
 
 class ClaimRequest(BaseModel):
+    request_id: str
+    action: str
+
+
+class TestClaimRequest(BaseModel):
     agent_id: str
     action_type: str
     scope: str
@@ -74,7 +79,7 @@ class SettleRequest(BaseModel):
     result: Dict[str, Any]
 
 
-def _derive_request_id(body: ClaimRequest) -> str:
+def _derive_test_request_id(body: TestClaimRequest) -> str:
     return f"{body.agent_id}:{body.action_type}:{body.scope}"
 
 
@@ -128,16 +133,12 @@ def create_app(
         _price_atomic = str(int(float(_price) * 1_000_000))
 
         _bazaar_extension: Dict[str, Any] = declare_discovery_extension(
-            input={
-                "agent_id": "bot-1",
-                "action_type": "order",
-                "scope": "TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00",
-            },
+            input={"request_id": "evt-abc123", "action": "send_email"},
             body_type="json",
             output=OutputConfig(
                 example={
                     "status": "PROCEED",
-                    "request_id": "bot-1:order:TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00",
+                    "request_id": "evt-abc123",
                     "agent_id": "0x2Dc36fb02357aDa6E210Cb4b0EA783EA5153EAa8",
                 },
                 schema={
@@ -326,50 +327,49 @@ def create_app(
         if body is None:
             raise HTTPException(
                 status_code=422,
-                detail="agent_id, action_type, and scope are required",
+                detail="request_id and action are required",
             )
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
-        request_id = _derive_request_id(body)
 
-        existing = store.get(request_id)
+        existing = store.get(body.request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
                 return {
                     "status": "SKIP",
-                    "request_id": request_id,
+                    "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
                     "existing": existing.get("result"),
                 }
             return {
                 "status": "PENDING",
-                "request_id": request_id,
+                "request_id": body.request_id,
                 "agent_id": existing.get("agent_id"),
             }
 
-        if not store.claim(request_id, body.action_type, agent_id=agent_id):
-            existing = store.get(request_id)
+        if not store.claim(body.request_id, body.action, agent_id=agent_id):
+            existing = store.get(body.request_id)
             if existing and existing["status"] == "COMMITTED":
                 return {
                     "status": "SKIP",
-                    "request_id": request_id,
+                    "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
                     "existing": existing.get("result"),
                 }
             return {
                 "status": "PENDING",
-                "request_id": request_id,
+                "request_id": body.request_id,
                 "agent_id": existing.get("agent_id") if existing else None,
             }
 
         return {
             "status": "PROCEED",
-            "request_id": request_id,
+            "request_id": body.request_id,
             "agent_id": agent_id,
         }
 
     @app.post("/claim/test")
-    async def claim_test(request: Request, body: ClaimRequest) -> Dict[str, Any]:
+    async def claim_test(request: Request, body: TestClaimRequest) -> Dict[str, Any]:
         """
         Free test claim — same logic as POST /claim but no x402 payment required.
 
@@ -394,7 +394,7 @@ def create_app(
         calls_remaining = _TEST_RATE_LIMIT - _test_ip_counts[client_ip]
 
         store: SQLiteExecutionStore = app.state.store
-        request_id = _derive_request_id(body)
+        request_id = _derive_test_request_id(body)
 
         existing = store.get(request_id)
         if existing is not None:

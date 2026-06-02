@@ -9,7 +9,7 @@
 curl -s -X POST https://safeagent-production.up.railway.app/claim \
   -H "Content-Type: application/json" \
   -H "x-payment: <Base or Solana payment>" \
-  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:bar:2026-05-19T13:31:00-04:00"}'
+  -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
 # → {"status":"PROCEED"|"SKIP","request_id":"..."}
 
 # Free test endpoint — verify your integration before paying (10 calls per IP)
@@ -53,17 +53,17 @@ Gate an action. Returns PROCEED on first call, SKIP on any repeat.
 curl -s -X POST https://safeagent-production.up.railway.app/claim \
   -H "Content-Type: application/json" \
   -H "x-payment: <payment>" \
-  -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"}'
+  -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
 ```
 
 ```json
-{ "status": "PROCEED", "request_id": "bot-1:order:TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00" }
+{ "status": "PROCEED", "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00" }
 ```
 
 Retry with the same payload:
 
 ```json
-{ "status": "SKIP", "request_id": "bot-1:order:TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00", "existing": "..." }
+{ "status": "SKIP", "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00", "existing": "..." }
 ```
 
 ### POST /claim/test
