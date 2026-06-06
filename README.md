@@ -23,6 +23,16 @@ Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02)
 
 ---
 
+## Verified on Soma
+
+SafeAgent is the first verified external integrator on [Soma](https://soma-api.rgiskard.xyz/catalog) — the Mycelium agent catalog. Every production execution is anchored on-chain via Mycelium Trails and independently verifiable without going through the operator.
+
+- **Integrator badge** — verified external client running Mycelium Trails in production
+- **Live trails** — [https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod](https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod)
+- **Public audit** — any auditor can verify SafeAgent executions independently
+
+---
+
 ## What it does
 
 SafeAgent is an exactly-once execution guard. It prevents AI agents and SaaS applications from firing the same action twice — on crash-retry, duplicate signal, webhook replay, or concurrent execution across multiple instances.
@@ -173,6 +183,7 @@ On crash after step 4: key is `COMMITTED`. Next run hits step 2, logs `SAFEAGENT
 **Live proof from May 19 session.**
 
 `safeagent_orders.db` — 23 orders, 23 COMMITTED, 0 PENDING.
+```
 order:TQQQ:buy:6:2026-05-19T13:31:00-04:00          COMMITTED
 order:TQQQ:sell:18:2026-05-19T13:25:00-04:00:TRAIL   COMMITTED
 order:SQQQ:buy:11:2026-05-19T13:54:00-04:00          COMMITTED
@@ -193,6 +204,7 @@ order:SQQQ:sell:11:2026-05-19T15:10:00-04:00:V20     COMMITTED
 order:TQQQ:buy:6:2026-05-19T15:14:00-04:00           COMMITTED
 order:TQQQ:sell:12:2026-05-19T15:20:00-04:00:V20     COMMITTED
 ... (23 total)
+```
 
 Every order that fired is in the db as COMMITTED. If either bot instance had crashed mid-flight and restarted with the same signal, it would have hit the COMMITTED row and stopped. The broker would never have seen a duplicate submission.
 
@@ -334,22 +346,51 @@ This maps to the `task_fingerprint` / `startTime_ms` fields in SafeAgent's dispa
 ---
 
 ## Stack
+
+```
 DashClaw (attribution + approval) → decision_id
 └── SafeAgent (exactly-once guard) → request_id
-└── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum
+    └── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum
+```
 
-Canonical action_ref derivation (aligned with APS, Nobulex, argentum-core):
+Canonical `action_ref` derivation — JCS (RFC 8785), aligned with argentum-core, Nobulex, and APS:
 
 ```python
-import hashlib, struct
+import hashlib
+import json
 
-action_ref = hashlib.sha256(
-    agent_id.encode('utf-8') +
-    action_type.encode('utf-8') +
-    scope.encode('utf-8') +
-    struct.pack('>Q', timestamp_ms)
-).hexdigest()
+def compute_action_ref(
+    agent_id: str,
+    action_type: str,
+    scope: str,
+    timestamp: str,  # RFC 3339 UTC, 3-digit ms: "2026-05-15T10:00:00.123Z"
+) -> str:
+    payload = {
+        "agent_id": agent_id,
+        "action_type": action_type,
+        "scope": scope,
+        "timestamp": timestamp,
+    }
+    # JCS (RFC 8785): lexicographic key order, no spaces, UTF-8
+    canonical = json.dumps(
+        dict(sorted(payload.items())),
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest()
 ```
+
+**Note on timestamp format:** `timestamp` is an RFC 3339 UTC string with exactly 3 millisecond digits — `"2026-05-15T10:00:00.123Z"`. The trailing `Z` is mandatory. Do not pass an epoch-millisecond integer; convert first:
+
+```python
+import datetime
+
+def format_timestamp(dt: datetime.datetime) -> str:
+    ms = dt.microsecond // 1000
+    return dt.strftime(f"%Y-%m-%dT%H:%M:%S.{ms:03d}Z")
+```
+
+Conformance fixtures: [giskard09/argentum-core tag action-ref-v1.0](https://github.com/giskard09/argentum-core)
 
 ---
 
