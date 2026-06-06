@@ -31,7 +31,7 @@ from collections import defaultdict
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
 from pydantic import BaseModel
 
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
@@ -260,43 +260,131 @@ def create_app(
     # Routes
     # ------------------------------------------------------------------
 
-    @app.get("/")
-    async def landing() -> Dict[str, Any]:
-        return {
-            "api": "SafeAgent",
-            "description": (
-                "Execution Guard for AI Agents — prevents duplicate actions on "
-                "crash-retry, webhook replay, and concurrent execution."
-            ),
-            "endpoints": {
-                "POST /claim": {
-                    "description": "x402-gated exactly-once claim",
-                    "price": f"${_price} USDC per call",
-                    "returns": "PROCEED | SKIP | PENDING",
-                },
-                "POST /claim/test": {
-                    "description": "Free test claim — verify your integration before paying",
-                    "limit": f"{_TEST_RATE_LIMIT} calls per IP address total",
-                    "returns": "PROCEED (first call) | SKIP (duplicate)",
-                },
-                "POST /settle/{request_id}": {
-                    "description": "Commit a PENDING claim with its result",
-                    "price": "free",
-                },
-                "GET /audit": {
-                    "description": "Filterable claim history",
-                    "price": "free",
-                },
-                "POST /sweep": {
-                    "description": "Reset stale PENDING rows",
-                    "price": "free",
-                },
-                "GET /health": {
-                    "description": "Liveness probe",
-                    "price": "free",
-                },
-            },
-        }
+    @app.get("/robots.txt", response_class=PlainTextResponse)
+    async def robots_txt() -> str:
+        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
+
+    @app.get("/favicon.ico")
+    async def favicon() -> Response:
+        return Response(status_code=204)
+
+    @app.get("/", response_class=HTMLResponse)
+    async def landing() -> str:
+        return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeAgent — Execution Guard for AI Agents</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
+  .tagline { color: #555; margin-bottom: 32px; font-size: 1.05rem; }
+  .badge { display: inline-block; background: #e8f5e9; color: #2e7d32; border-radius: 4px; padding: 2px 8px; font-size: 0.8rem; font-weight: 600; margin-bottom: 24px; }
+  h2 { font-size: 1.1rem; font-weight: 600; margin-top: 32px; margin-bottom: 8px; }
+  code { background: #f4f4f4; border-radius: 4px; padding: 2px 6px; font-size: 0.9rem; }
+  pre { background: #f4f4f4; border-radius: 6px; padding: 16px; overflow-x: auto; font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; margin: 16px 0; }
+  th { text-align: left; border-bottom: 2px solid #eee; padding: 8px 0; font-size: 0.85rem; color: #555; }
+  td { border-bottom: 1px solid #eee; padding: 8px 0; font-size: 0.9rem; }
+  .endpoint { font-family: monospace; }
+  a { color: #1a73e8; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
+</style>
+</head>
+<body>
+<h1>SafeAgent</h1>
+<div class="tagline">Exactly-once execution guard for AI agents and SaaS applications.</div>
+<span class="badge">&#10003; Verified on Soma &mdash; First Integrator</span>
+<p>Prevents duplicate payments, emails, trades, and webhook processing when agents retry after a crash or timeout. Claim before you execute. Commit after. Every retry returns the same receipt.</p>
+<h2>State machine</h2>
+<p><code>PENDING &rarr; COMMITTED | SKIP</code></p>
+<h2>Endpoints</h2>
+<table>
+  <tr><th>Method</th><th>Path</th><th>Description</th><th>Cost</th></tr>
+  <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED or SKIP</td><td>$0.001 USDC</td></tr>
+  <tr><td>POST</td><td class="endpoint">/claim/test</td><td>Free test endpoint (10 calls/IP)</td><td>Free</td></tr>
+  <tr><td>POST</td><td class="endpoint">/settle/{id}</td><td>Commit a PENDING claim</td><td>Free</td></tr>
+  <tr><td>GET</td><td class="endpoint">/audit</td><td>Full claim history with filters</td><td>Free</td></tr>
+  <tr><td>GET</td><td class="endpoint">/health</td><td>Liveness probe</td><td>Free</td></tr>
+</table>
+<h2>Quick start</h2>
+<pre>curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
+  -H "Content-Type: application/json" \
+  -d '{"agent_id":"my-agent","action_type":"send_payment","scope":"customer:123"}'
+# First call: {"status":"PROCEED","test":true,"calls_remaining":9}
+# Retry:      {"status":"SKIP","test":true}</pre>
+<hr>
+<h2>On-chain audit trail</h2>
+<p>Every production execution is anchored on <a href="https://soma-api.rgiskard.xyz/catalog" target="_blank">Soma</a> via Mycelium Trails on Arbitrum.</p>
+<p><a href="https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod" target="_blank">View live trails &rarr;</a></p>
+<hr>
+<p>
+  <a href="https://github.com/azender1/SafeAgent" target="_blank">GitHub</a> &middot;
+  <a href="/docs">API Docs</a> &middot;
+  <a href="/audit-service">Audit Service</a> &middot;
+  <a href="https://pypi.org/project/safeagent-exec-guard/" target="_blank">PyPI</a>
+</p>
+</body>
+</html>"""
+
+    @app.get("/audit-service", response_class=HTMLResponse)
+    async def audit_service() -> str:
+        return """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeAgent — Duplicate Execution Audit Service</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
+  h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
+  .tagline { color: #555; margin-bottom: 32px; font-size: 1.05rem; }
+  h2 { font-size: 1.1rem; font-weight: 600; margin-top: 32px; margin-bottom: 8px; }
+  ul { padding-left: 20px; }
+  li { margin-bottom: 8px; }
+  .price { font-size: 2rem; font-weight: 700; color: #1a73e8; margin: 16px 0; }
+  .price span { font-size: 1rem; font-weight: 400; color: #555; }
+  .proof { background: #f4f4f4; border-radius: 6px; padding: 16px; margin: 16px 0; font-size: 0.9rem; }
+  a { color: #1a73e8; text-decoration: none; }
+  .cta { background: #1a73e8; color: white; display: inline-block; padding: 12px 24px; border-radius: 6px; margin-top: 16px; font-weight: 600; font-size: 1rem; }
+  hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
+</style>
+</head>
+<body>
+<h1>Duplicate Execution Audit</h1>
+<div class="tagline">Find every place your AI agent can fire twice before it costs you money.</div>
+<div class="price">$499 <span>flat fee &middot; written report &middot; 5 business days</span></div>
+<h2>What you get</h2>
+<ul>
+  <li>Full review of your agent's retry paths and side-effect boundaries</li>
+  <li>Every action that can execute twice on crash, timeout, or duplicate signal &mdash; identified and documented</li>
+  <li>Risk classification by severity and dollar exposure</li>
+  <li>SafeAgent integration recommendations with code examples</li>
+  <li>EU AI Act Art. 12 audit readiness assessment (deadline: August 2026)</li>
+  <li>Written report delivered via email</li>
+</ul>
+<h2>Who this is for</h2>
+<ul>
+  <li>Companies running AI agents that touch payments, orders, emails, or webhooks</li>
+  <li>Teams preparing for EU AI Act compliance (August 2026)</li>
+  <li>Anyone who has seen a duplicate charge or phantom position and doesn't know why</li>
+</ul>
+<h2>Production proof</h2>
+<div class="proof">
+  Six duplicate execution attempts blocked in a single live trading session on May 21, 2026. Total exposure: <strong>$3,653</strong>. Every block is on-chain and independently verifiable.<br><br>
+  <a href="https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26" target="_blank">View session data &rarr;</a> &middot;
+  <a href="https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod" target="_blank">View live trails &rarr;</a>
+</div>
+<h2>About</h2>
+<p>Built by Anthony Zender &mdash; tax accountant, Dayton OH. I found this problem running a live trading bot and a patented wagering system. Both hit the same failure mode. I audit agent systems the same way I audit financials: every entry, every retry path, every place something can post twice.</p>
+<hr>
+<a href="mailto:azender1@yahoo.com" class="cta">Request an audit &rarr; azender1@yahoo.com</a>
+<p style="margin-top: 32px; font-size: 0.85rem; color: #888;"><a href="/">&#8592; Back to SafeAgent</a></p>
+</body>
+</html>"""
+            
 
     @app.get("/health")
     async def health() -> Dict[str, str]:
