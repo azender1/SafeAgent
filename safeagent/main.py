@@ -32,6 +32,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -116,6 +117,12 @@ def create_app(
         title="SafeAgent",
         version="0.1.0",
         description="Execution Guard for AI Agents — exactly-once claim before execute.",
+    )
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET"],
+        allow_headers=["*"],
     )
     app.add_middleware(
         CORSMiddleware,
