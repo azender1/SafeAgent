@@ -34,7 +34,10 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
 from pydantic import BaseModel
 
+import os
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+if os.environ.get("DATABASE_URL"):
+    from safeagent_exec_guard.pg_store import PgExecutionStore
 
 _USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
 _USDC_BASE_MAINNET = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
@@ -92,10 +95,15 @@ def create_app(
     facilitator_url: str = "https://api.cdp.coinbase.com/platform/v2/x402/facilitator",
     resource_url: str = "https://safeagent-production.up.railway.app/claim",
 ) -> FastAPI:
-    _store = store or SQLiteExecutionStore(
-        db_path=os.getenv("SAFEAGENT_DB_PATH", "safeagent_orders.db"),
-        pending_ttl_seconds=float(os.getenv("SAFEAGENT_PENDING_TTL", "300")),
-    )
+    if store is not None:
+        _store = store
+    elif os.environ.get("DATABASE_URL"):
+        _store = PgExecutionStore(pending_ttl_seconds=float(os.getenv("SAFEAGENT_PENDING_TTL", "300")))
+    else:
+        _store = SQLiteExecutionStore(
+            db_path=os.getenv("SAFEAGENT_DB_PATH", "safeagent_orders.db"),
+            pending_ttl_seconds=float(os.getenv("SAFEAGENT_PENDING_TTL", "300")),
+        )
     _payment_address = payment_address or os.getenv("SAFEAGENT_PAYMENT_ADDRESS")
     _price = os.getenv("SAFEAGENT_CLAIM_PRICE_USDC", claim_price_usdc)
     _network = os.getenv("SAFEAGENT_NETWORK", network)
