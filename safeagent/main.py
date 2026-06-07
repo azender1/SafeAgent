@@ -33,6 +33,7 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import os
@@ -119,7 +120,7 @@ def create_app(
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["GET"],
+        allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
         allow_headers=["*"],
     )
     app.state.store = _store
