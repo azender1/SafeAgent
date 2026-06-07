@@ -1,4 +1,5 @@
 # SafeAgent — Execution Guard for AI Agents
+![SafeAgent — Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE%20Jun%207%2C%202026%2C%2010_41_43%20AM.png)
 <!-- mcp-name: io.github.azender1/safeagent -->
 
 **Pay per claim via x402.**  
