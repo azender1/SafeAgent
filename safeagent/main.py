@@ -305,6 +305,7 @@ def create_app(
 <h1>SafeAgent</h1>
 <div class="tagline">Exactly-once execution guard for AI agents and SaaS applications.</div>
 <span class="badge">&#10003; Verified on Soma &mdash; First Integrator</span>
+<p style="font-size: 0.9rem; color: #555; margin: 8px 0 24px;">496 installs this month &middot; 520 GitHub clones &middot; Cited in Stripe, CrewAI, A2A, AutoGen threads &middot; Live audit trail on Postgres</p>
 <p>Prevents duplicate payments, emails, trades, and webhook processing when agents retry after a crash or timeout. Claim before you execute. Commit after. Every retry returns the same receipt.</p>
 <h2>State machine</h2>
 <p><code>PENDING &rarr; COMMITTED | SKIP</code></p>
