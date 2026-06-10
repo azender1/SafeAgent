@@ -338,7 +338,7 @@ def create_app(
                 "audit": {
                     "method": "GET",
                     "url": "https://safeagent-production.up.railway.app/audit",
-                    "description": "Full claim history. Filter by agent_id, status, timestamp range. Free."
+                    "description": "Full claim history. Filter by agent_id, status, timestamp range. $0.005 USDC via Orbis."
                 }
             },
             "use_case": "Call /claim/test before any irreversible action. If PROCEED, execute and call /settle. If SKIP, return the cached result. Prevents duplicate charges, emails, trades on agent retry.",
