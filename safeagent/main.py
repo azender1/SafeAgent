@@ -7,7 +7,7 @@ GET  /                  Landing page
 POST /claim             x402-gated exactly-once claim → PROCEED / SKIP / PENDING
 POST /claim/test        Free test claim (rate-limited: 10 calls per IP total)
 POST /settle/{id}       Commit a PENDING claim with its result (free)
-GET  /audit             Filterable claim history (free)
+GET  /audit             Filterable claim history ($0.005 USDC via Orbis)
 POST /sweep             Reset stale PENDING rows (free)
 GET  /.well-known/x402  x402 discovery document
 GET  /health            Liveness probe (free)
@@ -402,7 +402,7 @@ def create_app(
   <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED or SKIP</td><td>$0.001 USDC</td></tr>
   <tr><td>POST</td><td class="endpoint">/claim/test</td><td>Free test endpoint (10 calls/IP)</td><td>Free</td></tr>
   <tr><td>POST</td><td class="endpoint">/settle/{id}</td><td>Commit a PENDING claim</td><td>Free</td></tr>
-  <tr><td>GET</td><td class="endpoint">/audit</td><td>Full claim history with filters</td><td>Free</td></tr>
+  <tr><td>GET</td><td class="endpoint">/audit</td><td>Full claim history with filters</td><td>$0.005 USDC</td></tr>
   <tr><td>GET</td><td class="endpoint">/health</td><td>Liveness probe</td><td>Free</td></tr>
 </table>
 <h2>Quick start</h2>
