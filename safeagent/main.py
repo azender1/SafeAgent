@@ -282,7 +282,79 @@ def create_app(
     # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
+    
+    @app.get("/.well-known/ai-plugin.json")
+    async def ai_plugin() -> Dict[str, Any]:
+        return {
+            "schema_version": "v1",
+            "name_for_human": "SafeAgent Execution Guard",
+            "name_for_model": "safeagent",
+            "description_for_human": "Prevents duplicate payments, trades, emails and webhooks when AI agents retry. Claim before execute — PROCEED on first call, SKIP on retry.",
+            "description_for_model": "SafeAgent is an exactly-once execution guard for AI agents. Before any irreversible action (payment, email, trade, webhook), call POST /claim/test with agent_id, action_type, and scope. Returns PROCEED if this is a new action, or SKIP with the cached result if it already ran. This prevents duplicate side effects when agents retry after crashes or timeouts. Free test endpoint, no payment required. Cited as normative requirement in A2A v0.4 RFC #1920.",
+            "auth": {"type": "none"},
+            "api": {
+                "type": "openapi",
+                "url": "https://safeagent-production.up.railway.app/openapi.json",
+            },
+            "logo_url": "https://safeagent-production.up.railway.app/favicon.ico",
+            "contact_email": "azender1@yahoo.com",
+            "legal_info_url": "https://github.com/azender1/SafeAgent",
+        }
 
+    @app.get("/.well-known/safeagent.json")
+    async def safeagent_discovery() -> Dict[str, Any]:
+        return {
+            "name": "SafeAgent Execution Guard",
+            "version": "0.1.21",
+            "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, trades, emails, and webhooks when agents retry after crashes or timeouts.",
+            "spec_ref": "a2aproject/A2A#1920 — cited as normative requirement in v0.4 RFC",
+            "soma_listing": "https://soma-api.rgiskard.xyz/catalog",
+            "endpoints": {
+                "claim_test": {
+                    "method": "POST",
+                    "url": "https://safeagent-production.up.railway.app/claim/test",
+                    "description": "Free exactly-once claim — no payment required. Returns PROCEED (new) or SKIP (duplicate).",
+                    "payload": {
+                        "agent_id": "your-agent-id",
+                        "action_type": "payment.send | email.send | trade.execute | webhook.process",
+                        "scope": "unique identifier for this specific action"
+                    },
+                    "returns": {
+                        "PROCEED": "New claim — safe to execute your action",
+                        "SKIP": "Already ran — return cached result, do not re-execute"
+                    }
+                },
+                "claim_paid": {
+                    "method": "POST",
+                    "url": "https://safeagent-production.up.railway.app/claim",
+                    "description": "x402-gated exactly-once claim. $0.001 USDC per call on Base.",
+                    "x402": True
+                },
+                "settle": {
+                    "method": "POST",
+                    "url": "https://safeagent-production.up.railway.app/settle/{request_id}",
+                    "description": "Mark a PENDING claim as COMMITTED after successful execution. Free.",
+                },
+                "audit": {
+                    "method": "GET",
+                    "url": "https://safeagent-production.up.railway.app/audit",
+                    "description": "Full claim history. Filter by agent_id, status, timestamp range. Free."
+                }
+            },
+            "use_case": "Call /claim/test before any irreversible action. If PROCEED, execute and call /settle. If SKIP, return the cached result. Prevents duplicate charges, emails, trades on agent retry.",
+            "github": "https://github.com/azender1/SafeAgent",
+            "pypi": "pip install safeagent-exec-guard",
+            "audit_service": {
+                "url": "https://safeagent-production.up.railway.app/audit-service",
+                "description": "Paid duplicate execution audit — $499 flat fee. Written report identifying every place your agent system can fire twice.",
+                "contact": "azender1@yahoo.com"
+            },
+            "conformance": {
+                "fixture": "https://github.com/azender1/SafeAgent/tree/main/docs/conformance",
+                "spec": "argentum-core action-ref-v1 + A2A v0.4 RFC #1920",
+                "verified_by": "kenneives (agentgraph-co), evidai (LemonCake)"
+            }
+        }	
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
         return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
