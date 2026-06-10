@@ -1,5 +1,5 @@
 {
-  "fixture_version": "1.0",
+  "fixture_version": "1.1",
   "spec_ref": "argentum-core action-ref-v1.0 + a2aproject/A2A#1920",
   "preimage_format": "jcs-rfc8785-v1",
   "hash_algo": "sha256",
@@ -8,6 +8,7 @@
     "1_pending": {
       "request_id": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
       "action_ref": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
+      "action_ref_method": "argentum-core action-ref-v1",
       "action_ref_preimage": {
         "agent_id": "safeagent-prod",
         "action_type": "payment.send",
@@ -26,6 +27,7 @@
           "subject_did": "did:web:safeagent-prod"
         },
         "binding_canonical_hex": "7b22616d6f756e745f757364223a35302c226368617267655f726566223a226368617267655f7265665f616263313233222c226e6f6e6365223a226e6f6e63655f78797a373839222c227375626a6563745f646964223a226469643a7765623a736166656167656e742d70726f64227d",
+        "action_ref_method": "argentum-core action-ref-v1",
         "verdict": "admit",
         "dynamic_limit_usd": 100,
         "admission_verdict_note": "fast gates passed: identity/cert/key-lifecycle"
@@ -34,6 +36,7 @@
     "2_committed": {
       "request_id": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
       "action_ref": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
+      "action_ref_method": "argentum-core action-ref-v1",
       "action_ref_preimage": {
         "agent_id": "safeagent-prod",
         "action_type": "payment.send",
@@ -53,6 +56,7 @@
           "subject_did": "did:web:safeagent-prod"
         },
         "binding_canonical_hex": "7b22616d6f756e745f757364223a35302c226368617267655f726566223a226368617267655f7265665f616263313233222c226e6f6e6365223a226e6f6e63655f78797a373839222c227375626a6563745f646964223a226469643a7765623a736166656167656e742d70726f64227d",
+        "action_ref_method": "argentum-core action-ref-v1",
         "verdict": "admit",
         "dynamic_limit_usd": 100,
         "admission_verdict_note": "fast gates passed: identity/cert/key-lifecycle"
@@ -66,6 +70,7 @@
     "3_skip": {
       "request_id": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
       "action_ref": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
+      "action_ref_method": "argentum-core action-ref-v1",
       "status": "SKIP",
       "retry_at": "2026-06-08T20:00:05.000Z",
       "cached_result": {
@@ -81,6 +86,7 @@
       "step_1": "Construct preimage dict: {agent_id, action_type, scope, timestamp}",
       "step_2": "Serialize with JCS (RFC 8785): sorted keys, no spaces, UTF-8",
       "step_3": "SHA-256 hash the canonical bytes",
+      "action_ref_method": "argentum-core action-ref-v1",
       "expected": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
       "canonical_bytes_hex": "7b22616374696f6e5f74797065223a227061796d656e742e73656e64222c226167656e745f6964223a22736166656167656e742d70726f64222c2273636f7065223a2274726164653a657865637574653a617574686f72697a6564222c2274696d657374616d70223a22323032362d30362d30385432303a30303a30302e3030305a227d"
     },
