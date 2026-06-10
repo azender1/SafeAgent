@@ -346,7 +346,7 @@ def create_app(
             "pypi": "pip install safeagent-exec-guard",
             "audit_service": {
                 "url": "https://safeagent-production.up.railway.app/audit-service",
-                "description": "Paid duplicate execution audit — $499 flat fee. Written report identifying every place your agent system can fire twice.",
+                "description": "Paid duplicate execution audit — $999 flat fee. Written report identifying every place your agent system can fire twice.",
                 "contact": "azender1@yahoo.com"
             },
             "conformance": {
@@ -451,7 +451,7 @@ def create_app(
 <body>
 <h1>Duplicate Execution Audit</h1>
 <div class="tagline">Find every place your AI agent can fire twice before it costs you money.</div>
-<div class="price">$499 <span>flat fee &middot; written report &middot; 5 business days</span></div>
+<div class="price">$999 <span>flat fee &middot; written report &middot; 5 business days</span></div>
 <h2>What you get</h2>
 <ul>
   <li>Full review of your agent's retry paths and side-effect boundaries</li>
