@@ -1,8 +1,5 @@
 ﻿name: Publish MCP Server
 on:
-  push:
-    tags:
-      - "v*"
   workflow_dispatch:
 jobs:
   publish:
@@ -12,7 +9,9 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_linux_amd64.tar.gz" | tar xz mcp-publisher
+          sudo mv mcp-publisher /usr/local/bin/
       - name: Publish to MCP Registry
-        uses: modelcontextprotocol/publish-mcp-server@v1
-        with:
-          server-name: io.github.azender1/safeagent
+        run: mcp-publisher login github-oidc && mcp-publisher publish
