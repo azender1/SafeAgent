@@ -407,3 +407,5 @@ MCP Registry: `io.github.azender1/safeagent`
 ## License
 
 Apache-2.0
+
+<!-- mcp-name: io.github.azender1/safeagent -->

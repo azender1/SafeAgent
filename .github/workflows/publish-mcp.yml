@@ -1,0 +1,18 @@
+﻿name: Publish MCP Server
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Publish to MCP Registry
+        uses: modelcontextprotocol/publish-mcp-server@v1
+        with:
+          server-name: io.github.azender1/safeagent
