@@ -14,4 +14,7 @@ jobs:
           curl -L "https://github.com/modelcontextprotocol/registry/releases/download/v1.0.0/mcp-publisher_1.0.0_linux_amd64.tar.gz" | tar xz mcp-publisher
           sudo mv mcp-publisher /usr/local/bin/
       - name: Publish to MCP Registry
-        run: mcp-publisher login github-oidc && mcp-publisher publish
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        run: mcp-publisher login github-oidc --audience https://registry.modelcontextprotocol.io && mcp-publisher publish
