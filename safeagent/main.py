@@ -1,4 +1,4 @@
-"""
+﻿"""
 SafeAgent — Execution Guard for AI Agents
 
 Endpoints
@@ -682,3 +682,4 @@ def create_app(
 # ---------------------------------------------------------------------------
 
 app = create_app()
+
