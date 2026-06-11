@@ -363,7 +363,7 @@ def create_app(
     async def favicon() -> Response:
         return Response(status_code=204)
 
-    @app.get("/", response_class=HTMLResponse)
+    @app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def landing() -> str:
         return """<!DOCTYPE html>
 <html lang="en">
@@ -425,7 +425,7 @@ def create_app(
 </body>
 </html>"""
 
-    @app.get("/audit-service", response_class=HTMLResponse)
+    @app.api_route("/audit-service", methods=["GET", "HEAD"], response_class=HTMLResponse)
     async def audit_service() -> str:
         return """<!DOCTYPE html>
 <html lang="en">
