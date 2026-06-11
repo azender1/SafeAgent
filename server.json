@@ -1,1 +1,20 @@
-{"$schema":"https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json","name":"io.github.azender1/safeagent","description":"Execution guard for AI agents — exactly-once execution with request-id deduplication.","version":"0.1.18","packages":[{"registryType":"pypi","identifier":"safeagent-exec-guard","version":"0.1.18","transport":{"type":"stdio"}}],"repository":{"url":"https://github.com/azender1/SafeAgent","source":"github"}}
+﻿{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.azender1/safeagent",
+  "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades, and webhooks when agents retry after crashes or timeouts. Claim before execute — PROCEED on first call, SKIP on duplicate. Cited as normative requirement in A2A v0.4 RFC #1920. First verified integrator on Soma with live on-chain audit trails.",
+  "version": "0.1.21",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "safeagent-exec-guard",
+      "version": "0.1.21",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/azender1/SafeAgent",
+    "source": "github"
+  }
+}
