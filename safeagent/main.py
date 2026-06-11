@@ -156,6 +156,7 @@ def create_app(
         _price_atomic = str(int(float(_price) * 1_000_000))
 
         _bazaar_extension: Dict[str, Any] = declare_discovery_extension(
+            description="Claim-before-execute guard for AI agents. Returns PROCEED on first call, SKIP with cached result on         retry. Prevents duplicate payments, emails, trades on crash-retry. Cited as normative requirement in A2A v0.4 RFC #1920.",
             input={"request_id": "evt-abc123", "action": "send_email"},
             body_type="json",
             output=OutputConfig(
