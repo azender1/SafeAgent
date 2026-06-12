@@ -135,13 +135,14 @@
         "dynamic_limit_usd": 100,
         "safeagent_outcome": "PENDING",
         "safeagent_next": "hold claim in PENDING until second approval received, then settle",
-        "note": "Dual approval flag raised. SafeAgent holds PENDING state â€” sweeper TTL does not reset until approval clears."
+        "note": "Dual approval flag raised. SafeAgent holds PENDING state Ã¢â‚¬â€ sweeper TTL does not reset until approval clears."
       }
     },
     "linkage_invariant": "action_ref is the shared key across: (1) SafeAgent COMMITTED claim, (2) verifier_attestation binding_digest (charge_ref correlation), (3) evidai gateway reserve fixture. Any verifier holding one artifact validates against the others without trusting the runtime that produced them.",
+    "gateway_fixture": "https://github.com/evidai/agent-payment-mcp/tree/main/docs/conformance/gated-preflight-v1.json",
     "verified_by": [
       "haroldmalikfrimpong-ops (agentid/verifier-attestation-v0.1)",
-      "evidai (LemonCake, gateway fixture â€” targeting next week)",
+      "evidai (LemonCake, gateway fixture Ã¢â‚¬â€ targeting next week)",
       "azender1 (SafeAgent exactly-once-v1.1)"
     ]
   }
