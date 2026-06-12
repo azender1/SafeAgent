@@ -1,10 +1,10 @@
-"""
-SafeAgent — Execution Guard for AI Agents
+﻿"""
+SafeAgent â€” Execution Guard for AI Agents
 
 Endpoints
 ---------
 GET  /                  Landing page
-POST /claim             x402-gated exactly-once claim → PROCEED / SKIP / PENDING
+POST /claim             x402-gated exactly-once claim â†’ PROCEED / SKIP / PENDING
 POST /claim/test        Free test claim (rate-limited: 10 calls per IP total)
 POST /settle/{id}       Commit a PENDING claim with its result (free)
 GET  /audit             Filterable claim history ($0.005 USDC via Orbis)
@@ -116,7 +116,7 @@ def create_app(
     app = FastAPI(
         title="SafeAgent",
         version="0.1.0",
-        description="Execution Guard for AI Agents — exactly-once claim before execute.",
+        description="Execution Guard for AI Agents â€” exactly-once claim before execute.",
     )
     app.add_middleware(
         CORSMiddleware,
@@ -133,7 +133,7 @@ def create_app(
     app.state.store = _store
 
     # ------------------------------------------------------------------
-    # x402 payment middleware — only gates POST /claim exactly.
+    # x402 payment middleware â€” only gates POST /claim exactly.
     # POST /claim/test is intentionally excluded.
     # ------------------------------------------------------------------
     if _payment_address:
@@ -289,7 +289,7 @@ def create_app(
             "schema_version": "v1",
             "name_for_human": "SafeAgent Execution Guard",
             "name_for_model": "safeagent",
-            "description_for_human": "Prevents duplicate payments, trades, emails and webhooks when AI agents retry. Claim before execute — PROCEED on first call, SKIP on retry.",
+            "description_for_human": "Prevents duplicate payments, trades, emails and webhooks when AI agents retry. Claim before execute â€” PROCEED on first call, SKIP on retry.",
             "description_for_model": "SafeAgent is an exactly-once execution guard for AI agents. Before any irreversible action (payment, email, trade, webhook), call POST /claim/test with agent_id, action_type, and scope. Returns PROCEED if this is a new action, or SKIP with the cached result if it already ran. This prevents duplicate side effects when agents retry after crashes or timeouts. Free test endpoint, no payment required. Cited as normative requirement in A2A v0.4 RFC #1920.",
             "auth": {"type": "none"},
             "api": {
@@ -307,21 +307,21 @@ def create_app(
             "name": "SafeAgent Execution Guard",
             "version": "0.1.21",
             "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, trades, emails, and webhooks when agents retry after crashes or timeouts.",
-            "spec_ref": "a2aproject/A2A#1920 — cited as normative requirement in v0.4 RFC",
+            "spec_ref": "a2aproject/A2A#1920 â€” cited as normative requirement in v0.4 RFC",
             "soma_listing": "https://soma-api.rgiskard.xyz/catalog",
             "endpoints": {
                 "claim_test": {
                     "method": "POST",
                     "url": "https://safeagent-production.up.railway.app/claim/test",
-                    "description": "Free exactly-once claim — no payment required. Returns PROCEED (new) or SKIP (duplicate).",
+                    "description": "Free exactly-once claim â€” no payment required. Returns PROCEED (new) or SKIP (duplicate).",
                     "payload": {
                         "agent_id": "your-agent-id",
                         "action_type": "payment.send | email.send | trade.execute | webhook.process",
                         "scope": "unique identifier for this specific action"
                     },
                     "returns": {
-                        "PROCEED": "New claim — safe to execute your action",
-                        "SKIP": "Already ran — return cached result, do not re-execute"
+                        "PROCEED": "New claim â€” safe to execute your action",
+                        "SKIP": "Already ran â€” return cached result, do not re-execute"
                     }
                 },
                 "claim_paid": {
@@ -346,7 +346,7 @@ def create_app(
             "pypi": "pip install safeagent-exec-guard",
             "audit_service": {
                 "url": "https://safeagent-production.up.railway.app/audit-service",
-                "description": "Paid duplicate execution audit — $999 flat fee. Written report identifying every place your agent system can fire twice.",
+                "description": "Paid duplicate execution audit â€” $2,500 flat fee. Written report identifying every place your agent system can fire twice.",
                 "contact": "azender1@yahoo.com"
             },
             "conformance": {
@@ -370,7 +370,7 @@ def create_app(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Execution Guard for AI Agents</title>
+<title>SafeAgent â€” Execution Guard for AI Agents</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
   h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
@@ -432,7 +432,7 @@ def create_app(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Duplicate Execution Audit Service</title>
+<title>SafeAgent â€” Duplicate Execution Audit Service</title>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
   h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
@@ -451,7 +451,7 @@ def create_app(
 <body>
 <h1>Duplicate Execution Audit</h1>
 <div class="tagline">Find every place your AI agent can fire twice before it costs you money.</div>
-<div class="price">$999 <span>flat fee &middot; written report &middot; 5 business days</span></div>
+<div class="price">$2,500 <span>flat fee &middot; written report &middot; 5 business days</span></div>
 <h2>What you get</h2>
 <ul>
   <li>Full review of your agent's retry paths and side-effect boundaries</li>
@@ -502,9 +502,9 @@ def create_app(
         """
         Two-phase exactly-once claim.
 
-        ``{"status": "PROCEED"}``  — new claim; execute your action, then POST /settle/{request_id}.
-        ``{"status": "SKIP", "existing": {...}}`` — already COMMITTED; reuse the stored result.
-        ``{"status": "PENDING"}`` — another caller has this in-flight; retry after the TTL.
+        ``{"status": "PROCEED"}``  â€” new claim; execute your action, then POST /settle/{request_id}.
+        ``{"status": "SKIP", "existing": {...}}`` â€” already COMMITTED; reuse the stored result.
+        ``{"status": "PENDING"}`` â€” another caller has this in-flight; retry after the TTL.
 
         Requires x402 payment when SAFEAGENT_PAYMENT_ADDRESS is set.
         """
@@ -555,7 +555,7 @@ def create_app(
     @app.post("/claim/test")
     async def claim_test(request: Request, body: TestClaimRequest) -> Dict[str, Any]:
         """
-        Free test claim — same logic as POST /claim but no x402 payment required.
+        Free test claim â€” same logic as POST /claim but no x402 payment required.
 
         Rate-limited to 10 calls per IP address total. After the limit is reached,
         use POST /claim with an x402 payment header for production access.
@@ -623,7 +623,7 @@ def create_app(
 
     @app.post("/settle/{request_id}")
     async def settle(request_id: str, body: SettleRequest) -> Dict[str, Any]:
-        """Transition PENDING → COMMITTED with the execution result. Not payment-gated."""
+        """Transition PENDING â†’ COMMITTED with the execution result. Not payment-gated."""
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
         if existing is None:
@@ -682,3 +682,4 @@ def create_app(
 # ---------------------------------------------------------------------------
 
 app = create_app()
+
