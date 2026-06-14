@@ -1,0 +1,305 @@
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 7ff494e..79169f0 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -1,256 +1,84 @@[m
+[31m-# SafeAgent — Execution Guard for AI Agents[m
+[31m-<!-- mcp-name: io.github.azender1/safeagent -->[m
+[32m+[m[32m# SafeAgent[m
+ [m
+[31m-**Pay per claim via x402.**  [m
+[31m-`POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)[m
+[31m-x-payment: <Base or Solana payment>[m
+[31m-POST /claim[m
+[31m-{ "agent_id": "...", "action_type": "order", "scope": "TQQQ:buy:bar:2026-05-19T13:31:00-04:00" }[m
+[31m-→ { "status": "COMMITTED" | "SKIP", "request_id": "..." }[m
+[31m-[m
+[31m-Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.[m
+[32m+[m[32m> Deterministic execution for AI agents interacting with real-world systems.[m
+ [m
+ ---[m
+ [m
+[31m-## What it does[m
+[31m-[m
+[31m-SafeAgent is an exactly-once execution guard. It prevents AI agents from firing the same action twice — on crash-retry, duplicate signal, or concurrent execution across multiple instances.[m
+[32m+[m[32m## The Problem[m
+ [m
+[31m-Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double orders. No double tool calls. No double payments.[m
+[32m+[m[32mAgents don’t fail on decisions.[m[41m  [m
+[32m+[m[32mThey fail on **uncertain completion**.[m
+ [m
+[31m-**State machine:** `PENDING → COMMITTED | SKIP`[m
+[32m+[m[32mTimeout → retry → duplicate execution.[m
+ [m
+ ---[m
+ [m
+[31m-## x402 API[m
+[31m-[m
+[31m-### POST /claim[m
+[31m-[m
+[31m-Gate an action. Returns COMMITTED on first call, SKIP on any repeat.[m
+[32m+[m[32m## The Fix[m
+ [m
+[31m-```bash[m
+[31m-curl -X POST https://safeagent-production.up.railway.app/claim \[m
+[31m-  -H "Content-Type: application/json" \[m
+[31m-  -H "x-payment: <payment>" \[m
+[31m-  -d '{[m
+[31m-    "agent_id": "bot-1",[m
+[31m-    "action_type": "order",[m
+[31m-    "scope": "TQQQ:buy:6:bar:2026-05-19T13:31:00-04:00"[m
+[31m-  }'[m
+[31m-```[m
+[31m-[m
+[31m-```json[m
+[31m-{ "status": "COMMITTED", "request_id": "a3f9..." }[m
+[31m-```[m
+[32m+[m[32mSafeAgent introduces an **execution boundary**:[m
+ [m
+[31m-Retry with the same payload:[m
+[31m-[m
+[31m-```json[m
+[31m-{ "status": "SKIP", "request_id": "a3f9...", "cached_result": "..." }[m
+[31m-```[m
+[31m-[m
+[31m-### GET /audit *(coming soon — gated behind x402)*[m
+[31m-[m
+[31m-Full claim history for an agent_id.[m
+[32m+[m[32m- prevents duplicate side effects[m[41m  [m
+[32m+[m[32m- resolves retries against prior attempts[m[41m  [m
+[32m+[m[32m- enforces exactly-once outcomes[m[41m  [m
+ [m
+ ---[m
+ [m
+[31m-## Local guard (embedded SQLite)[m
+[31m-[m
+[31m-The same guarantee without the network call. Drop this into any Python agent:[m
+[31m-[m
+[31m-```python[m
+[31m-import sqlite3[m
+[31m-[m
+[31m-_SA_DB = "safeagent_orders.db"[m
+[31m-_sa_con = sqlite3.connect(_SA_DB, check_same_thread=False)[m
+[31m-_sa_con.execute("""CREATE TABLE IF NOT EXISTS orders ([m
+[31m-    request_id TEXT PRIMARY KEY,[m
+[31m-    result     TEXT,[m
+[31m-    status     TEXT DEFAULT 'PENDING',[m
+[31m-    created_at TEXT DEFAULT (datetime('now'))[m
+[31m-)""")[m
+[31m-_sa_con.commit()[m
+[31m-[m
+[31m-def place_order_with_guard(symbol, qty, side, bar_ts):[m
+[31m-    request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"[m
+[32m+[m[32m## Example[m
+ [m
+[31m-    _sa_con.execute([m
+[31m-        "INSERT OR IGNORE INTO orders (request_id, status) VALUES (?, 'PENDING')",[m
+[31m-        (request_id,)[m
+[31m-    )[m
+[31m-    _sa_con.commit()[m
+[32m+[m[32m### Without SafeAgent[m
+ [m
+[31m-    row = _sa_con.execute([m
+[31m-        "SELECT status, result FROM orders WHERE request_id = ?",[m
+[31m-        (request_id,)[m
+[31m-    ).fetchone()[m
+[31m-[m
+[31m-    if row and row[0] == 'COMMITTED':[m
+[31m-        print(f"SAFEAGENT SKIP: {request_id}")[m
+[31m-        return row[1][m
+[31m-[m
+[31m-    result = place_order(symbol, qty, side)[m
+[31m-[m
+[31m-    _sa_con.execute([m
+[31m-        "UPDATE orders SET status='COMMITTED', result=? WHERE request_id=?",[m
+[31m-        (json.dumps(str(result)), request_id)[m
+[31m-    )[m
+[31m-    _sa_con.commit()[m
+[31m-    return result[m
+ ```[m
+[32m+[m[32mBUY QQQ 2 @ 355.10[m
+[32m+[m[32mtimeout[m
+[32m+[m[32mretry[m
+[32m+[m[32mBUY QQQ 2 @ 355.10   <-- duplicate[m
+ [m
+[31m-The `request_id` is stable: same symbol, same side, same quantity, same bar timestamp = same key. If the bot crashes between firing and settling, the next run sees `PENDING`, re-fires, and settles. If it crashed after settling, the next run sees `COMMITTED` and returns SKIP.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## Case study: crash-retry duplicate prevention[m
+[31m-[m
+[31m-**What actually happens without a guard.**[m
+[31m-[m
+[31m-A trading bot fires a market order to buy 6 shares of TQQQ. The broker accepts it. The bot crashes before updating state. On restart — same signal, same bar — the bot fires again. The broker fills it twice. The agent now holds 12 shares when it intended to hold 6.[m
+[31m-[m
+[31m-This is not theoretical. It happens on any unhandled exception between order submission and state persistence.[m
+[31m-[m
+[31m-**How SafeAgent blocks it.**[m
+[31m-[m
+[31m-The guard derives a stable key from the order parameters before touching the broker:[m
+[31m-request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"[m
+[31m-e.g. "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00"[m
+[31m-[m
+[31m-Then:[m
+[31m-[m
+[31m-1. `INSERT OR IGNORE` — atomic, no-op if the key already exists[m
+[31m-2. Check status — if `COMMITTED`, return cached result immediately[m
+[31m-3. Fire order — only reaches the broker if step 2 passed[m
+[31m-4. Settle — write `COMMITTED` + broker response[m
+[31m-[m
+[31m-On crash between steps 3 and 4: key is `PENDING`. Next run re-fires. This is safe — `PENDING` means the order may or may not have landed. The broker's own idempotency (duplicate `client_order_id`) handles the edge case.[m
+[31m-[m
+[31m-On crash after step 4: key is `COMMITTED`. Next run hits step 2, logs `SAFEAGENT SKIP`, returns the original order. The broker is never touched again.[m
+[31m-[m
+[31m-**Live proof from May 19 session.**[m
+[31m-[m
+[31m-`safeagent_orders.db` — 23 orders, 23 COMMITTED, 0 PENDING.[m
+[31m-order:TQQQ:buy:6:2026-05-19T13:31:00-04:00          COMMITTED[m
+[31m-order:TQQQ:sell:18:2026-05-19T13:25:00-04:00:TRAIL   COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T13:54:00-04:00          COMMITTED[m
+[31m-order:SQQQ:sell:22:2026-05-19T14:00:00-04:00:V20     COMMITTED[m
+[31m-order:TQQQ:buy:6:2026-05-19T14:02:00-04:00           COMMITTED[m
+[31m-order:TQQQ:buy:6:2026-05-19T14:05:00-04:00           COMMITTED[m
+[31m-order:TQQQ:sell:12:2026-05-19T14:18:00-04:00:V20     COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T14:20:00-04:00          COMMITTED[m
+[31m-order:SQQQ:sell:11:2026-05-19T14:26:00-04:00:V20     COMMITTED[m
+[31m-order:TQQQ:buy:6:2026-05-19T14:26:00-04:00           COMMITTED[m
+[31m-order:TQQQ:sell:6:2026-05-19T14:31:00-04:00:FLIP     COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T14:31:00-04:00          COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T14:42:00-04:00          COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T14:53:00-04:00          COMMITTED[m
+[31m-order:SQQQ:sell:33:2026-05-19T15:00:00-04:00:TRAIL   COMMITTED[m
+[31m-order:SQQQ:buy:11:2026-05-19T15:03:00-04:00          COMMITTED[m
+[31m-order:SQQQ:sell:11:2026-05-19T15:10:00-04:00:V20     COMMITTED[m
+[31m-order:TQQQ:buy:6:2026-05-19T15:14:00-04:00           COMMITTED[m
+[31m-order:TQQQ:sell:12:2026-05-19T15:20:00-04:00:V20     COMMITTED[m
+[31m-... (23 total)[m
+[31m-[m
+[31m-Every order that fired is in the db as COMMITTED. If either bot instance had crashed mid-flight and restarted with the same signal, it would have hit the COMMITTED row and stopped. The broker would never have seen a duplicate submission.[m
+[31m-[m
+[31m-**The two-bot scenario.**[m
+[31m-[m
+[31m-Two instances of the same bot ran against the same shared `safeagent_orders.db`. They operated on different timelines — bot 1 entered the morning bull wave at 12:32, bot 2 was blocked by the broker's open-position check and entered later at 13:31. They never tried to fire the same `request_id` because they were acting on different bars.[m
+[31m-[m
+[31m-The scenario where the db guard fires instead of the broker check: two bots on separate broker accounts, both wired to the same `safeagent_orders.db`, both reading the same bar signal at the same second. Bot 1 fires `INSERT OR IGNORE` and wins the atomic write. Bot 2 fires the same insert — SQLite's `INSERT OR IGNORE` drops it silently. Bot 2 reads the row, sees `PENDING`, and proceeds to fire. Both orders land.[m
+[31m-[m
+[31m-This is the gap. `INSERT OR IGNORE` + status check handles crash-retry cleanly. For true concurrent multi-agent deduplication, the status check needs to happen inside a transaction with a row-level lock, or the guard needs to be the hosted endpoint where the write is serialized server-side.[m
+[31m-[m
+[31m-The hosted `/claim` endpoint is that serialization layer.[m
+[31m-[m
+[31m----[m
+[31m-[m
+[31m-## Case study: live duplicate blocking — May 21, 2026[m
+[31m-[m
+[31m-Six confirmed SKIP events from a live session on the full stack: DashClaw, SafeAgent, Mycelium Trails, Base/Arbitrum, broker Alpaca.[m
+[31m-[m
+[31m-- 0942 ET: duplicate buy TQQQ qty=6 blocked, $452[m
+[31m-- 0947 ET: duplicate add TQQQ qty=6 blocked, $452[m
+[31m-- 0949 ET: duplicate sell TQQQ qty=12 on flip, $902[m
+[31m-- 1000 ET: duplicate entry TQQQ qty=6 blocked, $454[m
+[31m-- 1014 ET: duplicate sell TQQQ qty=18 on V20 flip, $1,350[m
+[31m-- 1106 ET: duplicate SQQQ add during scale-in, $43[m
+[31m-[m
+[31m-**Gap surfaced: exit side has no guard.**[m
+[32m+[m[32mPosition: 4 shares[m
+[32m+[m[32mCapital: $1420.40[m
+[32m+[m[32m```[m
+ [m
+[31m-At 1114 ET a legitimate SQQQ exit failed with 422 Unprocessable Entity after three retries. Broker API continued reporting an open TQQQ position. Bot logged ENTRY BLOCKED from 1133 through 1400 — three hours of blocked entries from a phantom position. Those blocks appear in any receipt chain as legitimate decisions with no trace of the upstream failure.[m
+[32m+[m[32m### With SafeAgent[m
+ [m
+[31m-Exit-side exactly-once semantics are the next spec item.[m
+[32m+[m[32m```[m
+[32m+[m[32mBUY QQQ 2 @ 355.10[m
+[32m+[m[32mtimeout[m
+[32m+[m[32mretry[m
+[32m+[m[32mSafeAgent: returning cached result[m
+ [m
+[31m-Full session data: https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26[m
+[32m+[m[32mPosition: 2 shares[m
+[32m+[m[32mCapital: $710.20[m
+[32m+[m[32m```[m
+ [m
+ ---[m
+ [m
+[31m-## Integration[m
+[31m-[m
+[31m-### Python (local db)[m
+[31m-[m
+[31m-Copy the guard block from the source above into `place_order_with_retry`. Works with any broker. No network dependency.[m
+[31m-[m
+[31m-### CrewAI[m
+[31m-[m
+[31m-```python[m
+[31m-from crewai import Agent[m
+[31m-import sqlite3[m
+[32m+[m[32m## Core Idea[m
+ [m
+[31m-guard_con = sqlite3.connect("safeagent_orders.db", check_same_thread=False)[m
+[31m-# ... same guard pattern, keyed on tool_name + input hash + session_id[m
+ ```[m
+[31m-[m
+[31m-PR [crewAIInc/crewAI#5822](https://github.com/crewAIInc/crewAI/pull/5822) adds pluggable idempotency backends. SafeAgent's SQLite schema is compatible.[m
+[31m-[m
+[31m-### x402 (hosted)[m
+[31m-[m
+[31m-```python[m
+[31m-import requests[m
+[31m-[m
+[31m-def claim(agent_id, action_type, scope, payment_header):[m
+[31m-    r = requests.post([m
+[31m-        "https://safeagent-production.up.railway.app/claim",[m
+[31m-        headers={"x-payment": payment_header, "Content-Type": "application/json"},[m
+[31m-        json={"agent_id": agent_id, "action_type": action_type, "scope": scope}[m
+[31m-    )[m
+[31m-    return r.json()  # {"status": "COMMITTED"|"SKIP", "request_id": "..."}[m
+[32m+[m[32mAgent → SafeAgent → Real World[m
+ ```[m
+ [m
+[31m----[m
+[32m+[m[32mRetries don’t replay.[m[41m  [m
+[32m+[m[32mThey **resolve**.[m
+ [m
+[31m-## Stack[m
+[31m-DashClaw (attribution + approval) → decision_id[m
+[31m-└── SafeAgent (exactly-once guard) → request_id[m
+[31m-└── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum[m
+[32m+[m[32m---[m
+ [m
+[31m-Canonical action_ref derivation (aligned with APS, Nobulex, argentum-core):[m
+[32m+[m[32m## Why It Matters[m
+ [m
+[31m-```python[m
+[31m-import hashlib, struct[m
+[32m+[m[32mIrreversible actions:[m
+[32m+[m[32m- trades[m
+[32m+[m[32m- payments[m
+[32m+[m[32m- bookings[m
+ [m
+[31m-action_ref = hashlib.sha256([m
+[31m-    agent_id.encode('utf-8') +[m
+[31m-    action_type.encode('utf-8') +[m
+[31m-    scope.encode('utf-8') +[m
+[31m-    struct.pack('>Q', timestamp_ms)[m
+[31m-).hexdigest()[m
+[31m-```[m
+[32m+[m[32mcannot rely on “retry until success”.[m
+ [m
+ ---[m
+ [m
+[31m-## Deployment[m
+[32m+[m[32m## Status[m
+ [m
+[31m-Railway · Serverless OFF · always-on  [m
+[31m-PyPI: `pip install safeagent-exec-guard`  [m
+[31m-npm: `npm install n8n-nodes-safeagent`  [m
+[31m-MCP Registry: `io.github.azender1/safeagent`[m
+[32m+[m[32mEarly reference implementation.[m
+ [m
+ ---[m
+ [m
+[31m-## License[m
+[32m+[m[32m## Demo[m
+ [m
+[31m-Apache-2.0[m
+[32m+[m[32mSame retry. One doubles your position. One doesn’t.[m

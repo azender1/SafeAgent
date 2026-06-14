@@ -30,7 +30,7 @@ import os
 from collections import defaultdict
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
@@ -39,6 +39,7 @@ from pydantic import BaseModel
 
 import os
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+from safeagent_exec_guard import mycelium_trail
 if os.environ.get("DATABASE_URL"):
     from safeagent_exec_guard.pg_store import PgExecutionStore
 
@@ -86,7 +87,35 @@ class SettleRequest(BaseModel):
 
 
 def _derive_test_request_id(body: TestClaimRequest) -> str:
-    return f"{body.agent_id}:{body.action_type}:{body.scope}"
+    """SHA256(JCS({agent_id, action_type, scope})) -- content-addressed,
+    collision-safe request_id for the free /claim/test endpoint.
+
+    Previously this was plain colon concatenation
+    (f"{agent_id}:{action_type}:{scope}"), which has the same collision
+    class flagged by chopmob-cloud for "||" concatenation: a colon
+    inside agent_id or scope can cause two different input tuples to
+    produce the same request_id. JCS gives unambiguous field
+    boundaries via canonical JSON encoding.
+
+    No timestamp is included here (unlike the conformance fixture's
+    action_ref, which is {agent_id, action_type, scope, timestamp}):
+    /claim/test's dedup contract is "same (agent_id, action_type, scope)
+    -> same request_id -> SKIP on retry", and adding a per-call
+    timestamp would break that by making every call PROCEED.
+
+    NOTE: this changes the request_id format returned by /claim/test
+    for *new* calls (was a readable colon string, now a hex digest).
+    Existing COMMITTED rows from the old format remain in the DB and
+    are unaffected -- they're just not reachable via the new
+    derivation, which is fine for a free, no-continuity-guaranteed
+    test endpoint.
+    """
+    preimage = {
+        "agent_id": body.agent_id,
+        "action_type": body.action_type,
+        "scope": body.scope,
+    }
+    return mycelium_trail.sha256hex(mycelium_trail.jcs(preimage))
 
 
 def create_app(
@@ -622,7 +651,7 @@ def create_app(
         }
 
     @app.post("/settle/{request_id}")
-    async def settle(request_id: str, body: SettleRequest) -> Dict[str, Any]:
+    async def settle(request_id: str, body: SettleRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
         """Transition PENDING â†’ COMMITTED with the execution result. Not payment-gated."""
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
@@ -631,6 +660,21 @@ def create_app(
         if existing["status"] == "COMMITTED":
             return {"status": "already_committed", "request_id": request_id}
         store.settle(request_id, body.result)
+
+        # Best-effort, non-blocking Mycelium Trails submission. Off by
+        # default (MYCELIUM_ENABLED unset) and never affects the
+        # response below even if it fails. See
+        # safeagent_exec_guard/mycelium_trail.py for derivation details.
+        if mycelium_trail.enabled():
+            background_tasks.add_task(
+                mycelium_trail.submit_trail_async,
+                request_id=request_id,
+                action=existing["action"],
+                agent_id=existing.get("agent_id"),
+                claimed_at=existing["claimed_at"],
+                result=body.result,
+            )
+
         return {"status": "committed", "request_id": request_id}
 
     @app.get("/audit")
