@@ -1,9 +1,9 @@
-# SafeAgent — Execution Guard for AI Agents
-![SafeAgent — Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE%20Jun%207%2C%202026%2C%2010_41_43%20AM.png)
+# SafeAgent â€” Execution Guard for AI Agents
+![SafeAgent â€” Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE%20Jun%207%2C%202026%2C%2010_41_43%20AM.png)
 <!-- mcp-name: io.github.azender1/safeagent -->
 
 **Pay per claim via x402.**  
-`POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
+`POST /claim` Â· `$0.001` Â· Base + Solana Â· [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
 
 ```bash
 # Paid endpoint (x402)
@@ -11,14 +11,17 @@ curl -s -X POST https://safeagent-production.up.railway.app/claim \
   -H "Content-Type: application/json" \
   -H "x-payment: <Base or Solana payment>" \
   -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
-# → {"status":"PROCEED"|"SKIP","request_id":"..."}
+# â†’ {"status":"PROCEED"|"SKIP","request_id":"..."}
 
-# Free test endpoint — verify your integration before paying (10 calls per IP)
+# Free test endpoint â€” verify your integration before paying (10 calls per IP)
 curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
   -H "Content-Type: application/json" \
   -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:bar:2026-05-19T13:31:00-04:00"}'
-# → {"status":"PROCEED"|"SKIP","request_id":"...","test":true,"calls_remaining":9}
+# â†’ {"status":"PROCEED"|"SKIP","request_id":"...","test":true,"calls_remaining":9}
 ```
+
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/elegant-serenity)
 
 Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.
 
@@ -26,21 +29,21 @@ Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02)
 
 ## Verified on Soma
 
-SafeAgent is the first verified external integrator on [Soma](https://soma-api.rgiskard.xyz/catalog) — the Mycelium agent catalog. Every production execution is anchored on-chain via Mycelium Trails and independently verifiable without going through the operator.
+SafeAgent is the first verified external integrator on [Soma](https://soma-api.rgiskard.xyz/catalog) â€” the Mycelium agent catalog. Every production execution is anchored on-chain via Mycelium Trails and independently verifiable without going through the operator.
 
-- **Integrator badge** — verified external client running Mycelium Trails in production
-- **Live trails** — [https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod](https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod)
-- **Public audit** — any auditor can verify SafeAgent executions independently
+- **Integrator badge** â€” verified external client running Mycelium Trails in production
+- **Live trails** â€” [https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod](https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod)
+- **Public audit** â€” any auditor can verify SafeAgent executions independently
 
 ---
 
 ## What it does
 
-SafeAgent is an exactly-once execution guard. It prevents AI agents and SaaS applications from firing the same action twice — on crash-retry, duplicate signal, webhook replay, or concurrent execution across multiple instances.
+SafeAgent is an exactly-once execution guard. It prevents AI agents and SaaS applications from firing the same action twice â€” on crash-retry, duplicate signal, webhook replay, or concurrent execution across multiple instances.
 
 Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double charges. No double emails. No double orders. No duplicate webhooks.
 
-**State machine:** `PENDING → COMMITTED | SKIP`
+**State machine:** `PENDING â†’ COMMITTED | SKIP`
 
 **Common failure modes SafeAgent prevents:**
 
@@ -79,7 +82,7 @@ Retry with the same payload:
 
 ### POST /claim/test
 
-Free test endpoint — same logic, no payment required. Limited to 10 calls per IP total.
+Free test endpoint â€” same logic, no payment required. Limited to 10 calls per IP total.
 
 ```bash
 curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
@@ -160,7 +163,7 @@ The `request_id` is stable: same symbol, same side, same quantity, same bar time
 
 **What actually happens without a guard.**
 
-A trading bot fires a market order to buy 6 shares of TQQQ. The broker accepts it. The bot crashes before updating state. On restart — same signal, same bar — the bot fires again. The broker fills it twice. The agent now holds 12 shares when it intended to hold 6.
+A trading bot fires a market order to buy 6 shares of TQQQ. The broker accepts it. The bot crashes before updating state. On restart â€” same signal, same bar â€” the bot fires again. The broker fills it twice. The agent now holds 12 shares when it intended to hold 6.
 
 This is not theoretical. It happens on any unhandled exception between order submission and state persistence.
 
@@ -172,18 +175,18 @@ e.g. "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00"
 
 Then:
 
-1. `INSERT OR IGNORE` — atomic, no-op if the key already exists
-2. Check status — if `COMMITTED`, return cached result immediately
-3. Fire order — only reaches the broker if step 2 passed
-4. Settle — write `COMMITTED` + broker response
+1. `INSERT OR IGNORE` â€” atomic, no-op if the key already exists
+2. Check status â€” if `COMMITTED`, return cached result immediately
+3. Fire order â€” only reaches the broker if step 2 passed
+4. Settle â€” write `COMMITTED` + broker response
 
-On crash between steps 3 and 4: key is `PENDING`. Next run re-fires. This is safe — `PENDING` means the order may or may not have landed. The broker's own idempotency (duplicate `client_order_id`) handles the edge case.
+On crash between steps 3 and 4: key is `PENDING`. Next run re-fires. This is safe â€” `PENDING` means the order may or may not have landed. The broker's own idempotency (duplicate `client_order_id`) handles the edge case.
 
 On crash after step 4: key is `COMMITTED`. Next run hits step 2, logs `SAFEAGENT SKIP`, returns the original order. The broker is never touched again.
 
 **Live proof from May 19 session.**
 
-`safeagent_orders.db` — 23 orders, 23 COMMITTED, 0 PENDING.
+`safeagent_orders.db` â€” 23 orders, 23 COMMITTED, 0 PENDING.
 ```
 order:TQQQ:buy:6:2026-05-19T13:31:00-04:00          COMMITTED
 order:TQQQ:sell:18:2026-05-19T13:25:00-04:00:TRAIL   COMMITTED
@@ -211,9 +214,9 @@ Every order that fired is in the db as COMMITTED. If either bot instance had cra
 
 **The two-bot scenario.**
 
-Two instances of the same bot ran against the same shared `safeagent_orders.db`. They operated on different timelines — bot 1 entered the morning bull wave at 12:32, bot 2 was blocked by the broker's open-position check and entered later at 13:31. They never tried to fire the same `request_id` because they were acting on different bars.
+Two instances of the same bot ran against the same shared `safeagent_orders.db`. They operated on different timelines â€” bot 1 entered the morning bull wave at 12:32, bot 2 was blocked by the broker's open-position check and entered later at 13:31. They never tried to fire the same `request_id` because they were acting on different bars.
 
-The scenario where the db guard fires instead of the broker check: two bots on separate broker accounts, both wired to the same `safeagent_orders.db`, both reading the same bar signal at the same second. Bot 1 fires `INSERT OR IGNORE` and wins the atomic write. Bot 2 fires the same insert — SQLite's `INSERT OR IGNORE` drops it silently. Bot 2 reads the row, sees `PENDING`, and proceeds to fire. Both orders land.
+The scenario where the db guard fires instead of the broker check: two bots on separate broker accounts, both wired to the same `safeagent_orders.db`, both reading the same bar signal at the same second. Bot 1 fires `INSERT OR IGNORE` and wins the atomic write. Bot 2 fires the same insert â€” SQLite's `INSERT OR IGNORE` drops it silently. Bot 2 reads the row, sees `PENDING`, and proceeds to fire. Both orders land.
 
 This is the gap. `INSERT OR IGNORE` + status check handles crash-retry cleanly. For true concurrent multi-agent deduplication, the status check needs to happen inside a transaction with a row-level lock, or the guard needs to be the hosted endpoint where the write is serialized server-side.
 
@@ -221,7 +224,7 @@ The hosted `/claim` endpoint is that serialization layer.
 
 ---
 
-## Case study: live duplicate blocking — May 21, 2026
+## Case study: live duplicate blocking â€” May 21, 2026
 
 Six confirmed SKIP events from a live session on the full stack: DashClaw, SafeAgent, Mycelium Trails, Base/Arbitrum, broker Alpaca.
 
@@ -234,7 +237,7 @@ Six confirmed SKIP events from a live session on the full stack: DashClaw, SafeA
 
 **Gap surfaced: exit side has no guard.**
 
-At 1114 ET a legitimate SQQQ exit failed with 422 Unprocessable Entity after three retries. Broker API continued reporting an open TQQQ position. Bot logged ENTRY BLOCKED from 1133 through 1400 — three hours of blocked entries from a phantom position. Those blocks appear in any receipt chain as legitimate decisions with no trace of the upstream failure.
+At 1114 ET a legitimate SQQQ exit failed with 422 Unprocessable Entity after three retries. Broker API continued reporting an open TQQQ position. Bot logged ENTRY BLOCKED from 1133 through 1400 â€” three hours of blocked entries from a phantom position. Those blocks appear in any receipt chain as legitimate decisions with no trace of the upstream failure.
 
 Exit-side exactly-once semantics are the next spec item.
 
@@ -303,7 +306,7 @@ def safe_stripe_charge(customer_id, amount, idempotency_key, payment_header):
 
 Same pattern for email sends, webhook processing, and resource provisioning. Any action that must not fire twice gets a claim before execution.
 
-**Webhook deduplication** — Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
+**Webhook deduplication** â€” Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
 
 ```python
 def handle_stripe_webhook(event):
@@ -325,23 +328,23 @@ def handle_stripe_webhook(event):
 
 ### WisePick
 
-[WisePick](https://github.com/w2jmoe/WisePick) is a deterministic routing layer for agent runtimes. The integration splits **capability selection** from **durable, idempotent execution** — WisePick answers *what* and *which provider*, SafeAgent answers *whether this logical work already ran*.
+[WisePick](https://github.com/w2jmoe/WisePick) is a deterministic routing layer for agent runtimes. The integration splits **capability selection** from **durable, idempotent execution** â€” WisePick answers *what* and *which provider*, SafeAgent answers *whether this logical work already ran*.
 
 **Stack:**
 
 ```
-WisePick /v1/decide → DashClaw → SafeAgent → Mycelium Trails → Base/Arbitrum
+WisePick /v1/decide â†’ DashClaw â†’ SafeAgent â†’ Mycelium Trails â†’ Base/Arbitrum
 ```
 
 **How `request_id` is derived:**
 
-WisePick's adapter derives the SafeAgent `request_id` from the stable turn anchor — `session_id`, `turn_id`, `start_time_ms`, normalized task, `capability_id`, `provider`, and `constraints`. The WisePick `decision_id` is intentionally excluded, so a retry that mints a new `decision_id` still maps to the same SafeAgent execution slot and returns `SKIP` rather than re-executing the side effect.
+WisePick's adapter derives the SafeAgent `request_id` from the stable turn anchor â€” `session_id`, `turn_id`, `start_time_ms`, normalized task, `capability_id`, `provider`, and `constraints`. The WisePick `decision_id` is intentionally excluded, so a retry that mints a new `decision_id` still maps to the same SafeAgent execution slot and returns `SKIP` rather than re-executing the side effect.
 
 This maps to the `task_fingerprint` / `startTime_ms` fields in SafeAgent's dispatch payload (`mcp.safeagent_execution.v1`).
 
 - Adapter: [`adapters/safeagent_adapter.py`](https://github.com/w2jmoe/WisePick/blob/main/adapters/safeagent_adapter.py)
 - Integration docs: [`docs/integrations/safeagent.md`](https://github.com/w2jmoe/WisePick/blob/main/docs/integrations/safeagent.md)
-- Replay demo (RUN → SKIP, no HTTP required): [`examples/safeagent_replay_demo.py`](https://github.com/w2jmoe/WisePick/blob/main/examples/safeagent_replay_demo.py)
+- Replay demo (RUN â†’ SKIP, no HTTP required): [`examples/safeagent_replay_demo.py`](https://github.com/w2jmoe/WisePick/blob/main/examples/safeagent_replay_demo.py)
 - Integration thread: [SafeAgent #9](https://github.com/azender1/SafeAgent/issues/9)
 
 ---
@@ -349,12 +352,12 @@ This maps to the `task_fingerprint` / `startTime_ms` fields in SafeAgent's dispa
 ## Stack
 
 ```
-DashClaw (attribution + approval) → decision_id
-└── SafeAgent (exactly-once guard) → request_id
-    └── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum
+DashClaw (attribution + approval) â†’ decision_id
+â””â”€â”€ SafeAgent (exactly-once guard) â†’ request_id
+    â””â”€â”€ Mycelium Trails (on-chain receipt) â†’ action_ref â†’ Base/Arbitrum
 ```
 
-Canonical `action_ref` derivation — JCS (RFC 8785), aligned with argentum-core, Nobulex, and APS:
+Canonical `action_ref` derivation â€” JCS (RFC 8785), aligned with argentum-core, Nobulex, and APS:
 
 ```python
 import hashlib
@@ -381,7 +384,7 @@ def compute_action_ref(
     return hashlib.sha256(canonical).hexdigest()
 ```
 
-**Note on timestamp format:** `timestamp` is an RFC 3339 UTC string with exactly 3 millisecond digits — `"2026-05-15T10:00:00.123Z"`. The trailing `Z` is mandatory. Do not pass an epoch-millisecond integer; convert first:
+**Note on timestamp format:** `timestamp` is an RFC 3339 UTC string with exactly 3 millisecond digits â€” `"2026-05-15T10:00:00.123Z"`. The trailing `Z` is mandatory. Do not pass an epoch-millisecond integer; convert first:
 
 ```python
 import datetime
@@ -397,7 +400,7 @@ Conformance fixtures: [giskard09/argentum-core tag action-ref-v1.0](https://gith
 
 ## Deployment
 
-Railway · Serverless OFF · always-on  
+Railway Â· Serverless OFF Â· always-on  
 PyPI: `pip install safeagent-exec-guard`  
 npm: `npm install n8n-nodes-safeagent`  
 MCP Registry: `io.github.azender1/safeagent`
