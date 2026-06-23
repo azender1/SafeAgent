@@ -12,14 +12,20 @@ import hashlib
 import json
 import sys
 
+import rfc8785
+
 
 def jcs(obj: dict) -> bytes:
-    """RFC 8785 JCS: lexicographic key order, no spaces, UTF-8."""
-    return json.dumps(
-        dict(sorted(obj.items())),
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
+    """RFC 8785 JCS canonicalization.
+
+    Uses the ``rfc8785`` package — a true RFC 8785 implementation. The previous
+    ``json.dumps(dict(sorted(obj.items())))`` shortcut only sorted TOP-LEVEL keys and
+    skipped number canonicalization, so it diverged on nested objects (e.g. an
+    AgentGraph attestation's ``attestation.payload.findings``). See
+    ``agentgraph_attestation_gate_v0.json`` → ``jcs_divergence_proof``. This is the
+    same canonicalizer cross-validated byte-for-byte across ~8 implementations.
+    """
+    return rfc8785.dumps(obj)
 
 
 def sha256hex(data: bytes) -> str:

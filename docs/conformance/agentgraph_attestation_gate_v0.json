@@ -1,0 +1,169 @@
+{
+  "fixture_version": "agentgraph-attestation-gate-v0",
+  "spec_ref": "AgentGraph CTEF v0.3.3 + pre-execution-verdict-v0; argentum-core action-ref-v1",
+  "preimage_format": "jcs-rfc8785-v1",
+  "hash_algo": "SHA-256",
+  "description": "Verifies an AgentGraph safety attestation before the COMMITTED write. action_ref + binding_digest byte-identical to exactly-once-v1.json. Demonstrates the gate ALLOW/DENY/SKIP decisions and the nested-object JCS divergence that a json.dumps(sorted()) shortcut would hit.",
+  "jwks": {
+    "keys": [
+      {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "x": "sD1eQXqPur6MA5p6ZQ_YPSVXEGv7Ln9TOPpcEaZOCMI",
+        "kid": "agentgraph-test-1"
+      }
+    ]
+  },
+  "claim_binding_preimage": {
+    "amount_usd": 50,
+    "charge_ref": "charge_ref_abc123",
+    "nonce": "nonce_xyz789",
+    "subject_did": "did:web:safeagent-prod"
+  },
+  "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988",
+  "vectors": {
+    "allow_clean": {
+      "decision_expected": "ALLOW",
+      "attestation": {
+        "type": "TrustAttestation",
+        "version": "0.3.3",
+        "claim_type": "authority",
+        "provider": {
+          "id": "did:web:agentgraph.co",
+          "name": "AgentGraph Trust Scanner"
+        },
+        "subject": {
+          "resource_url": "https://api.example.com/x402"
+        },
+        "admission": {
+          "verdict": "admit"
+        },
+        "attestation": {
+          "type": "SecurityAttestation",
+          "confidence": 0.9,
+          "payload": {
+            "grade": "A",
+            "trust_score": 95,
+            "findings": {
+              "critical": 0,
+              "high": 0,
+              "medium": 1,
+              "total": 1
+            }
+          }
+        },
+        "binding": {
+          "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988"
+        },
+        "action_ref_preimage": {
+          "agent_id": "safeagent-prod",
+          "action_type": "payment.send",
+          "scope": "trade:execute:authorized",
+          "timestamp": "2026-06-08T20:00:00.000Z"
+        },
+        "proof": {
+          "type": "Ed25519Signature2020",
+          "jws": "eyJhbGciOiAiRWREU0EiLCAia2lkIjogImFnZW50Z3JhcGgtdGVzdC0xIn0..WgNOokDxie-s4f5S-Eu_ZP4udZ_bCSzZErpWkYAebi0g9E7-CWOHDZYKzIlXuJX80Au2nArJfo8lQMFetVr1CA"
+        }
+      },
+      "result": {
+        "decision": "ALLOW",
+        "reason": "admit",
+        "action_ref": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
+        "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988"
+      }
+    },
+    "deny_critical": {
+      "decision_expected": "DENY",
+      "attestation": {
+        "type": "TrustAttestation",
+        "version": "0.3.3",
+        "claim_type": "authority",
+        "provider": {
+          "id": "did:web:agentgraph.co",
+          "name": "AgentGraph Trust Scanner"
+        },
+        "subject": {
+          "resource_url": "https://api.example.com/x402"
+        },
+        "admission": {
+          "verdict": "admit"
+        },
+        "attestation": {
+          "type": "SecurityAttestation",
+          "confidence": 0.9,
+          "payload": {
+            "grade": "F",
+            "trust_score": 20,
+            "findings": {
+              "critical": 2,
+              "high": 1,
+              "medium": 3,
+              "total": 6
+            }
+          }
+        },
+        "binding": {
+          "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988"
+        },
+        "action_ref_preimage": {
+          "agent_id": "safeagent-prod",
+          "action_type": "payment.send",
+          "scope": "trade:execute:authorized",
+          "timestamp": "2026-06-08T20:00:00.000Z"
+        },
+        "proof": {
+          "type": "Ed25519Signature2020",
+          "jws": "eyJhbGciOiAiRWREU0EiLCAia2lkIjogImFnZW50Z3JhcGgtdGVzdC0xIn0..G7Wzpi3O4SEb_DNHLqpmuQO4ES5HPaRLsqRl04_qxg72n9_qtUiuQLKWZGfNWN-1nJ91FeVaPbdUIOIFF3EXCA"
+        }
+      },
+      "result": {
+        "decision": "DENY",
+        "reason": "safety_findings: 2 critical, 1 high",
+        "entities": [
+          "critical",
+          "high"
+        ]
+      }
+    },
+    "skip_unattested": {
+      "decision_expected": "SKIP",
+      "attestation": null,
+      "result": {
+        "decision": "SKIP",
+        "reason": "no_safety_attestation"
+      }
+    },
+    "deny_wrong_charge": {
+      "decision_expected": "DENY",
+      "note": "binding bound to a different charge",
+      "result": {
+        "decision": "DENY",
+        "reason": "attestation_signature_invalid"
+      }
+    }
+  },
+  "jcs_divergence_proof": {
+    "note": "Why this gate uses rfc8785, not json.dumps(sorted()). json.dumps(dict(sorted(obj.items()))) sorts only the TOP-LEVEL keys; nested objects keep insertion order. AgentGraph attestations nest attestation.payload.findings, so on realistic input the shortcut produces different bytes and a different digest.",
+    "nested_input": {
+      "attestation": {
+        "payload": {
+          "findings": {
+            "total": 7,
+            "critical": 0,
+            "high": 2,
+            "medium": 5
+          },
+          "grade": "B",
+          "trust_score": 66
+        }
+      },
+      "nonce": "abc"
+    },
+    "rfc8785_canonical": "{\"attestation\":{\"payload\":{\"findings\":{\"critical\":0,\"high\":2,\"medium\":5,\"total\":7},\"grade\":\"B\",\"trust_score\":66}},\"nonce\":\"abc\"}",
+    "naive_sorted_dumps": "{\"attestation\":{\"payload\":{\"findings\":{\"total\":7,\"critical\":0,\"high\":2,\"medium\":5},\"grade\":\"B\",\"trust_score\":66}},\"nonce\":\"abc\"}",
+    "rfc8785_sha256": "3a3c8cc666ad93ef5891b79dad4f805137aa1ae66bf956f2c2c38e6a8f635a4b",
+    "naive_sorted_dumps_sha256": "38b3243e33ff71037617411bfcb4a5107863a58fba9a33856ef326f0cddc095d",
+    "digests_differ": true
+  }
+}
