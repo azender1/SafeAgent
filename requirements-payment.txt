@@ -2,3 +2,5 @@ fastapi
 uvicorn
 x402
 httpx
+rfc8785>=0.1.4
+cryptography>=41.0.0
