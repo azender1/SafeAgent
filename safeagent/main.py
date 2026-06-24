@@ -545,6 +545,97 @@ def create_app(
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
 
+        # ------------------------------------------------------------------
+        # Attestation gate — verify AgentGraph safety verdict before
+        # allowing any COMMITTED write. Keyed on body.action (the tool/
+        # endpoint identity), not request_id (the exactly-once key).
+        # require_attestation=False (default): SKIP on unreachable/absent,
+        # recorded as safety_skipped — never a silent pass.
+        # require_attestation=True: DENY before COMMITTED write.
+        # ------------------------------------------------------------------
+        _require_attestation = os.getenv("SAFEAGENT_REQUIRE_ATTESTATION", "false").lower() == "true"
+        try:
+            from safeagent_exec_guard.attestation_gate import gate as _attestation_gate
+            import httpx as _httpx
+            _agentgraph_jwks_url = os.getenv(
+                "AGENTGRAPH_JWKS_URL",
+                "https://agentgraph.co/.well-known/jwks.json"
+            )
+            _agentgraph_attestation_url = os.getenv(
+                "AGENTGRAPH_ATTESTATION_URL",
+                "https://agentgraph.co/x402/attestation"
+            )
+            # Fetch live attestation by tool/endpoint identity (body.action)
+            _attestation = None
+            _attestation_error = None
+            try:
+                async with _httpx.AsyncClient(timeout=5.0) as _http:
+                    _resp = await _http.get(
+                        _agentgraph_attestation_url,
+                        params={"endpoint": body.action}
+                    )
+                    if _resp.status_code == 200:
+                        _attestation = _resp.json()
+            except Exception as _fetch_err:
+                _attestation_error = str(_fetch_err)
+
+            # Fetch JWKS for offline signature verification
+            _jwks = None
+            try:
+                async with _httpx.AsyncClient(timeout=5.0) as _http:
+                    _jwks_resp = await _http.get(_agentgraph_jwks_url)
+                    if _jwks_resp.status_code == 200:
+                        _jwks = _jwks_resp.json()
+            except Exception:
+                pass
+
+            # Build preimage for binding_digest (amount/charge fields optional here)
+            _preimage = {
+                "agent_id": agent_id or "",
+                "action_type": body.action,
+                "scope": body.request_id,
+                "timestamp": "",
+            }
+            _gate_result = _attestation_gate(
+                _preimage,
+                _attestation,
+                jwks=_jwks,
+                require_attestation=_require_attestation,
+            )
+            if _gate_result.get("decision") == "DENY":
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "safety_denied",
+                        "reason": _gate_result.get("reason", "safety verdict denied"),
+                        "action": body.action,
+                    },
+                )
+            # Record attestation outcome in store metadata for audit trail
+            _safety_meta = {
+                "safety_decision": _gate_result.get("decision"),
+                "safety_reason": _gate_result.get("reason"),
+                "attestation_error": _attestation_error,
+            }
+        except HTTPException:
+            raise
+        except ImportError:
+            # attestation_gate not available — skip silently, log warning
+            logging.getLogger(__name__).warning(
+                "attestation_gate not importable — safety check skipped"
+            )
+            _safety_meta = {"safety_decision": "skipped", "safety_reason": "import_error"}
+        except Exception as _gate_err:
+            logging.getLogger(__name__).warning(
+                "attestation_gate error (%s) — applying require_attestation policy", _gate_err
+            )
+            if _require_attestation:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"error": "safety_denied", "reason": "attestation_gate_error"},
+                )
+            _safety_meta = {"safety_decision": "skipped", "safety_reason": str(_gate_err)}
+
         existing = store.get(body.request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
