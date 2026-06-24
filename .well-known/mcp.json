@@ -1,0 +1,8 @@
+{
+  "name": "SafeAgent",
+  "description": "Execution guard for AI agents — exactly-once execution, PENDING → COMMITTED → SKIP",
+  "url": "https://safeagent-production.up.railway.app",
+  "mcp_endpoint": "https://safeagent-production.up.railway.app/mcp",
+  "version": "0.1.22",
+  "capabilities": ["exactly-once-execution", "idempotency", "audit-trail", "eu-ai-act-art12"]
+}

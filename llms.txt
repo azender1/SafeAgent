@@ -1,0 +1,26 @@
+# SafeAgent — Execution Guard for AI Agents
+# https://safeagent-production.up.railway.app
+
+## What SafeAgent does
+SafeAgent prevents AI agents from executing the same action twice when they retry.
+Before any irreversible action fires — payment, trade, email — claim a key.
+First call returns PROCEED. Every retry returns SKIP. Atomic, durable, survives process restarts.
+
+## API
+POST /claim — gate an action (x402 payment required, $0.001 USDC)
+POST /claim/test — free test endpoint, 10 calls per IP
+GET /audit — full claim history
+GET /health — health check
+
+## State machine
+PENDING → COMMITTED → SKIP
+
+## Integration
+pip install safeagent-exec-guard
+npm install n8n-nodes-safeagent
+
+## Dashboard
+https://safeagent-dashboard-2.vercel.app
+
+## EU AI Act Art. 12
+SafeAgent provides tamper-evident execution logs for AI agent compliance.

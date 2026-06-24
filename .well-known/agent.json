@@ -1,0 +1,12 @@
+{
+  "name": "SafeAgent",
+  "description": "Execution guard for AI agents — prevents duplicate actions on retry",
+  "url": "https://safeagent-production.up.railway.app",
+  "api": "https://safeagent-production.up.railway.app/openapi.json",
+  "capabilities": ["exactly-once-execution", "idempotency", "audit-trail"],
+  "payment": {
+    "protocol": "x402",
+    "endpoint": "/claim",
+    "price_usd": 0.001
+  }
+}

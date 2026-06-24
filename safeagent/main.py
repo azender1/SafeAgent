@@ -388,6 +388,23 @@ def create_app(
     async def robots_txt() -> str:
         return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
 
+    @app.get("/llms.txt", response_class=PlainTextResponse)
+    async def llms_txt() -> str:
+        with open("llms.txt") as f:
+            return f.read()
+
+    @app.get("/.well-known/agent.json")
+    async def agent_json():
+        import json
+        with open(".well-known/agent.json") as f:
+            return json.load(f)
+
+    @app.get("/.well-known/mcp.json")
+    async def mcp_json():
+        import json
+        with open(".well-known/mcp.json") as f:
+            return json.load(f)
+
     @app.get("/favicon.ico")
     async def favicon() -> Response:
         return Response(status_code=204)
