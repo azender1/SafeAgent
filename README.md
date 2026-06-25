@@ -70,8 +70,7 @@ Every action gets a stable `request_id` derived from what the agent is doing and
 SafeAgent is the exactly-once enforcement layer in a formally specified agent execution integrity stack:
 
 ```
-Polaris (commit-gated authorization)
-└── AgentGraph safety verdict (pre-execution safety gate)
+AgentGraph safety verdict (pre-execution safety gate)
     └── SafeAgent (exactly-once execution guard)  ← you are here
         └── Nobulex (signed bilateral receipt)
             └── Mycelium Trails (on-chain anchor)
