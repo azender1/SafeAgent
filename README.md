@@ -2,25 +2,36 @@
 ![SafeAgent — Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE2%20JUN%2017%2C%202026%2C%2010_41_10%20PM.png)
 <!-- mcp-name: io.github.azender1/safeagent -->
 
-**Pay per claim via x402.**  
-`POST /claim` · `$0.001` · Base + Solana · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)
+`POST /claim` · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)  
+Dashboard: [safeagent-dashboard-2.vercel.app](https://safeagent-dashboard-2.vercel.app)
 
 ```bash
-# Paid endpoint (x402)
+# Claim an action — free, no payment header required
 curl -s -X POST https://safeagent-production.up.railway.app/claim \
   -H "Content-Type: application/json" \
-  -H "x-payment: <Base or Solana payment>" \
   -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
-# → {"status":"PROCEED"|"SKIP","request_id":"..."}
+# → {"status":"PROCEED","request_id":"..."}
 
-# Free test endpoint — verify your integration before paying (10 calls per IP)
+# Settle after the action fires
+curl -s -X POST https://safeagent-production.up.railway.app/settle/order:TQQQ:buy:6:2026-05-19T13:31:00-04:00 \
+  -H "Content-Type: application/json" \
+  -d '{"result":{"status":"completed"}}'
+# → {"status":"committed","request_id":"..."}
+
+# Retry with the same request_id — returns SKIP
+curl -s -X POST https://safeagent-production.up.railway.app/claim \
+  -H "Content-Type: application/json" \
+  -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
+# → {"status":"SKIP","request_id":"...","existing":{...}}
+
+# Free test endpoint — same logic, limited to 10 calls per IP
 curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
   -H "Content-Type: application/json" \
   -d '{"agent_id":"bot-1","action_type":"order","scope":"TQQQ:buy:bar:2026-05-19T13:31:00-04:00"}'
-# → {"status":"PROCEED"|"SKIP","request_id":"...","test":true,"calls_remaining":9}
+# → {"status":"PROCEED","request_id":"...","test":true,"calls_remaining":9}
 ```
 
-Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02). 102 requests / 7 days.
+Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02).
 
 ---
 
@@ -54,27 +65,63 @@ Every action gets a stable `request_id` derived from what the agent is doing and
 
 ---
 
-## x402 API
+## The stack
+
+SafeAgent is the exactly-once enforcement layer in a formally specified agent execution integrity stack:
+
+```
+Polaris (commit-gated authorization)
+└── AgentGraph safety verdict (pre-execution safety gate)
+    └── SafeAgent (exactly-once execution guard)  ← you are here
+        └── Nobulex (signed bilateral receipt)
+            └── Mycelium Trails (on-chain anchor)
+```
+
+Each layer is independently authored and independently verifiable. None trusts the others.
+
+**EU AI Act Art. 12** — enforcement deadline August 2, 2026. SafeAgent provides tamper-evident execution logs for agent compliance. The full stack satisfies "tamper-evident" independently of platform logs.
+
+---
+
+## API
 
 ### POST /claim
 
 Gate an action. Returns PROCEED on first call, SKIP on any repeat.
 
-```bash
-curl -s -X POST https://safeagent-production.up.railway.app/claim \
-  -H "Content-Type: application/json" \
-  -H "x-payment: <payment>" \
-  -d '{"request_id":"order:TQQQ:buy:6:2026-05-19T13:31:00-04:00","action":"order"}'
+**Request body:**
+```json
+{
+  "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00",
+  "action": "order"
+}
 ```
 
+- `request_id` — stable identifier derived from what the agent is doing. Same inputs = same key.
+- `action` — the action type being gated (e.g. `payment.send`, `email`, `trade`, `order`)
+
+**Response:**
 ```json
 { "status": "PROCEED", "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00" }
 ```
 
 Retry with the same payload:
+```json
+{ "status": "SKIP", "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00", "existing": {...} }
+```
+
+### POST /settle/{request_id}
+
+Settle a claim after the action fires. Advances status from PENDING to COMMITTED.
+
+```bash
+curl -s -X POST https://safeagent-production.up.railway.app/settle/order:TQQQ:buy:6:2026-05-19T13:31:00-04:00 \
+  -H "Content-Type: application/json" \
+  -d '{"result":{"status":"completed","txid":"abc123"}}'
+```
 
 ```json
-{ "status": "SKIP", "request_id": "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00", "existing": "..." }
+{ "status": "committed", "request_id": "..." }
 ```
 
 ### POST /claim/test
@@ -104,6 +151,112 @@ curl "https://safeagent-production.up.railway.app/audit?agent_id=bot-1&status=CO
 ```
 
 Parameters: `agent_id`, `action`, `status`, `from_ts`, `to_ts`, `limit` (max 1000), `offset`.
+
+---
+
+## Integration
+
+### Python
+
+```python
+import requests
+
+def claim(request_id: str, action: str) -> dict:
+    r = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"Content-Type": "application/json"},
+        json={"request_id": request_id, "action": action}
+    )
+    return r.json()  # {"status": "PROCEED"|"SKIP", "request_id": "..."}
+
+def settle(request_id: str, result: dict) -> dict:
+    r = requests.post(
+        f"https://safeagent-production.up.railway.app/settle/{request_id}",
+        headers={"Content-Type": "application/json"},
+        json={"result": result}
+    )
+    return r.json()
+
+# Usage
+response = claim("payment:customer-123:invoice-456", "payment.send")
+if response["status"] == "PROCEED":
+    result = send_payment(...)
+    settle("payment:customer-123:invoice-456", {"status": "completed"})
+elif response["status"] == "SKIP":
+    print("Already executed, skipping")
+```
+
+### SaaS (Stripe / email / webhooks)
+
+```python
+import requests
+
+def safe_stripe_charge(customer_id, amount, idempotency_key):
+    request_id = f"stripe:charge:{customer_id}:{idempotency_key}"
+
+    response = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"Content-Type": "application/json"},
+        json={"request_id": request_id, "action": "stripe_charge"}
+    ).json()
+
+    if response["status"] == "SKIP":
+        return response.get("existing")
+
+    charge = stripe.PaymentIntent.create(amount=amount, customer=customer_id)
+    requests.post(
+        f"https://safeagent-production.up.railway.app/settle/{request_id}",
+        headers={"Content-Type": "application/json"},
+        json={"result": {"charge_id": charge.id}}
+    )
+    return charge
+```
+
+**Webhook deduplication** — Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
+
+```python
+def handle_stripe_webhook(event):
+    response = requests.post(
+        "https://safeagent-production.up.railway.app/claim",
+        headers={"Content-Type": "application/json"},
+        json={"request_id": event["id"], "action": "stripe_event"}
+    ).json()
+
+    if response["status"] == "SKIP":
+        return {"ok": True}
+
+    provision_subscription(event)
+    requests.post(
+        f"https://safeagent-production.up.railway.app/settle/{event['id']}",
+        headers={"Content-Type": "application/json"},
+        json={"result": {"processed": True}}
+    )
+```
+
+### CrewAI
+
+```python
+from crewai import Agent
+import sqlite3
+
+guard_con = sqlite3.connect("safeagent_orders.db", check_same_thread=False)
+# ... same guard pattern, keyed on tool_name + input hash + session_id
+```
+
+PR [crewAIInc/crewAI#5822](https://github.com/crewAIInc/crewAI/pull/5822) adds pluggable idempotency backends. SafeAgent's SQLite schema is compatible.
+
+### WisePick
+
+[WisePick](https://github.com/w2jmoe/WisePick) is a deterministic routing layer for agent runtimes. The integration splits **capability selection** from **durable, idempotent execution** — WisePick answers *what* and *which provider*, SafeAgent answers *whether this logical work already ran*.
+
+**Stack:**
+```
+WisePick /v1/decide → DashClaw → SafeAgent → Mycelium Trails → Base/Arbitrum
+```
+
+- Adapter: [`adapters/safeagent_adapter.py`](https://github.com/w2jmoe/WisePick/blob/main/adapters/safeagent_adapter.py)
+- Integration docs: [`docs/integrations/safeagent.md`](https://github.com/w2jmoe/WisePick/blob/main/docs/integrations/safeagent.md)
+- Integration thread: [SafeAgent #9](https://github.com/azender1/SafeAgent/issues/9)
 
 ---
 
@@ -152,72 +305,21 @@ def place_order_with_guard(symbol, qty, side, bar_ts):
     return result
 ```
 
-The `request_id` is stable: same symbol, same side, same quantity, same bar timestamp = same key. If the bot crashes between firing and settling, the next run sees `PENDING`, re-fires, and settles. If it crashed after settling, the next run sees `COMMITTED` and returns SKIP.
-
 ---
 
 ## Case study: crash-retry duplicate prevention
-
-**What actually happens without a guard.**
 
 A trading bot fires a market order to buy 6 shares of TQQQ. The broker accepts it. The bot crashes before updating state. On restart — same signal, same bar — the bot fires again. The broker fills it twice. The agent now holds 12 shares when it intended to hold 6.
 
 This is not theoretical. It happens on any unhandled exception between order submission and state persistence.
 
-**How SafeAgent blocks it.**
-
-The guard derives a stable key from the order parameters before touching the broker:
-request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"
-e.g. "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00"
-
-Then:
-
-1. `INSERT OR IGNORE` — atomic, no-op if the key already exists
-2. Check status — if `COMMITTED`, return cached result immediately
-3. Fire order — only reaches the broker if step 2 passed
-4. Settle — write `COMMITTED` + broker response
-
-On crash between steps 3 and 4: key is `PENDING`. Next run re-fires. This is safe — `PENDING` means the order may or may not have landed. The broker's own idempotency (duplicate `client_order_id`) handles the edge case.
-
-On crash after step 4: key is `COMMITTED`. Next run hits step 2, logs `SAFEAGENT SKIP`, returns the original order. The broker is never touched again.
-
-**Live proof from May 19 session.**
-
-`safeagent_orders.db` — 23 orders, 23 COMMITTED, 0 PENDING.
+SafeAgent derives a stable key before touching the broker:
 ```
-order:TQQQ:buy:6:2026-05-19T13:31:00-04:00          COMMITTED
-order:TQQQ:sell:18:2026-05-19T13:25:00-04:00:TRAIL   COMMITTED
-order:SQQQ:buy:11:2026-05-19T13:54:00-04:00          COMMITTED
-order:SQQQ:sell:22:2026-05-19T14:00:00-04:00:V20     COMMITTED
-order:TQQQ:buy:6:2026-05-19T14:02:00-04:00           COMMITTED
-order:TQQQ:buy:6:2026-05-19T14:05:00-04:00           COMMITTED
-order:TQQQ:sell:12:2026-05-19T14:18:00-04:00:V20     COMMITTED
-order:SQQQ:buy:11:2026-05-19T14:20:00-04:00          COMMITTED
-order:SQQQ:sell:11:2026-05-19T14:26:00-04:00:V20     COMMITTED
-order:TQQQ:buy:6:2026-05-19T14:26:00-04:00           COMMITTED
-order:TQQQ:sell:6:2026-05-19T14:31:00-04:00:FLIP     COMMITTED
-order:SQQQ:buy:11:2026-05-19T14:31:00-04:00          COMMITTED
-order:SQQQ:buy:11:2026-05-19T14:42:00-04:00          COMMITTED
-order:SQQQ:buy:11:2026-05-19T14:53:00-04:00          COMMITTED
-order:SQQQ:sell:33:2026-05-19T15:00:00-04:00:TRAIL   COMMITTED
-order:SQQQ:buy:11:2026-05-19T15:03:00-04:00          COMMITTED
-order:SQQQ:sell:11:2026-05-19T15:10:00-04:00:V20     COMMITTED
-order:TQQQ:buy:6:2026-05-19T15:14:00-04:00           COMMITTED
-order:TQQQ:sell:12:2026-05-19T15:20:00-04:00:V20     COMMITTED
-... (23 total)
+request_id = "order:TQQQ:buy:6:2026-05-19T13:31:00-04:00"
 ```
 
-Every order that fired is in the db as COMMITTED. If either bot instance had crashed mid-flight and restarted with the same signal, it would have hit the COMMITTED row and stopped. The broker would never have seen a duplicate submission.
-
-**The two-bot scenario.**
-
-Two instances of the same bot ran against the same shared `safeagent_orders.db`. They operated on different timelines — bot 1 entered the morning bull wave at 12:32, bot 2 was blocked by the broker's open-position check and entered later at 13:31. They never tried to fire the same `request_id` because they were acting on different bars.
-
-The scenario where the db guard fires instead of the broker check: two bots on separate broker accounts, both wired to the same `safeagent_orders.db`, both reading the same bar signal at the same second. Bot 1 fires `INSERT OR IGNORE` and wins the atomic write. Bot 2 fires the same insert — SQLite's `INSERT OR IGNORE` drops it silently. Bot 2 reads the row, sees `PENDING`, and proceeds to fire. Both orders land.
-
-This is the gap. `INSERT OR IGNORE` + status check handles crash-retry cleanly. For true concurrent multi-agent deduplication, the status check needs to happen inside a transaction with a row-level lock, or the guard needs to be the hosted endpoint where the write is serialized server-side.
-
-The hosted `/claim` endpoint is that serialization layer.
+First call: PROCEED. Side effect fires. Settle writes COMMITTED.  
+Crash and retry: SKIP. Broker never touched again.
 
 ---
 
@@ -232,133 +334,30 @@ Six confirmed SKIP events from a live session on the full stack: DashClaw, SafeA
 - 1014 ET: duplicate sell TQQQ qty=18 on V20 flip, $1,350
 - 1106 ET: duplicate SQQQ add during scale-in, $43
 
-**Gap surfaced: exit side has no guard.**
-
-At 1114 ET a legitimate SQQQ exit failed with 422 Unprocessable Entity after three retries. Broker API continued reporting an open TQQQ position. Bot logged ENTRY BLOCKED from 1133 through 1400 — three hours of blocked entries from a phantom position. Those blocks appear in any receipt chain as legitimate decisions with no trace of the upstream failure.
-
-Exit-side exactly-once semantics are the next spec item.
-
 Full session data: https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26
 
 ---
 
-## Integration
+## Conformance
 
-### Python (local db)
+SafeAgent participates in the A2A cross-implementation conformance corpus. Byte-verified fixtures across four independent implementations:
 
-Copy the guard block from the source above into `place_order_with_retry`. Works with any broker. No network dependency.
+- kenneives (agentgraph) — verifier-attestation-v0: 30/30 ✓
+- evidai (LemonCake) — gated-preflight-v1: 33/33 ✓
+- haroldmalikfrimpong-ops (agentid) — independent verifier ✓
+- SafeAgent — exactly-once-v1.1 ✓
 
-### CrewAI
-
-```python
-from crewai import Agent
-import sqlite3
-
-guard_con = sqlite3.connect("safeagent_orders.db", check_same_thread=False)
-# ... same guard pattern, keyed on tool_name + input hash + session_id
-```
-
-PR [crewAIInc/crewAI#5822](https://github.com/crewAIInc/crewAI/pull/5822) adds pluggable idempotency backends. SafeAgent's SQLite schema is compatible.
-
-### x402 (hosted)
-
-```python
-import requests
-
-def claim(agent_id, action_type, scope, payment_header):
-    r = requests.post(
-        "https://safeagent-production.up.railway.app/claim",
-        headers={"x-payment": payment_header, "Content-Type": "application/json"},
-        json={"agent_id": agent_id, "action_type": action_type, "scope": scope}
-    )
-    return r.json()  # {"status": "COMMITTED"|"SKIP", "request_id": "..."}
-```
-
-### SaaS (Stripe / email / webhooks)
-
-The same guard works for any SaaS side effect. Wrap your Stripe charge, email send, or webhook handler:
-
-```python
-import requests
-
-def safe_stripe_charge(customer_id, amount, idempotency_key, payment_header):
-    # Gate before touching Stripe
-    r = requests.post(
-        "https://safeagent-production.up.railway.app/claim",
-        headers={"x-payment": payment_header, "Content-Type": "application/json"},
-        json={
-            "agent_id": "saas-billing",
-            "action_type": "stripe_charge",
-            "scope": f"customer:{customer_id}:amount:{amount}:key:{idempotency_key}"
-        }
-    )
-    result = r.json()
-    if result["status"] == "SKIP":
-        return result["cached_result"]  # Return original charge, don't hit Stripe again
-
-    charge = stripe.PaymentIntent.create(amount=amount, customer=customer_id)
-    # Settle with result
-    return charge
-```
-
-Same pattern for email sends, webhook processing, and resource provisioning. Any action that must not fire twice gets a claim before execution.
-
-**Webhook deduplication** — Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
-
-```python
-def handle_stripe_webhook(event):
-    r = requests.post(
-        "https://safeagent-production.up.railway.app/claim",
-        headers={"x-payment": payment_header, "Content-Type": "application/json"},
-        json={
-            "agent_id": "saas-webhooks",
-            "action_type": "stripe_event",
-            "scope": event["id"]  # Stripe event ID is stable across retries
-        }
-    )
-    if r.json()["status"] == "SKIP":
-        return {"ok": True}  # Already processed
-
-    # Process event once
-    provision_subscription(event)
-```
-
-### WisePick
-
-[WisePick](https://github.com/w2jmoe/WisePick) is a deterministic routing layer for agent runtimes. The integration splits **capability selection** from **durable, idempotent execution** — WisePick answers *what* and *which provider*, SafeAgent answers *whether this logical work already ran*.
-
-**Stack:**
-
-```
-WisePick /v1/decide → DashClaw → SafeAgent → Mycelium Trails → Base/Arbitrum
-```
-
-**How `request_id` is derived:**
-
-WisePick's adapter derives the SafeAgent `request_id` from the stable turn anchor — `session_id`, `turn_id`, `start_time_ms`, normalized task, `capability_id`, `provider`, and `constraints`. The WisePick `decision_id` is intentionally excluded, so a retry that mints a new `decision_id` still maps to the same SafeAgent execution slot and returns `SKIP` rather than re-executing the side effect.
-
-This maps to the `task_fingerprint` / `startTime_ms` fields in SafeAgent's dispatch payload (`mcp.safeagent_execution.v1`).
-
-- Adapter: [`adapters/safeagent_adapter.py`](https://github.com/w2jmoe/WisePick/blob/main/adapters/safeagent_adapter.py)
-- Integration docs: [`docs/integrations/safeagent.md`](https://github.com/w2jmoe/WisePick/blob/main/docs/integrations/safeagent.md)
-- Replay demo (RUN → SKIP, no HTTP required): [`examples/safeagent_replay_demo.py`](https://github.com/w2jmoe/WisePick/blob/main/examples/safeagent_replay_demo.py)
-- Integration thread: [SafeAgent #9](https://github.com/azender1/SafeAgent/issues/9)
+A2A #1920 closed. All four implementations satisfy freshness and replay requirements.
 
 ---
 
-## Stack
+## Canonical `action_ref` derivation
 
-```
-DashClaw (attribution + approval) → decision_id
-└── SafeAgent (exactly-once guard) → request_id
-    └── Mycelium Trails (on-chain receipt) → action_ref → Base/Arbitrum
-```
-
-Canonical `action_ref` derivation — JCS (RFC 8785), aligned with argentum-core, Nobulex, and APS:
+JCS (RFC 8785), aligned with argentum-core, Nobulex, and APS:
 
 ```python
 import hashlib
-import json
+import rfc8785
 
 def compute_action_ref(
     agent_id: str,
@@ -372,24 +371,11 @@ def compute_action_ref(
         "scope": scope,
         "timestamp": timestamp,
     }
-    # JCS (RFC 8785): lexicographic key order, no spaces, UTF-8
-    canonical = json.dumps(
-        dict(sorted(payload.items())),
-        separators=(",", ":"),
-        ensure_ascii=False,
-    ).encode("utf-8")
+    canonical = rfc8785.dumps(payload)
     return hashlib.sha256(canonical).hexdigest()
 ```
 
-**Note on timestamp format:** `timestamp` is an RFC 3339 UTC string with exactly 3 millisecond digits — `"2026-05-15T10:00:00.123Z"`. The trailing `Z` is mandatory. Do not pass an epoch-millisecond integer; convert first:
-
-```python
-import datetime
-
-def format_timestamp(dt: datetime.datetime) -> str:
-    ms = dt.microsecond // 1000
-    return dt.strftime(f"%Y-%m-%dT%H:%M:%S.{ms:03d}Z")
-```
+`timestamp` is an RFC 3339 UTC string with exactly 3 millisecond digits. The trailing `Z` is mandatory.
 
 Conformance fixtures: [giskard09/argentum-core tag action-ref-v1.0](https://github.com/giskard09/argentum-core)
 
@@ -400,7 +386,8 @@ Conformance fixtures: [giskard09/argentum-core tag action-ref-v1.0](https://gith
 Railway · Serverless OFF · always-on  
 PyPI: `pip install safeagent-exec-guard`  
 npm: `npm install n8n-nodes-safeagent`  
-MCP Registry: `io.github.azender1/safeagent`
+MCP Registry: `io.github.azender1/safeagent`  
+Dashboard: [safeagent-dashboard-2.vercel.app](https://safeagent-dashboard-2.vercel.app)
 
 ---
 
@@ -409,4 +396,3 @@ MCP Registry: `io.github.azender1/safeagent`
 Apache-2.0
 
 <!-- mcp-name: io.github.azender1/safeagent -->
-
