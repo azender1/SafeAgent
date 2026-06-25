@@ -1,0 +1,83 @@
+{
+  "fixture_version": "agentgraph-attestation-gate-fail-closed-v0",
+  "spec_ref": "AgentGraph attestation gate \u2014 availability + freshness paths",
+  "hash_algo": "SHA-256",
+  "preimage_format": "jcs-rfc8785-v1",
+  "now": "2026-06-25T12:00:00.000Z",
+  "freshness_ttl_seconds": 300,
+  "claim_binding_preimage": {
+    "amount_usd": 50,
+    "charge_ref": "charge_ref_abc123",
+    "nonce": "nonce_xyz789",
+    "subject_did": "did:web:safeagent-prod"
+  },
+  "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988",
+  "description": "Conformance vectors for the fail-closed (availability) and freshness paths of the AgentGraph attestation gate. attestation_unreachable (fetch failed) is distinct from safety_findings (a real critical/high deny) so an operator can tell a safety stop from an availability stop. attestation_stale rejects a verdict older than freshness_ttl_seconds (by issued_at) or past expires_at \u2014 a slow fetch or cache cannot admit a verdict that is no longer current.",
+  "vectors": [
+    {
+      "label": "unreachable_skip_optional",
+      "expectation": "SKIP",
+      "result": {
+        "decision": "SKIP",
+        "reason": "attestation_unreachable"
+      },
+      "input": {
+        "unreachable": true,
+        "require_attestation": false
+      }
+    },
+    {
+      "label": "unreachable_deny_required",
+      "expectation": "DENY",
+      "result": {
+        "decision": "DENY",
+        "reason": "attestation_unreachable"
+      },
+      "input": {
+        "unreachable": true,
+        "require_attestation": true
+      }
+    },
+    {
+      "label": "fresh_allow",
+      "expectation": "ALLOW",
+      "result": {
+        "decision": "ALLOW",
+        "reason": "admit",
+        "action_ref": "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18",
+        "binding_digest": "81661460f0b1fe1f0e13647ccfc0b58a8e814171aaa3c94d4a315fef7a062988"
+      },
+      "input": {
+        "freshness_ttl_seconds": 300,
+        "now": "2026-06-25T12:00:00.000Z"
+      }
+    },
+    {
+      "label": "stale_deny",
+      "expectation": "DENY",
+      "result": {
+        "decision": "DENY",
+        "reason": "attestation_stale",
+        "age_seconds": 3600,
+        "ttl_seconds": 300
+      },
+      "input": {
+        "freshness_ttl_seconds": 300,
+        "now": "2026-06-25T12:00:00.000Z"
+      }
+    },
+    {
+      "label": "expired_deny",
+      "expectation": "DENY",
+      "result": {
+        "decision": "DENY",
+        "reason": "attestation_stale",
+        "expired_at": "2026-06-25T11:30:00.000Z"
+      },
+      "input": {
+        "freshness_ttl_seconds": 300,
+        "now": "2026-06-25T12:00:00.000Z"
+      }
+    }
+  ]
+}

@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import hashlib
 from base64 import urlsafe_b64decode
+from datetime import datetime, timezone
 from typing import Any
 
 import rfc8785
@@ -29,6 +30,16 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 _BLOCKING = ("critical", "high")
+
+
+def _parse_ts(value: str | None) -> datetime | None:
+    """Parse an RFC 3339 / ISO-8601 timestamp (handles a trailing 'Z')."""
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
 
 
 # ── canonicalization ────────────────────────────────────────────────────────
@@ -106,17 +117,31 @@ def gate(
     jwks: dict | list | None = None,
     require_attestation: bool = False,
     verify_sig: bool = True,
+    unreachable: bool = False,
+    freshness_ttl_seconds: int | None = None,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     """Decide ALLOW / SKIP / DENY for a claim before the COMMITTED write.
 
     `claim_binding_preimage` is {amount_usd, charge_ref, nonce, subject_did} for THIS
     claim. `attestation` is the AgentGraph CTEF safety attestation (or None).
 
-    - No attestation: SKIP (require_attestation=False) / DENY (True). Never silent.
-    - Bad signature, or binding doesn't match this claim, or verdict != admit, or a
-      critical/high finding: DENY.
+    - `unreachable=True` (the fetch to AgentGraph failed / timed out): DENY with reason
+      `attestation_unreachable` if `require_attestation`, else SKIP — distinct from a real
+      `safety_findings` deny so an operator can tell a safety stop from an availability stop.
+    - No attestation (none exists for this tool): SKIP / DENY (`no_safety_attestation`).
+    - `freshness_ttl_seconds`: a verdict older than the TTL (by `issued_at`), or past its
+      `expires_at`, is DENY'd `attestation_stale` — a slow fetch or cache can't admit a
+      verdict that's no longer current.
+    - Bad signature, binding mismatch, verdict != admit, or a critical/high finding: DENY.
     - Otherwise: ALLOW, carrying the action_ref for the exactly-once guard.
     """
+    # availability stop — distinct from a safety stop
+    if unreachable:
+        if require_attestation:
+            return {"decision": "DENY", "reason": "attestation_unreachable"}
+        return {"decision": "SKIP", "reason": "attestation_unreachable"}
+
     if attestation is None:
         if require_attestation:
             return {"decision": "DENY", "reason": "no_attestation_and_required"}
@@ -135,6 +160,18 @@ def gate(
     if claimed is not None and claimed != expected:
         return {"decision": "DENY", "reason": "binding_digest_mismatch",
                 "expected": expected, "claimed": claimed}
+
+    # freshness — a valid, correctly-bound verdict that is no longer current must not admit
+    if freshness_ttl_seconds is not None:
+        now = now or datetime.now(timezone.utc)
+        issued = _parse_ts(attestation.get("issued_at"))
+        expires = _parse_ts(attestation.get("expires_at"))
+        if issued is not None and (now - issued).total_seconds() > freshness_ttl_seconds:
+            age = int((now - issued).total_seconds())
+            return {"decision": "DENY", "reason": "attestation_stale",
+                    "age_seconds": age, "ttl_seconds": freshness_ttl_seconds}
+        if expires is not None and now > expires:
+            return {"decision": "DENY", "reason": "attestation_stale", "expired_at": attestation.get("expires_at")}
 
     verdict = ((attestation.get("admission") or {}).get("verdict")
                or (attestation.get("attestation", {}) or {}).get("verdict"))
