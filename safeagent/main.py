@@ -31,10 +31,9 @@ from collections import defaultdict
 from typing import Any, Dict, Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLResponse
-from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import os
@@ -147,12 +146,32 @@ def create_app(
         version="0.1.0",
         description="Execution Guard for AI Agents — exactly-once claim before execute.",
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["GET"],
-        allow_headers=["*"],
-    )
+
+    # ------------------------------------------------------------------
+    # Global validation error handler — logs raw body on every 422
+    # so failed /claim attempts are visible in Railway logs.
+    # ------------------------------------------------------------------
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        _log = logging.getLogger(__name__)
+        try:
+            raw = await request.body()
+            _log.warning(
+                "FAILED_ATTEMPT %s %s — errors: %s | raw_body: %s | content_type: %s | user_agent: %s",
+                request.method,
+                request.url.path,
+                exc.errors(),
+                raw.decode(errors="replace"),
+                request.headers.get("content-type", ""),
+                request.headers.get("user-agent", ""),
+            )
+        except Exception as _e:
+            _log.warning("FAILED_ATTEMPT — could not read body: %s", _e)
+        return JSONResponse(
+            status_code=422,
+            content={"detail": exc.errors()},
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -311,7 +330,7 @@ def create_app(
     # ------------------------------------------------------------------
     # Routes
     # ------------------------------------------------------------------
-    
+
     @app.get("/.well-known/ai-plugin.json")
     async def ai_plugin() -> Dict[str, Any]:
         return {
@@ -383,7 +402,8 @@ def create_app(
                 "spec": "argentum-core action-ref-v1 + A2A v0.4 RFC #1920",
                 "verified_by": "kenneives (agentgraph-co), evidai (LemonCake)"
             }
-        }	
+        }
+
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
         return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
@@ -526,7 +546,6 @@ def create_app(
 <p style="margin-top: 32px; font-size: 0.85rem; color: #888;"><a href="/">&#8592; Back to SafeAgent</a></p>
 </body>
 </html>"""
-            
 
     @app.get("/health")
     async def health() -> Dict[str, str]:
@@ -555,10 +574,22 @@ def create_app(
         Requires x402 payment when SAFEAGENT_PAYMENT_ADDRESS is set.
         """
         if body is None:
+            _log = logging.getLogger(__name__)
+            try:
+                raw = await request.body()
+                _log.warning(
+                    "FAILED_ATTEMPT POST /claim — body is None | raw_body: %s | content_type: %s | user_agent: %s",
+                    raw.decode(errors="replace"),
+                    request.headers.get("content-type", ""),
+                    request.headers.get("user-agent", ""),
+                )
+            except Exception as _e:
+                _log.warning("FAILED_ATTEMPT POST /claim — could not read body: %s", _e)
             raise HTTPException(
                 status_code=422,
                 detail="request_id and action are required",
             )
+
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
 
@@ -637,7 +668,6 @@ def create_app(
         except HTTPException:
             raise
         except ImportError:
-            # attestation_gate not available — skip silently, log warning
             logging.getLogger(__name__).warning(
                 "attestation_gate not importable — safety check skipped"
             )
@@ -770,10 +800,6 @@ def create_app(
             return {"status": "already_committed", "request_id": request_id}
         store.settle(request_id, body.result)
 
-        # Best-effort, non-blocking Mycelium Trails submission. Off by
-        # default (MYCELIUM_ENABLED unset) and never affects the
-        # response below even if it fails. See
-        # safeagent_exec_guard/mycelium_trail.py for derivation details.
         if mycelium_trail.enabled():
             background_tasks.add_task(
                 mycelium_trail.submit_trail_async,
@@ -835,5 +861,3 @@ def create_app(
 # ---------------------------------------------------------------------------
 
 app = create_app()
-
-
