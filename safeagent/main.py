@@ -39,6 +39,11 @@ from pydantic import BaseModel
 import os
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
 from safeagent_exec_guard import mycelium_trail
+try:
+    import safeagent_governance as _gov
+    _GOV_ENABLED = True
+except ImportError:
+    _GOV_ENABLED = False
 if os.environ.get("DATABASE_URL"):
     from safeagent_exec_guard.pg_store import PgExecutionStore
 
@@ -560,9 +565,124 @@ def create_app(
             )
         return doc
 
+    @app.get("/claim/{request_id}/proof")
+    async def claim_proof(request_id: str) -> Dict[str, Any]:
+        """
+        Return the signed governance receipt for a claim — offline verifiable.
+
+        The verifier_pubkey + signature + envelope_hash are sufficient to confirm
+        that SafeAgent (an independent party) pre-authorized this action before
+        execution, without calling back to this server.
+
+        Verification (any BIP-340 library):
+            msg32  = bytes.fromhex(envelope_hash)
+            sig64  = bytes.fromhex(signature)
+            pubkey = bytes.fromhex(verifier_pubkey)
+            # pure stdlib: safeagent_governance._bip340_verify(pubkey, msg32, sig64)
+            # bitcoin-lib: secp256k1.PublicKey(pubkey).schnorr_verify(msg32, sig64)
+        """
+        store: SQLiteExecutionStore = app.state.store
+        existing = store.get(request_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="request_id not found")
+
+        # If store has governance data, return it
+        if hasattr(store, "get_governance"):
+            gov_data = store.get_governance(request_id)
+            if gov_data:
+                return {
+                    "request_id": request_id,
+                    "status": existing.get("status"),
+                    **gov_data,
+                    "conformance_suite": "https://github.com/babyblueviper1/preaction-governance-conformance",
+                }
+
+        # Fallback: recompute on the fly if key is available
+        if _GOV_ENABLED and existing.get("claimed_at"):
+            import time as _time
+            claimed_at_ms = int(existing["claimed_at"] * 1000) if existing.get("claimed_at") else int(_time.time() * 1000)
+            built = _gov.build_envelope(
+                request_id=request_id,
+                action=existing.get("action", ""),
+                agent_id=existing.get("agent_id"),
+                claimed_at_ms=claimed_at_ms,
+            )
+            sig_data = _gov.sign_envelope(built["envelope_hash"])
+            if sig_data:
+                return {
+                    "request_id": request_id,
+                    "status": existing.get("status"),
+                    "envelope_hash": built["envelope_hash"],
+                    "canonical_bytes_utf8": built["canonical_bytes_utf8"],
+                    "verifier_pubkey": sig_data["verifier_pubkey"],
+                    "signature": sig_data["signature"],
+                    "sig_scheme": sig_data["sig_scheme"],
+                    "note": "signature recomputed on demand (governance not persisted for this claim)",
+                    "conformance_suite": "https://github.com/babyblueviper1/preaction-governance-conformance",
+                }
+
+        raise HTTPException(
+            status_code=503,
+            detail="governance signing not configured (SAFEAGENT_GOVERNANCE_PRIVKEY not set)",
+        )
+
+    @app.get("/claim/{request_id}/anchor")
+    async def claim_anchor(request_id: str) -> Dict[str, Any]:
+        """
+        Return the OpenTimestamps proof for a claim's governance envelope.
+
+        The .ots proof anchors the claim to Bitcoin — proving the authorization
+        existed before a specific block time, independent of any clock SafeAgent controls.
+
+        Verify offline:
+            pip install opentimestamps-client
+            ots verify <downloaded .ots file>
+        """
+        store: SQLiteExecutionStore = app.state.store
+        existing = store.get(request_id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="request_id not found")
+
+        if hasattr(store, "get_governance"):
+            gov_data = store.get_governance(request_id)
+            if gov_data and gov_data.get("ots_proof_hex"):
+                return {
+                    "request_id": request_id,
+                    "envelope_hash": gov_data.get("envelope_hash"),
+                    "ots_proof_hex": gov_data["ots_proof_hex"],
+                    "status": "submitted_pending_bitcoin_confirmation",
+                    "verify_command": "ots verify <proof.ots>",
+                    "note": "Bitcoin confirmation typically takes 1-2 hours after submission.",
+                }
+
+        return {
+            "request_id": request_id,
+            "status": "ots_proof_not_yet_available",
+            "note": "OTS anchoring runs as a background task after claim. Retry in ~30 seconds.",
+        }
+
+    @app.get("/governance/pubkey")
+    async def governance_pubkey() -> Dict[str, Any]:
+        """
+        Return SafeAgent's published governance public key.
+        Use this to verify claim signatures offline without trusting this server.
+        """
+        pubkey = _gov.get_pubkey_hex() if _GOV_ENABLED else None
+        if pubkey is None:
+            raise HTTPException(status_code=503, detail="governance not configured")
+        return {
+            "verifier_pubkey": pubkey,
+            "sig_scheme": "bip340-schnorr",
+            "description": (
+                "SafeAgent's x-only secp256k1 public key. "
+                "Use to verify claim receipts offline per BIP-340."
+            ),
+            "conformance_suite": "https://github.com/babyblueviper1/preaction-governance-conformance",
+        }
+
     @app.post("/claim")
     async def claim(
-        request: Request, body: Optional[ClaimRequest] = None
+        request: Request, background_tasks: BackgroundTasks, body: Optional[ClaimRequest] = None
     ) -> Dict[str, Any]:
         """
         Two-phase exactly-once claim.
@@ -713,10 +833,56 @@ def create_app(
                 "agent_id": existing.get("agent_id") if existing else None,
             }
 
+        # -- Governance: sign claim envelope + schedule OTS anchor --
+        import time as _time
+        _claimed_at_ms = int(_time.time() * 1000)
+        _gov_fields: Dict[str, Any] = {}
+        if _GOV_ENABLED:
+            try:
+                _built = _gov.build_envelope(
+                    request_id=body.request_id,
+                    action=body.action,
+                    agent_id=agent_id,
+                    claimed_at_ms=_claimed_at_ms,
+                )
+                _sig = _gov.sign_envelope(_built["envelope_hash"])
+                if _sig:
+                    _gov_fields = {
+                        "governance": {
+                            "envelope_hash": _built["envelope_hash"],
+                            "verifier_pubkey": _sig["verifier_pubkey"],
+                            "signature": _sig["signature"],
+                            "sig_scheme": _sig["sig_scheme"],
+                            "verify_offline": (
+                                "pip install safeagent-exec-guard && "
+                                "python -c \"import safeagent_governance as g; "
+                                "print(g._bip340_verify("
+                                "bytes.fromhex('" + _sig["verifier_pubkey"] + "'), "
+                                "bytes.fromhex('" + _built["envelope_hash"] + "'), "
+                                "bytes.fromhex(SIGNATURE)))\""
+                            ),
+                            "anchor_endpoint": (
+                                f"https://safeagent-production.up.railway.app"
+                                f"/claim/{body.request_id}/anchor"
+                            ),
+                        }
+                    }
+                    background_tasks.add_task(
+                        _gov.attach_governance_async,
+                        request_id=body.request_id,
+                        action=body.action,
+                        agent_id=agent_id,
+                        claimed_at_ms=_claimed_at_ms,
+                        store=store,
+                    )
+            except Exception as _gov_err:
+                logging.getLogger(__name__).warning("governance signing error: %s", _gov_err)
+
         return {
             "status": "PROCEED",
             "request_id": body.request_id,
             "agent_id": agent_id,
+            **_gov_fields,
         }
 
     @app.post("/claim/test")
