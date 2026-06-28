@@ -263,10 +263,14 @@ def stamp_envelope(envelope_hash: str) -> Optional[bytes]:
     """
     try:
         from opentimestamps.core.timestamp import Timestamp
+        from opentimestamps.core.op import OpSHA256
         from opentimestamps.calendar import RemoteCalendar
         import opentimestamps.core.serialize as ots_ser
 
         digest = bytes.fromhex(envelope_hash)
+
+        # Build a DetachedTimestampFile-style timestamp
+        # The calendar expects the raw digest bytes, not a Timestamp object
         ts = Timestamp(digest)
 
         calendars = [
@@ -278,7 +282,10 @@ def stamp_envelope(envelope_hash: str) -> Optional[bytes]:
         for cal_url in calendars:
             try:
                 cal = RemoteCalendar(cal_url)
-                cal.submit(ts)
+                # submit() takes the digest bytes directly in newer versions
+                promise = cal.submit(digest)
+                # Attach the promise to our timestamp
+                ts.merge(promise)
                 log.info("OTS: submitted %s to %s", envelope_hash[:16], cal_url)
                 ctx = ots_ser.BytesSerializationContext()
                 ts.serialize(ctx)
