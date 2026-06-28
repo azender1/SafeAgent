@@ -1174,11 +1174,11 @@ def create_app(
             # Get all records that have governance signing but no OTS yet
             if not hasattr(store, "get_unanchored_claims"):
                 result = store.audit_claims(limit=500)
-                # audit_claims returns dict with "claims" key or a list
-                rows = result.get("claims", result) if isinstance(result, dict) else result
+                # audit_claims returns {"items": [...], "total": N, ...}
+                rows = result.get("items", []) if isinstance(result, dict) else []
                 candidates = [
                     r for r in rows
-                    if r.get("status") in ("COMMITTED", "PENDING", "CLAIMABLE")
+                    if isinstance(r, dict) and r.get("status") in ("COMMITTED", "PENDING", "CLAIMABLE")
                 ]
             else:
                 candidates = store.get_unanchored_claims()
