@@ -886,7 +886,7 @@ def create_app(
         }
 
     @app.post("/claim/test")
-    async def claim_test(request: Request, body: TestClaimRequest) -> Dict[str, Any]:
+    async def claim_test(request: Request, background_tasks: BackgroundTasks, body: TestClaimRequest) -> Dict[str, Any]:
         """
         Free test claim — same logic as POST /claim but no x402 payment required.
 
@@ -948,11 +948,49 @@ def create_app(
                 "calls_remaining": calls_remaining,
             }
 
+        # -- Governance: sign claim envelope + schedule OTS anchor --
+        import time as _time
+        _claimed_at_ms_t = int(_time.time() * 1000)
+        _gov_fields_t: Dict[str, Any] = {}
+        if _GOV_ENABLED:
+            try:
+                _built_t = _gov.build_envelope(
+                    request_id=request_id,
+                    action=body.action_type,
+                    agent_id=body.agent_id,
+                    claimed_at_ms=_claimed_at_ms_t,
+                )
+                _sig_t = _gov.sign_envelope(_built_t["envelope_hash"])
+                if _sig_t:
+                    _gov_fields_t = {
+                        "governance": {
+                            "envelope_hash": _built_t["envelope_hash"],
+                            "verifier_pubkey": _sig_t["verifier_pubkey"],
+                            "signature": _sig_t["signature"],
+                            "sig_scheme": _sig_t["sig_scheme"],
+                            "anchor_endpoint": (
+                                f"https://safeagent-production.up.railway.app"
+                                f"/claim/{request_id}/anchor"
+                            ),
+                        }
+                    }
+                    background_tasks.add_task(
+                        _gov.attach_governance_async,
+                        request_id=request_id,
+                        action=body.action_type,
+                        agent_id=body.agent_id,
+                        claimed_at_ms=_claimed_at_ms_t,
+                        store=store,
+                    )
+            except Exception as _gov_err_t:
+                logging.getLogger(__name__).warning("governance signing error (test): %s", _gov_err_t)
+
         return {
             "status": "PROCEED",
             "request_id": request_id,
             "test": True,
             "calls_remaining": calls_remaining,
+            **_gov_fields_t,
         }
 
     @app.post("/settle/{request_id}")
