@@ -1215,20 +1215,22 @@ def create_app(
                     ots_bytes = _gov.stamp_envelope(built["envelope_hash"])
                     ots_hex = ots_bytes.hex() if ots_bytes else None
 
-                    if ots_hex and hasattr(store, "attach_governance"):
-                        store.attach_governance(
-                            request_id=request_id,
-                            envelope_hash=built["envelope_hash"],
-                            canonical_bytes=built["canonical_bytes_utf8"],
-                            signature=sig_data["signature"],
-                            verifier_pubkey=sig_data["verifier_pubkey"],
-                            ots_proof_hex=ots_hex,
-                        )
+                    if ots_hex:
+                        # Persist if store supports it
+                        if hasattr(store, "attach_governance"):
+                            store.attach_governance(
+                                request_id=request_id,
+                                envelope_hash=built["envelope_hash"],
+                                canonical_bytes=built["canonical_bytes_utf8"],
+                                signature=sig_data["signature"],
+                                verifier_pubkey=sig_data["verifier_pubkey"],
+                                ots_proof_hex=ots_hex,
+                            )
                         submitted += 1
-                        _log.info("sweep/anchor: submitted OTS for %s", request_id[:8])
-                    elif not ots_hex:
+                        _log.info("sweep/anchor: OTS submitted for %s hash=%s", request_id[:8], built["envelope_hash"][:16])
+                    else:
                         failed += 1
-                        _log.warning("sweep/anchor: OTS failed for %s", request_id[:8])
+                        _log.warning("sweep/anchor: OTS calendar unreachable for %s", request_id[:8])
 
                 except Exception as e:
                     failed += 1
