@@ -470,6 +470,7 @@ def create_app(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SafeAgent — Execution Guard for AI Agents</title>
+<meta name="google-site-verification" content="QnoC9aQ7RCfymZBZgqAe_73W9WeStzW37G08KRM7L2Q" />
 <meta name="description" content="Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry. BIP-340 signed receipts. EU AI Act Art. 12 compliant audit trail.">
 <script type="application/ld+json">
 {
