@@ -167,22 +167,13 @@ def build_trail_payload(
     result_obj = result or {}
 
     return {
-        "agent_id": resolved_agent_id,
-        "author_id": resolved_agent_id,
-        "author_name": resolved_agent_id,
-        "name": resolved_agent_id,
-        "service": _service(),
-        "operation": action,
-        "action_ref": action_ref,
-        "payment_hash": _settlement_digest(result_obj),
+        "entity_id": resolved_agent_id,
+        "entity_name": resolved_agent_id,
+        "entity_type": "ai_agent",
+        "action_type": action,
+        "description": f"SafeAgent execution: {action} request_id={request_id}",
+        "proof": action_ref,
         "timestamp": int(claimed_at),
-        "claims": {
-            "request_id": request_id,
-            "source": "safeagent-settle",
-            "mocked": False,
-        },
-        "success": True,
-        "scope": request_id,
     }
 
 
@@ -235,5 +226,6 @@ async def submit_trail_async(
         )
     except Exception as exc:  # noqa: BLE001 - intentionally broad, best-effort
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
+
 
 
