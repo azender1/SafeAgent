@@ -267,7 +267,7 @@ def stamp_envelope(envelope_hash: str) -> Optional[bytes]:
         from opentimestamps.calendar import RemoteCalendar
         import opentimestamps.core.serialize as ots_ser
 
-        digest = bytes.fromhex(envelope_hash)
+        digest = bytes.fromhex(envelope_hash) if envelope_hash else bytes(32)
 
         # Build a DetachedTimestampFile-style timestamp
         # The calendar expects the raw digest bytes, not a Timestamp object
@@ -436,7 +436,7 @@ def check_ots_confirmation(ots_proof_hex: str, envelope_hash: str = "") -> Optio
 
         # Deserialize the incomplete timestamp
         # Timestamp.deserialize(ctx, initial_msg) where initial_msg is the digest
-        digest = bytes.fromhex(envelope_hash)
+        digest = bytes.fromhex(envelope_hash) if envelope_hash else bytes(32)
         ctx = ots_ser2.BytesDeserializationContext(proof_bytes)
         ts = Timestamp.deserialize(ctx, digest)
 
