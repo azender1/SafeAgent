@@ -731,19 +731,13 @@ def create_app(
             if gov_data and gov_data.get("ots_proof_hex"):
                 confirmed = gov_data.get("ots_confirmed", False)
                 block_time = gov_data.get("ots_block_time", None)
-                anchor = _gov.build_anchor(
-                    ots_proof_hex=gov_data["ots_proof_hex"],
-                    ots_confirmed=confirmed,
-                    ots_block_time=block_time,
-                )
                 return {
                     "request_id": request_id,
                     "envelope_hash": gov_data.get("envelope_hash"),
                     "ots_proof_hex": gov_data["ots_proof_hex"],
-                    "anchor": anchor,
-                    "anchor_status": anchor["status"],
+                    "anchor_status": "confirmed" if confirmed else "submitted",
                     "block_time": block_time,
-                    "ordering_assertable": anchor["precedence"],
+                    "ordering_assertable": confirmed,
                     "verify_command": "ots verify <proof.ots>",
                     "note": (
                         f"Bitcoin-confirmed. Block time: {block_time}. Ordering is assertable."
@@ -953,7 +947,6 @@ def create_app(
                             "verifier_pubkey": _sig["verifier_pubkey"],
                             "signature": _sig["signature"],
                             "sig_scheme": _sig["sig_scheme"],
-                            "anchor": _gov.build_anchor(),
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{body.request_id}/anchor"
@@ -1066,7 +1059,6 @@ def create_app(
                             "verifier_pubkey": _sig_t["verifier_pubkey"],
                             "signature": _sig_t["signature"],
                             "sig_scheme": _sig_t["sig_scheme"],
-                            "anchor": _gov.build_anchor(),
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{request_id}/anchor"
@@ -1159,6 +1151,65 @@ def create_app(
         store: SQLiteExecutionStore = app.state.store
         swept = store.sweep_stale_pending()
         return {"swept": swept}
+
+    @app.post("/sweep/anchor/upgrade")
+    async def sweep_anchor_upgrade() -> Dict[str, Any]:
+        """
+        Check OTS calendar for Bitcoin confirmation on all submitted-but-unconfirmed claims.
+        Upgrades incomplete OTS timestamps and flips ots_confirmed=True + block_time when confirmed.
+        Call on a schedule (every 15-30 min) — Bitcoin blocks confirm every ~10 min.
+        Safe to call repeatedly — skips already-confirmed claims.
+        """
+        if not _GOV_ENABLED:
+            return {"status": "governance_not_configured", "confirmed": 0, "pending": 0}
+
+        store = app.state.store
+        _log = logging.getLogger(__name__)
+        confirmed = 0
+        pending = 0
+        errors = 0
+
+        try:
+            if not hasattr(store, "get_submitted_unconfirmed_claims"):
+                return {"status": "store_not_supported", "confirmed": 0}
+
+            candidates = store.get_submitted_unconfirmed_claims()
+            _log.info("sweep/anchor/upgrade: checking %d submitted claims", len(candidates))
+
+            for record in candidates:
+                request_id = record.get("request_id")
+                ots_proof_hex = record.get("gov_ots_proof_hex")
+                if not request_id or not ots_proof_hex:
+                    continue
+                try:
+                    result = _gov.check_ots_confirmation(ots_proof_hex)
+                    if result and result.get("confirmed"):
+                        store.confirm_governance(
+                            request_id=request_id,
+                            block_time=result["block_time"],
+                        )
+                        confirmed += 1
+                        _log.info(
+                            "sweep/anchor/upgrade: CONFIRMED %s block=%s",
+                            request_id[:8],
+                            result["block_time"],
+                        )
+                    else:
+                        pending += 1
+                except Exception as e:
+                    errors += 1
+                    _log.warning("sweep/anchor/upgrade: error on %s: %s", request_id[:8], e)
+
+        except Exception as e:
+            _log.warning("sweep/anchor/upgrade: outer error: %s", e)
+            return {"status": "error", "error": str(e), "confirmed": confirmed}
+
+        return {
+            "status": "ok",
+            "confirmed": confirmed,
+            "pending": pending,
+            "errors": errors,
+        }
 
     @app.post("/sweep/anchor")
     async def sweep_anchor() -> Dict[str, Any]:

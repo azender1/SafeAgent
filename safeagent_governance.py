@@ -255,56 +255,6 @@ def sign_envelope(envelope_hash: str) -> Optional[Dict[str, Any]]:
 # OpenTimestamps anchoring (background task, network call)
 # ---------------------------------------------------------------------------
 
-def build_anchor(
-    ots_proof_hex: Optional[str] = None,
-    ots_confirmed: bool = False,
-    ots_block_time: Optional[str] = None,
-    calendar_url: str = "https://alice.btc.calendar.opentimestamps.org",
-) -> Dict[str, Any]:
-    """
-    Build the anchor sibling per the field shape converged on in
-    babyblueviper1/preaction-governance-conformance and the trustless-inference MCP spec.
-
-    Three axes — provenance, freshness, precedence — are separate siblings.
-    This covers precedence only: was this commitment made before the outcome?
-
-    Shape: {method, reference, precedence, tier, recomputeCmd}
-    - method: open string — "bitcoin-pow-ots" | "on-chain" | "ct-log"
-    - reference: where to verify (calendar URL, chain explorer, CT log)
-    - precedence: true only when block_time < outcome_time (confirmed forward stamp)
-    - tier: "pow-pending" | "bitcoin-pow" | "on-chain" — discloses which clock
-    - recomputeCmd: how a third party verifies offline
-    """
-    if not ots_proof_hex:
-        return {
-            "method": None,
-            "reference": None,
-            "precedence": False,
-            "tier": None,
-            "recomputeCmd": None,
-            "status": "not_submitted",
-        }
-
-    if ots_confirmed and ots_block_time:
-        tier = "bitcoin-pow"
-        precedence = True
-        status = "confirmed"
-    else:
-        tier = "pow-pending"
-        precedence = False
-        status = "submitted"
-
-    return {
-        "method": "bitcoin-pow-ots",
-        "reference": calendar_url,
-        "precedence": precedence,
-        "tier": tier,
-        "recomputeCmd": "ots verify <proof.ots>",
-        "status": status,
-        "block_time": ots_block_time,
-    }
-
-
 def stamp_envelope(envelope_hash: str) -> Optional[bytes]:
     """
     Submit envelope_hash to OpenTimestamps Bitcoin calendar servers.
@@ -464,6 +414,74 @@ def verify_claim_receipt(receipt: Dict[str, Any]) -> Dict[str, Any]:
         "anchoring_invariant": anchoring_ok,
         "errors": errors,
     }
+
+
+# ---------------------------------------------------------------------------
+# OTS confirmation check
+# ---------------------------------------------------------------------------
+
+def check_ots_confirmation(ots_proof_hex: str) -> Optional[Dict[str, Any]]:
+    """
+    Check if an OTS proof has been Bitcoin-confirmed.
+    Returns {confirmed: bool, block_time: str|None} or None on error.
+    Calls back to the OTS calendar to upgrade the incomplete timestamp.
+    """
+    try:
+        from opentimestamps.core.timestamp import Timestamp
+        from opentimestamps.calendar import RemoteCalendar
+        import opentimestamps.core.serialize as ots_ser
+        import opentimestamps.core.deserialize as ots_deser
+
+        proof_bytes = bytes.fromhex(ots_proof_hex)
+
+        # Deserialize the incomplete timestamp
+        ctx = ots_deser.BytesDeserializationContext(proof_bytes)
+        ts = Timestamp.deserialize(ctx)
+
+        calendars = [
+            "https://alice.btc.calendar.opentimestamps.org",
+            "https://bob.btc.calendar.opentimestamps.org",
+            "https://finney.calendar.eternitywall.com",
+        ]
+
+        upgraded = False
+        for cal_url in calendars:
+            try:
+                cal = RemoteCalendar(cal_url)
+                cal.upgrade(ts)
+                upgraded = True
+                break
+            except Exception as e:
+                log.debug("OTS upgrade calendar %s: %s", cal_url, e)
+
+        if not upgraded:
+            return {"confirmed": False, "block_time": None}
+
+        # Check if any attestation is present (Bitcoin confirmation)
+        from opentimestamps.core.op import OpSHA256
+        from opentimestamps.core.timestamp import BitcoinBlockHeaderAttestation
+
+        def _find_bitcoin_attestation(timestamp):
+            for attestation in timestamp.attestations:
+                if isinstance(attestation, BitcoinBlockHeaderAttestation):
+                    return attestation
+            for op, stamp in timestamp.ops.items():
+                result = _find_bitcoin_attestation(stamp)
+                if result:
+                    return result
+            return None
+
+        attestation = _find_bitcoin_attestation(ts)
+        if attestation:
+            # Block height confirmed — use height as proxy for block time
+            block_time = f"bitcoin-block-{attestation.height}"
+            return {"confirmed": True, "block_time": block_time}
+
+        return {"confirmed": False, "block_time": None}
+
+    except Exception as e:
+        log.warning("OTS confirmation check error: %s", e)
+        return None
 
 
 # ---------------------------------------------------------------------------

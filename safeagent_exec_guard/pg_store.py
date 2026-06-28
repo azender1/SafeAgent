@@ -231,6 +231,40 @@ class PgExecutionStore:
             )
             conn.commit()
 
+    def get_submitted_unconfirmed_claims(self) -> list:
+        """Return all claims with OTS proof submitted but not yet Bitcoin-confirmed."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                """
+                SELECT request_id, gov_envelope_hash, gov_ots_proof_hex,
+                       gov_ots_confirmed, gov_ots_block_time
+                FROM execution_requests
+                WHERE gov_ots_proof_hex IS NOT NULL
+                  AND (gov_ots_confirmed IS NULL OR gov_ots_confirmed = FALSE)
+                ORDER BY claimed_at ASC
+                LIMIT 100
+                """
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def confirm_governance(
+        self,
+        request_id: str,
+        block_time: str,
+    ) -> None:
+        """Mark a claim's OTS proof as Bitcoin-confirmed with block time."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE execution_requests
+                SET gov_ots_confirmed  = TRUE,
+                    gov_ots_block_time = %s
+                WHERE request_id = %s
+                """,
+                (block_time, request_id),
+            )
+            conn.commit()
+
     def get_governance(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Return governance fields for a claim, or None if not present."""
         with self._conn() as conn:
