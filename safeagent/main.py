@@ -470,7 +470,6 @@ def create_app(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SafeAgent — Execution Guard for AI Agents</title>
-<meta name="google-site-verification" content="QnoC9aQ7RCfymZBZgqAe_73W9WeStzW37G08KRM7L2Q" />
 <meta name="description" content="Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry. BIP-340 signed receipts. EU AI Act Art. 12 compliant audit trail.">
 <script type="application/ld+json">
 {
@@ -1153,7 +1152,99 @@ def create_app(
         swept = store.sweep_stale_pending()
         return {"swept": swept}
 
-    return app
+    @app.post("/sweep/anchor")
+    async def sweep_anchor() -> Dict[str, Any]:
+        """
+        Cron job endpoint — submits OTS anchoring for any PROCEED claims
+        that have a governance signature but no OTS proof yet.
+
+        Wire this as a Railway cron: POST /sweep/anchor every 5 minutes.
+        Safe to call repeatedly — skips claims that already have a proof.
+        """
+        if not _GOV_ENABLED:
+            return {"status": "governance_not_configured", "submitted": 0}
+
+        store: SQLiteExecutionStore = app.state.store
+        submitted = 0
+        skipped = 0
+        failed = 0
+
+        try:
+            # Get all records that have governance signing but no OTS yet
+            if not hasattr(store, "get_unanchored_claims"):
+                # Fallback: scan audit log for COMMITTED/PENDING claims
+                # and attempt OTS for any that have envelope_hash
+                audit = store.audit(limit=500)
+                candidates = [
+                    r for r in audit
+                    if r.get("status") in ("COMMITTED", "PENDING", "CLAIMABLE")
+                ]
+            else:
+                candidates = store.get_unanchored_claims()
+
+            for record in candidates:
+                request_id = record.get("request_id") or record.get("id")
+                if not request_id:
+                    continue
+
+                # Check if already anchored
+                if hasattr(store, "get_governance"):
+                    gov = store.get_governance(request_id)
+                    if gov and gov.get("ots_proof_hex"):
+                        skipped += 1
+                        continue
+
+                # Build envelope and submit OTS
+                try:
+                    import time as _time
+                    claimed_at = record.get("claimed_at") or record.get("created_at")
+                    claimed_at_ms = int(claimed_at * 1000) if claimed_at else int(_time.time() * 1000)
+
+                    built = _gov.build_envelope(
+                        request_id=request_id,
+                        action=record.get("action", ""),
+                        agent_id=record.get("agent_id"),
+                        claimed_at_ms=claimed_at_ms,
+                    )
+                    sig_data = _gov.sign_envelope(built["envelope_hash"])
+                    if not sig_data:
+                        failed += 1
+                        continue
+
+                    ots_bytes = _gov.stamp_envelope(built["envelope_hash"])
+                    ots_hex = ots_bytes.hex() if ots_bytes else None
+
+                    if ots_hex and hasattr(store, "attach_governance"):
+                        store.attach_governance(
+                            request_id=request_id,
+                            envelope_hash=built["envelope_hash"],
+                            canonical_bytes=built["canonical_bytes_utf8"],
+                            signature=sig_data["signature"],
+                            verifier_pubkey=sig_data["verifier_pubkey"],
+                            ots_proof_hex=ots_hex,
+                        )
+                        submitted += 1
+                        log.info("sweep/anchor: submitted OTS for %s", request_id[:8])
+                    elif not ots_hex:
+                        failed += 1
+                        log.warning("sweep/anchor: OTS failed for %s", request_id[:8])
+
+                except Exception as e:
+                    failed += 1
+                    log.warning("sweep/anchor: error on %s: %s", request_id[:8] if request_id else "?", e)
+
+        except Exception as e:
+            log.warning("sweep/anchor: outer error: %s", e)
+            return {"status": "error", "error": str(e), "submitted": submitted}
+
+        return {
+            "status": "ok",
+            "submitted": submitted,
+            "skipped": skipped,
+            "failed": failed,
+        }
+
+
 
 
 # ---------------------------------------------------------------------------
