@@ -226,11 +226,12 @@ async def submit_trail_async(
         logger.info(
             "Mycelium trail recorded for request_id=%s action_ref=%s trail_id=%s",
             request_id,
-            payload["action_ref"],
+            payload["proof"],
             data.get("trail_id", "?"),
         )
     except Exception as exc:  # noqa: BLE001 - intentionally broad, best-effort
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
+
 
 
 
