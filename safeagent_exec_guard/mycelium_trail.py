@@ -177,7 +177,7 @@ def build_trail_payload(
         "author_id": resolved_agent_id,
         "author_name": resolved_agent_id,
         "name": f"SafeAgent: {action}",
-        "steps": [],
+        "steps": [{"name": "execute", "description": "Agent action executed"}],
         "price_sats": 0,
     }
 
@@ -231,6 +231,7 @@ async def submit_trail_async(
         )
     except Exception as exc:  # noqa: BLE001 - intentionally broad, best-effort
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
+
 
 
 
