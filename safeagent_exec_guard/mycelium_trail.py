@@ -168,6 +168,7 @@ def build_trail_payload(
 
     return {
         "agent_id": resolved_agent_id,
+        "author_id": resolved_agent_id,
         "service": _service(),
         "operation": action,
         "action_ref": action_ref,
