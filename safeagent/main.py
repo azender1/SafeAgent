@@ -731,13 +731,19 @@ def create_app(
             if gov_data and gov_data.get("ots_proof_hex"):
                 confirmed = gov_data.get("ots_confirmed", False)
                 block_time = gov_data.get("ots_block_time", None)
+                anchor = _gov.build_anchor(
+                    ots_proof_hex=gov_data["ots_proof_hex"],
+                    ots_confirmed=confirmed,
+                    ots_block_time=block_time,
+                )
                 return {
                     "request_id": request_id,
                     "envelope_hash": gov_data.get("envelope_hash"),
                     "ots_proof_hex": gov_data["ots_proof_hex"],
-                    "anchor_status": "confirmed" if confirmed else "submitted",
+                    "anchor": anchor,
+                    "anchor_status": anchor["status"],
                     "block_time": block_time,
-                    "ordering_assertable": confirmed,
+                    "ordering_assertable": anchor["precedence"],
                     "verify_command": "ots verify <proof.ots>",
                     "note": (
                         f"Bitcoin-confirmed. Block time: {block_time}. Ordering is assertable."
@@ -947,6 +953,7 @@ def create_app(
                             "verifier_pubkey": _sig["verifier_pubkey"],
                             "signature": _sig["signature"],
                             "sig_scheme": _sig["sig_scheme"],
+                            "anchor": _gov.build_anchor(),
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{body.request_id}/anchor"
@@ -1059,6 +1066,7 @@ def create_app(
                             "verifier_pubkey": _sig_t["verifier_pubkey"],
                             "signature": _sig_t["signature"],
                             "sig_scheme": _sig_t["sig_scheme"],
+                            "anchor": _gov.build_anchor(),
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{request_id}/anchor"

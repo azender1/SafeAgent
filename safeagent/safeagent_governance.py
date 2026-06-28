@@ -255,6 +255,56 @@ def sign_envelope(envelope_hash: str) -> Optional[Dict[str, Any]]:
 # OpenTimestamps anchoring (background task, network call)
 # ---------------------------------------------------------------------------
 
+def build_anchor(
+    ots_proof_hex: Optional[str] = None,
+    ots_confirmed: bool = False,
+    ots_block_time: Optional[str] = None,
+    calendar_url: str = "https://alice.btc.calendar.opentimestamps.org",
+) -> Dict[str, Any]:
+    """
+    Build the anchor sibling per the field shape converged on in
+    babyblueviper1/preaction-governance-conformance and the trustless-inference MCP spec.
+
+    Three axes — provenance, freshness, precedence — are separate siblings.
+    This covers precedence only: was this commitment made before the outcome?
+
+    Shape: {method, reference, precedence, tier, recomputeCmd}
+    - method: open string — "bitcoin-pow-ots" | "on-chain" | "ct-log"
+    - reference: where to verify (calendar URL, chain explorer, CT log)
+    - precedence: true only when block_time < outcome_time (confirmed forward stamp)
+    - tier: "pow-pending" | "bitcoin-pow" | "on-chain" — discloses which clock
+    - recomputeCmd: how a third party verifies offline
+    """
+    if not ots_proof_hex:
+        return {
+            "method": None,
+            "reference": None,
+            "precedence": False,
+            "tier": None,
+            "recomputeCmd": None,
+            "status": "not_submitted",
+        }
+
+    if ots_confirmed and ots_block_time:
+        tier = "bitcoin-pow"
+        precedence = True
+        status = "confirmed"
+    else:
+        tier = "pow-pending"
+        precedence = False
+        status = "submitted"
+
+    return {
+        "method": "bitcoin-pow-ots",
+        "reference": calendar_url,
+        "precedence": precedence,
+        "tier": tier,
+        "recomputeCmd": "ots verify <proof.ots>",
+        "status": status,
+        "block_time": ots_block_time,
+    }
+
+
 def stamp_envelope(envelope_hash: str) -> Optional[bytes]:
     """
     Submit envelope_hash to OpenTimestamps Bitcoin calendar servers.
