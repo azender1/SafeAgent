@@ -58,6 +58,7 @@ payment = [
     "uvicorn>=0.30",
     "eth-account>=0.12",
     "jsonschema>=4.0",
+    "opentimestamps-client>=0.7",
 ]
 # pip install safeagent-exec-guard[test]
 test = [
