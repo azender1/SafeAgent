@@ -430,12 +430,12 @@ def check_ots_confirmation(ots_proof_hex: str) -> Optional[Dict[str, Any]]:
         from opentimestamps.core.timestamp import Timestamp
         from opentimestamps.calendar import RemoteCalendar
         import opentimestamps.core.serialize as ots_ser
-        import opentimestamps.core.deserialize as ots_deser
+        import opentimestamps.core.serialize as ots_ser2
 
         proof_bytes = bytes.fromhex(ots_proof_hex)
 
         # Deserialize the incomplete timestamp
-        ctx = ots_deser.BytesDeserializationContext(proof_bytes)
+        ctx = ots_ser2.BytesDeserializationContext(proof_bytes)
         ts = Timestamp.deserialize(ctx)
 
         calendars = [
