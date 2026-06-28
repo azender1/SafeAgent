@@ -411,7 +411,35 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
-        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
+        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\nSitemap: https://safeagent-production.up.railway.app/sitemap.xml\n"
+
+    @app.get("/sitemap.xml")
+    async def sitemap_xml():
+        from datetime import date
+        from fastapi.responses import Response as _Resp
+        today = date.today().isoformat()
+        xml = f"""<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://safeagent-production.up.railway.app/</loc>
+    <lastmod>{today}</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://safeagent-production.up.railway.app/audit-service</loc>
+    <lastmod>{today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://safeagent-production.up.railway.app/docs</loc>
+    <lastmod>{today}</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+</urlset>"""
+        return _Resp(content=xml, media_type="application/xml")
 
     @app.get("/llms.txt", response_class=PlainTextResponse)
     async def llms_txt() -> str:
@@ -442,6 +470,30 @@ def create_app(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SafeAgent — Execution Guard for AI Agents</title>
+<meta name="description" content="Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry. BIP-340 signed receipts. EU AI Act Art. 12 compliant audit trail.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "SafeAgent",
+  "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry after crashes or timeouts.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Any",
+  "url": "https://safeagent-production.up.railway.app",
+  "author": {
+    "@type": "Person",
+    "name": "Anthony Zender"
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "0.001",
+    "priceCurrency": "USD",
+    "description": "Per claim via x402 micropayment"
+  },
+  "codeRepository": "https://github.com/azender1/SafeAgent",
+  "keywords": "AI agent, exactly-once execution, idempotency, duplicate prevention, EU AI Act, agent governance"
+}
+</script>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
   h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
@@ -503,7 +555,38 @@ def create_app(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Duplicate Execution Audit Service</title>
+<title>SafeAgent — Duplicate Execution Audit Service | EU AI Act Compliance</title>
+<meta name="description" content="AI agent duplicate execution audit. Written report identifying every place your agent can fire twice. EU AI Act Art. 12 readiness. $2,500 flat fee, 5 business days.">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ProfessionalService",
+  "name": "SafeAgent Duplicate Execution Audit",
+  "description": "AI agent duplicate execution audit service. Identifies every place your agent system can fire twice on crash, timeout, or duplicate signal. Includes EU AI Act Art. 12 audit readiness assessment.",
+  "provider": {
+    "@type": "Person",
+    "name": "Anthony Zender",
+    "jobTitle": "AI Systems Auditor",
+    "address": {
+      "@type": "PostalAddress",
+      "addressLocality": "Dayton",
+      "addressRegion": "OH",
+      "addressCountry": "US"
+    }
+  },
+  "offers": {
+    "@type": "Offer",
+    "price": "2500",
+    "priceCurrency": "USD",
+    "description": "Flat fee. Written report. 5 business days."
+  },
+  "serviceType": "AI Compliance Audit",
+  "areaServed": "Worldwide",
+  "url": "https://safeagent-production.up.railway.app/audit-service",
+  "email": "azender1@yahoo.com",
+  "keywords": "EU AI Act compliance, AI agent audit, duplicate execution, Art. 12, agentic AI governance"
+}
+</script>
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
   h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
@@ -646,18 +729,28 @@ def create_app(
         if hasattr(store, "get_governance"):
             gov_data = store.get_governance(request_id)
             if gov_data and gov_data.get("ots_proof_hex"):
+                confirmed = gov_data.get("ots_confirmed", False)
+                block_time = gov_data.get("ots_block_time", None)
                 return {
                     "request_id": request_id,
                     "envelope_hash": gov_data.get("envelope_hash"),
                     "ots_proof_hex": gov_data["ots_proof_hex"],
-                    "status": "submitted_pending_bitcoin_confirmation",
+                    "anchor_status": "confirmed" if confirmed else "submitted",
+                    "block_time": block_time,
+                    "ordering_assertable": confirmed,
                     "verify_command": "ots verify <proof.ots>",
-                    "note": "Bitcoin confirmation typically takes 1-2 hours after submission.",
+                    "note": (
+                        f"Bitcoin-confirmed. Block time: {block_time}. Ordering is assertable."
+                        if confirmed else
+                        "OTS submitted to Bitcoin calendar. Confirmation typically 1-2 hours. "
+                        "Recheck — anchor_status will update to confirmed and ordering_assertable will become true."
+                    ),
                 }
 
         return {
             "request_id": request_id,
-            "status": "ots_proof_not_yet_available",
+            "anchor_status": "not_submitted",
+            "ordering_assertable": False,
             "note": "OTS anchoring runs as a background task after claim. Retry in ~30 seconds.",
         }
 
@@ -850,20 +943,17 @@ def create_app(
                     _gov_fields = {
                         "governance": {
                             "envelope_hash": _built["envelope_hash"],
+                            "canonical_bytes_utf8": _built["canonical_bytes_utf8"],
                             "verifier_pubkey": _sig["verifier_pubkey"],
                             "signature": _sig["signature"],
                             "sig_scheme": _sig["sig_scheme"],
-                            "verify_offline": (
-                                "pip install safeagent-exec-guard && "
-                                "python -c \"import safeagent_governance as g; "
-                                "print(g._bip340_verify("
-                                "bytes.fromhex('" + _sig["verifier_pubkey"] + "'), "
-                                "bytes.fromhex('" + _built["envelope_hash"] + "'), "
-                                "bytes.fromhex(SIGNATURE)))\""
-                            ),
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{body.request_id}/anchor"
+                            ),
+                            "proof_endpoint": (
+                                f"https://safeagent-production.up.railway.app"
+                                f"/claim/{body.request_id}/proof"
                             ),
                         }
                     }
@@ -965,12 +1055,17 @@ def create_app(
                     _gov_fields_t = {
                         "governance": {
                             "envelope_hash": _built_t["envelope_hash"],
+                            "canonical_bytes_utf8": _built_t["canonical_bytes_utf8"],
                             "verifier_pubkey": _sig_t["verifier_pubkey"],
                             "signature": _sig_t["signature"],
                             "sig_scheme": _sig_t["sig_scheme"],
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
                                 f"/claim/{request_id}/anchor"
+                            ),
+                            "proof_endpoint": (
+                                f"https://safeagent-production.up.railway.app"
+                                f"/claim/{request_id}/proof"
                             ),
                         }
                     }
