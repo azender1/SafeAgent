@@ -1169,14 +1169,15 @@ def create_app(
         skipped = 0
         failed = 0
 
+        _log = logging.getLogger(__name__)
         try:
             # Get all records that have governance signing but no OTS yet
             if not hasattr(store, "get_unanchored_claims"):
-                # Fallback: scan audit log for COMMITTED/PENDING claims
-                # and attempt OTS for any that have envelope_hash
-                audit = store.audit(limit=500)
+                result = store.audit_claims(limit=500)
+                # audit_claims returns dict with "claims" key or a list
+                rows = result.get("claims", result) if isinstance(result, dict) else result
                 candidates = [
-                    r for r in audit
+                    r for r in rows
                     if r.get("status") in ("COMMITTED", "PENDING", "CLAIMABLE")
                 ]
             else:
@@ -1224,17 +1225,17 @@ def create_app(
                             ots_proof_hex=ots_hex,
                         )
                         submitted += 1
-                        log.info("sweep/anchor: submitted OTS for %s", request_id[:8])
+                        _log.info("sweep/anchor: submitted OTS for %s", request_id[:8])
                     elif not ots_hex:
                         failed += 1
-                        log.warning("sweep/anchor: OTS failed for %s", request_id[:8])
+                        _log.warning("sweep/anchor: OTS failed for %s", request_id[:8])
 
                 except Exception as e:
                     failed += 1
-                    log.warning("sweep/anchor: error on %s: %s", request_id[:8] if request_id else "?", e)
+                    _log.warning("sweep/anchor: error on %s: %s", request_id[:8] if request_id else "?", e)
 
         except Exception as e:
-            log.warning("sweep/anchor: outer error: %s", e)
+            _log.warning("sweep/anchor: outer error: %s", e)
             return {"status": "error", "error": str(e), "submitted": submitted}
 
         return {
