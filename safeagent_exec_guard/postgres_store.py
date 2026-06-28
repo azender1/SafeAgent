@@ -98,8 +98,7 @@ class PostgresExecutionStore:
                         gov_verifier_pubkey  = %s,
                         gov_ots_proof_hex    = %s,
                         gov_ots_confirmed    = %s,
-                        gov_ots_block_time   = %s,
-                        updated_at           = NOW()
+                        gov_ots_block_time   = %s
                     WHERE request_id = %s
                 """, (
                     envelope_hash,
