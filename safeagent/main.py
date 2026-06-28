@@ -1182,7 +1182,10 @@ def create_app(
                 if not request_id or not ots_proof_hex:
                     continue
                 try:
-                    result = _gov.check_ots_confirmation(ots_proof_hex)
+                    result = _gov.check_ots_confirmation(
+                        ots_proof_hex,
+                        envelope_hash=record.get("gov_envelope_hash", ""),
+                    )
                     if result and result.get("confirmed"):
                         store.confirm_governance(
                             request_id=request_id,

@@ -420,7 +420,7 @@ def verify_claim_receipt(receipt: Dict[str, Any]) -> Dict[str, Any]:
 # OTS confirmation check
 # ---------------------------------------------------------------------------
 
-def check_ots_confirmation(ots_proof_hex: str) -> Optional[Dict[str, Any]]:
+def check_ots_confirmation(ots_proof_hex: str, envelope_hash: str = "") -> Optional[Dict[str, Any]]:
     """
     Check if an OTS proof has been Bitcoin-confirmed.
     Returns {confirmed: bool, block_time: str|None} or None on error.
@@ -435,8 +435,10 @@ def check_ots_confirmation(ots_proof_hex: str) -> Optional[Dict[str, Any]]:
         proof_bytes = bytes.fromhex(ots_proof_hex)
 
         # Deserialize the incomplete timestamp
+        # Timestamp.deserialize(ctx, initial_msg) where initial_msg is the digest
+        digest = bytes.fromhex(envelope_hash)
         ctx = ots_ser2.BytesDeserializationContext(proof_bytes)
-        ts = Timestamp.deserialize(ctx)
+        ts = Timestamp.deserialize(ctx, digest)
 
         calendars = [
             "https://alice.btc.calendar.opentimestamps.org",
