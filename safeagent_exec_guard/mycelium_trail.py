@@ -174,6 +174,11 @@ def build_trail_payload(
         "description": f"SafeAgent execution: {action} request_id={request_id}",
         "proof": action_ref,
         "timestamp": int(claimed_at),
+        "author_id": resolved_agent_id,
+        "author_name": resolved_agent_id,
+        "name": f"SafeAgent: {action}",
+        "steps": [],
+        "price_sats": 0,
     }
 
 
