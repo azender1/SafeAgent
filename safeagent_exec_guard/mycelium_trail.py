@@ -81,10 +81,11 @@ async def submit_trail_async(
         return None
 
     ts = int(claimed_at) if claimed_at else int(time.time())
+    ts_ms = ts * 1000
     _agent_id = agent_id or MYCELIUM_AGENT_ID
     scope = request_id
 
-    action_ref = compute_action_ref(_agent_id, action, scope, ts)
+    action_ref = compute_action_ref(_agent_id, action, scope, ts_ms)
     payment_hash = sha256hex(f"payment:{action_ref}".encode())
     output_hash = sha256hex(json.dumps(result, sort_keys=True).encode())
 
@@ -95,7 +96,7 @@ async def submit_trail_async(
             "agent_id": _agent_id,
             "action_type": action,
             "scope": scope,
-            "ts": ts,
+            "ts": ts_ms,
         },
         "payment_hash": payment_hash,
         "output_hash": output_hash,
