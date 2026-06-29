@@ -90,7 +90,6 @@ async def submit_trail_async(
     output_hash = sha256hex(json.dumps(result, sort_keys=True).encode())
 
     payload = {
-        "action_ref": action_ref,
         "service": "safeagent",
         "preimage": {
             "agent_id": _agent_id,
