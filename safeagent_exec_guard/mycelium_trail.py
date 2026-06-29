@@ -52,12 +52,12 @@ def enabled() -> bool:
 # ---------------------------------------------------------------------------
 
 def compute_action_ref(agent_id: str, action_type: str, scope: str, ts: int) -> str:
-    """SHA-256 of JCS({agent_id, action_type, scope, ts})."""
+    """SHA-256 of JCS({agent_id, action_type, scope, timestamp})."""
     preimage = {
         "agent_id": agent_id,
         "action_type": action_type,
         "scope": scope,
-        "ts": ts,
+        "timestamp": ts,
     }
     return sha256hex(jcs(preimage))
 
