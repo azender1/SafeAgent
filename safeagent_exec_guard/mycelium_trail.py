@@ -162,7 +162,7 @@ async def submit_trail_async(
             )
             return None
         data = resp.json()
-        trail_id = data.get("id") or data.get("trail_id") or data.get("action_id")
+        trail_id = data.get("action_id") or data.get("id") or data.get("trail_id")
         logger.info(
             "Mycelium trail recorded for request_id=%s proof=%s trail_id=%s",
             request_id,
@@ -173,5 +173,6 @@ async def submit_trail_async(
     except Exception as exc:
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
         return None
+
 
 
