@@ -84,18 +84,15 @@ def build_trail_payload(
     )
 
     return {
-        "entity_id": resolved_agent_id,
-        "entity_name": resolved_agent_id,
-        "entity_type": "ai_agent",
-        "action_type": "WITNESS",
-        "description": f"SafeAgent execution: {action} request_id={request_id}",
-        "proof": action_ref,
-        "timestamp": int(claimed_at),
-        "author_id": resolved_agent_id,
-        "author_name": resolved_agent_id,
-        "name": f"SafeAgent: {action}",
-        "steps": [{"service": "safeagent", "tool": "execution_guard"}],
-        "price_sats": 1,
+        "api_key": _api_key(),
+        "action_ref": action_ref,
+        "service": _service(),
+        "preimage": {
+            "agent_id": resolved_agent_id,
+            "action_type": action,
+            "scope": request_id,
+            "timestamp": timestamp_iso,
+        },
     }
 
 
@@ -173,6 +170,8 @@ async def submit_trail_async(
     except Exception as exc:
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
         return None
+
+
 
 
 
