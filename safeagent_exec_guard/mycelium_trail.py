@@ -86,7 +86,7 @@ def build_trail_payload(
     return {
         "api_key": _api_key(),
         "action_ref": action_ref,
-        "service": _service(),
+        "service": "safeagent",
         "preimage": {
             "agent_id": resolved_agent_id,
             "action_type": action,
@@ -170,6 +170,7 @@ async def submit_trail_async(
     except Exception as exc:
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
         return None
+
 
 
 
