@@ -1,49 +1,41 @@
 """
-mycelium_trail — Mycelium Trails submission for SafeAgent.
+mycelium_trail.py — Mycelium on-chain anchor for SafeAgent
 
-Posts to /action/submit on every /settle call.
-Returns trail_id for anchor sibling wiring.
+Submits a Nexus trail to Arbitrum via argentum-api.rgiskard.xyz/nexus/trail.
+Returns trail_id (full UUID). Anchor confirmation polled via verify_chain.
+
+Used by main.py _submit_and_anchor background task on every /settle.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
 import os
-import time as _time
-from datetime import datetime, timezone
+import time
 from typing import Any, Dict, Optional
 
 import httpx
 
-logger = logging.getLogger("safeagent.mycelium_trail")
+_log = logging.getLogger(__name__)
 
-_DEFAULT_BASE_URL = "https://argentum.rgiskard.xyz"
-_DEFAULT_SERVICE = "safeagent"
-_DEFAULT_TIMEOUT = 30.0  # longer timeout for sync poll
+MYCELIUM_API_KEY = os.environ.get("MYCELIUM_API_KEY", "9d4cd6ce64ec43abb8a7db41b7f40c56")
+MYCELIUM_AGENT_ID = os.environ.get("MYCELIUM_AGENT_ID", "safeagent-prod")
+MYCELIUM_ENABLED = os.environ.get("MYCELIUM_ENABLED", "1") == "1"
 
-
-def enabled() -> bool:
-    return os.environ.get("MYCELIUM_ENABLED", "").strip().lower() in ("1", "true", "yes")
-
-
-def _base_url() -> str:
-    return os.environ.get("MYCELIUM_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
+NEXUS_TRAIL_URL = "https://argentum-api.rgiskard.xyz/nexus/trail"
+VERIFY_CHAIN_URL = "https://argentum-api.rgiskard.xyz/mycelium/trails/{trail_id}/verify_chain"
 
 
-def _agent_id_fallback() -> str:
-    return os.environ.get("MYCELIUM_AGENT_ID", "safeagent-prod")
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-
-def _api_key() -> Optional[str]:
-    return os.environ.get("MYCELIUM_API_KEY") or None
-
-
-def jcs(obj: Dict[str, Any]) -> bytes:
+def jcs(obj: dict) -> bytes:
+    """RFC 8785 canonical JSON — sorted keys, no whitespace."""
     return json.dumps(
-        dict(sorted(obj.items())),
-        separators=(",", ":"),
-        ensure_ascii=False,
+        obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False
     ).encode("utf-8")
 
 
@@ -51,128 +43,117 @@ def sha256hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _iso_ms(ts: float) -> str:
-    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-    return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
+def enabled() -> bool:
+    return MYCELIUM_ENABLED and bool(MYCELIUM_API_KEY)
 
 
-def compute_action_ref(agent_id: str, action_type: str, scope: str, timestamp_iso: str) -> str:
+# ---------------------------------------------------------------------------
+# action_ref derivation — argentum-core action-ref-v1
+# ---------------------------------------------------------------------------
+
+def compute_action_ref(agent_id: str, action_type: str, scope: str, ts: int) -> str:
+    """SHA-256 of JCS({agent_id, action_type, scope, ts})."""
     preimage = {
         "agent_id": agent_id,
         "action_type": action_type,
         "scope": scope,
-        "timestamp": timestamp_iso,
+        "ts": ts,
     }
     return sha256hex(jcs(preimage))
 
 
-def build_trail_payload(
-    *,
-    request_id: str,
-    action: str,
-    agent_id: Optional[str],
-    claimed_at: float,
-    result: Optional[Dict[str, Any]],
-) -> Dict[str, Any]:
-    resolved_agent_id = agent_id or _agent_id_fallback()
-    timestamp_iso = _iso_ms(claimed_at)
-    action_ref = compute_action_ref(
-        agent_id=resolved_agent_id,
-        action_type=action,
-        scope=request_id,
-        timestamp_iso=timestamp_iso,
-    )
-
-    return {
-        "api_key": _api_key(),
-        "action_ref": action_ref,
-        "service": "safeagent",
-        "preimage": {
-            "agent_id": resolved_agent_id,
-            "action_type": action,
-            "scope": request_id,
-            "timestamp": timestamp_iso,
-        },
-    }
-
-
-async def get_trail_anchor(trail_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetch trail anchor data from Mycelium — block_time and tx_hash.
-    Returns anchor dict or None if not yet confirmed.
-    """
-    headers = {"Content-Type": "application/json"}
-    api_key = _api_key()
-    if api_key:
-        headers["X-API-Key"] = api_key
-
-    url = f"{_base_url()}/mycelium/trails/{trail_id}/verify_chain"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("valid"):
-                return data
-    except Exception as e:
-        logger.warning("Mycelium anchor fetch error for trail_id=%s: %s", trail_id, e)
-    return None
-
+# ---------------------------------------------------------------------------
+# Nexus trail submission
+# ---------------------------------------------------------------------------
 
 async def submit_trail_async(
-    *,
     request_id: str,
     action: str,
     agent_id: Optional[str],
     claimed_at: float,
-    result: Optional[Dict[str, Any]],
+    result: Dict[str, Any],
 ) -> Optional[str]:
     """
-    POST to /action/submit. Returns trail_id on success, None on failure.
-    Never raises.
+    Submit a Mycelium Nexus trail. Returns trail_id (UUID) or None on failure.
+    Called as a background task from main.py _submit_and_anchor.
     """
     if not enabled():
         return None
 
-    payload = build_trail_payload(
-        request_id=request_id,
-        action=action,
-        agent_id=agent_id,
-        claimed_at=claimed_at,
-        result=result,
-    )
+    ts = int(claimed_at * 1000) if claimed_at else int(time.time() * 1000)
+    _agent_id = agent_id or MYCELIUM_AGENT_ID
+    scope = request_id
 
-    headers = {"Content-Type": "application/json"}
-    api_key = _api_key()
-    if api_key:
-        headers["X-API-Key"] = api_key
+    action_ref = compute_action_ref(_agent_id, action, scope, ts)
+    payment_hash = sha256hex(f"payment:{action_ref}".encode())
+    output_hash = sha256hex(json.dumps(result, sort_keys=True).encode())
 
-    url = f"{_base_url()}/action/submit"
+    payload = {
+        "action_ref": action_ref,
+        "service": "safeagent",
+        "preimage": {
+            "agent_id": _agent_id,
+            "action_type": action,
+            "scope": scope,
+            "ts": ts,
+        },
+        "payment_hash": payment_hash,
+        "output_hash": output_hash,
+        "hash_algo": "sha256",
+        "preimage_format": "jcs-v1",
+        "timestamp": ts,
+        "api_key": MYCELIUM_API_KEY,
+    }
+
     try:
-        async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
-            resp = await client.post(url, json=payload, headers=headers)
-        if resp.status_code >= 400:
-            logger.warning(
-                "Mycelium trail submission failed (%s): %s",
-                resp.status_code,
-                resp.text[:500],
-            )
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(NEXUS_TRAIL_URL, json=payload)
+            resp.raise_for_status()
+            data = resp.json()
+            trail_id = data.get("trail_id") or data.get("id")
+            if trail_id:
+                _log.info("Mycelium trail submitted: trail_id=%s action_ref=%s", trail_id, action_ref)
+                return trail_id
+            _log.warning("Mycelium trail: no trail_id in response: %s", data)
             return None
-        data = resp.json()
-        trail_id = data.get("action_id") or data.get("id") or data.get("trail_id")
-        logger.info(
-            "Mycelium trail recorded for request_id=%s proof=%s trail_id=%s",
-            request_id,
-            payload["proof"],
-            trail_id,
-        )
-        return trail_id
     except Exception as exc:
-        logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
+        _log.warning("Mycelium trail submission failed: %s", exc)
         return None
 
 
+# ---------------------------------------------------------------------------
+# Anchor polling — verify_chain
+# ---------------------------------------------------------------------------
 
-
-
-
+async def get_trail_anchor(trail_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Poll verify_chain for Arbitrum confirmation.
+    Returns anchor dict with block_time and tx_hash when confirmed, else None.
+    """
+    url = VERIFY_CHAIN_URL.format(trail_id=trail_id)
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.get(url)
+            if resp.status_code == 404:
+                return None
+            resp.raise_for_status()
+            data = resp.json()
+            block_time = (
+                data.get("block_time")
+                or data.get("anchor_block_time")
+                or data.get("anchor", {}).get("block_time")
+            )
+            if not block_time:
+                return None
+            return {
+                "block_time": block_time,
+                "tx_hash": (
+                    data.get("tx_hash")
+                    or data.get("transaction_hash")
+                    or data.get("anchor", {}).get("tx_hash")
+                ),
+                "trail_id": trail_id,
+            }
+    except Exception as exc:
+        _log.warning("Mycelium verify_chain failed for %s: %s", trail_id, exc)
+        return None
