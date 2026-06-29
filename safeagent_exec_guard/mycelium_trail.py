@@ -151,7 +151,7 @@ async def submit_trail_async(
     if api_key:
         headers["X-API-Key"] = api_key
 
-    url = f"{_base_url()}/action/submit"
+    url = "https://argentum-api.rgiskard.xyz/nexus/trail"
     try:
         async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
             resp = await client.post(url, json=payload, headers=headers)
@@ -174,6 +174,7 @@ async def submit_trail_async(
     except Exception as exc:
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
         return None
+
 
 
 
