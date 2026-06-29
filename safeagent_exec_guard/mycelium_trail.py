@@ -89,7 +89,7 @@ async def submit_trail_async(
         "agent_id": _agent_id,
         "action_type": action,
         "scope": scope,
-        "timestamp": ts,
+        "timestamp": ts_ms,
     }
     action_ref = sha256hex(jcs(preimage))
     payment_hash = sha256hex(f"payment:{action_ref}".encode())
