@@ -1,8 +1,60 @@
 """
-mycelium_trail — Mycelium Trails submission for SafeAgent.
+mycelium_trail — best-effort Mycelium Trails submission for SafeAgent.
 
-Posts to /action/submit on every /settle call.
-Returns trail_id for anchor sibling wiring.
+On a successful /settle (PENDING -> COMMITTED), optionally writes a
+post-execution TrailRecord to Mycelium Trails (argentum-core /trails),
+per docs/MYCELIUM_TRAILS_REFERENCE.md.
+
+Design constraints
+-------------------
+- Never blocks or fails a /settle call. All network errors are caught
+  and logged; the SafeAgent guard's own guarantees do not depend on
+  Mycelium being reachable.
+- Off by default. Enable with MYCELIUM_ENABLED=1.
+- Fire-and-forget: submit_trail_async() schedules the POST on a
+  background asyncio task.
+
+action_ref derivation
+----------------------
+Uses the SAME derivation as SafeAgent's published conformance fixture
+(docs/conformance/exactly-once-v1.json, "exactly-once-v1.1"):
+
+    action_ref = SHA256( JCS({agent_id, action_type, scope, timestamp}) )
+
+JCS = RFC 8785 canonical JSON (lexicographic key order, no whitespace,
+UTF-8) -- see docs/conformance/verify_fixture.py:jcs() for the reference
+implementation this mirrors.
+
+Field mapping note (SafeAgent -> action_ref preimage)
+------------------------------------------------------
+SafeAgent's execution_requests table does not have a separate `scope`
+column (the conformance fixture's example preimage includes one, but
+it isn't part of SafeAgent's live /claim or /settle request bodies).
+For this trail submission:
+
+    agent_id     -> row["agent_id"]  (or "anonymous" if x402 not used)
+    action_type  -> row["action"]
+    scope        -> request_id itself (the caller's logical-operation
+                     identifier is the closest analog SafeAgent has to
+                     "scope")
+    timestamp    -> row["claimed_at"], converted to RFC3339 UTC with
+                     millisecond precision, e.g. "2026-06-08T20:00:00.000Z"
+                     (using claimed_at rather than committed_at keeps
+                     action_ref stable across PENDING -> COMMITTED, per
+                     the conformance fixture's invariant #3)
+
+This is an explicit adaptation, not a claim that SafeAgent implements a
+`scope` field equivalent to argentum-core's. If/when SafeAgent's API
+gains a real `scope` field, swap it in here.
+
+payment_hash field
+-------------------
+The TrailRecord schema's `payment_hash` is documented as "Lightning
+payment hash or on-chain tx hash". SafeAgent's /settle is not payment-
+gated, so there is no real payment hash to report. We submit
+SHA256(JCS(result)) as a content-addressed "settlement digest" instead
+-- this lets a verifier confirm the trail corresponds to a specific
+settlement result, without claiming it's a real payment reference.
 """
 from __future__ import annotations
 
@@ -10,7 +62,6 @@ import hashlib
 import json
 import logging
 import os
-import time as _time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
@@ -20,15 +71,22 @@ logger = logging.getLogger("safeagent.mycelium_trail")
 
 _DEFAULT_BASE_URL = "https://argentum.rgiskard.xyz"
 _DEFAULT_SERVICE = "safeagent"
-_DEFAULT_TIMEOUT = 30.0  # longer timeout for sync poll
+_DEFAULT_TIMEOUT = 8.0  # seconds
 
 
 def enabled() -> bool:
+    """True if MYCELIUM_ENABLED is set to a truthy value. Public so
+    callers (e.g. main.py) can check before scheduling a background
+    task at all."""
     return os.environ.get("MYCELIUM_ENABLED", "").strip().lower() in ("1", "true", "yes")
 
 
 def _base_url() -> str:
     return os.environ.get("MYCELIUM_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
+
+
+def _service() -> str:
+    return os.environ.get("MYCELIUM_SERVICE", _DEFAULT_SERVICE)
 
 
 def _agent_id_fallback() -> str:
@@ -40,6 +98,12 @@ def _api_key() -> Optional[str]:
 
 
 def jcs(obj: Dict[str, Any]) -> bytes:
+    """RFC 8785 JCS: lexicographic key order, no spaces, UTF-8.
+
+    Mirrors docs/conformance/verify_fixture.py:jcs() exactly, so
+    action_ref values computed here are byte-identical to the
+    conformance fixture's derivation for the same inputs.
+    """
     return json.dumps(
         dict(sorted(obj.items())),
         separators=(",", ":"),
@@ -52,11 +116,15 @@ def sha256hex(data: bytes) -> str:
 
 
 def _iso_ms(ts: float) -> str:
+    """Convert a Unix timestamp (float seconds) to RFC3339 UTC with
+    millisecond precision, e.g. '2026-06-08T20:00:00.000Z'."""
     dt = datetime.fromtimestamp(ts, tz=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 
 def compute_action_ref(agent_id: str, action_type: str, scope: str, timestamp_iso: str) -> str:
+    """SHA256(JCS({agent_id, action_type, scope, timestamp})) -- same
+    derivation as exactly-once-v1.1."""
     preimage = {
         "agent_id": agent_id,
         "action_type": action_type,
@@ -64,6 +132,18 @@ def compute_action_ref(agent_id: str, action_type: str, scope: str, timestamp_is
         "timestamp": timestamp_iso,
     }
     return sha256hex(jcs(preimage))
+
+
+def _settlement_digest(result: Dict[str, Any]) -> str:
+    """Content-addressed digest of the settlement result. Used as
+    payment_hash since SafeAgent /settle has no real payment hash."""
+    try:
+        canonical = jcs(result)
+    except TypeError:
+        # result may contain non-JCS-friendly values; fall back to
+        # standard json with sorted keys.
+        canonical = json.dumps(result, sort_keys=True, default=str).encode("utf-8")
+    return sha256hex(canonical)
 
 
 def build_trail_payload(
@@ -74,6 +154,8 @@ def build_trail_payload(
     claimed_at: float,
     result: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
+    """Build the TrailRecord payload per MYCELIUM_TRAILS_REFERENCE.md,
+    using the field mapping documented at the top of this module."""
     resolved_agent_id = agent_id or _agent_id_fallback()
     timestamp_iso = _iso_ms(claimed_at)
     action_ref = compute_action_ref(
@@ -82,45 +164,23 @@ def build_trail_payload(
         scope=request_id,
         timestamp_iso=timestamp_iso,
     )
+    result_obj = result or {}
 
     return {
+        "agent_id": resolved_agent_id,
+        "service": _service(),
+        "operation": action,
         "action_ref": action_ref,
-        "service": "safeagent",
-        "preimage": {
-            "agent_id": resolved_agent_id,
-            "action_type": action,
-            "scope": request_id,
-            "ts": int(claimed_at),
-        },
-        "payment_hash": sha256hex(request_id.encode()),
-        "output_hash": sha256hex(json.dumps(result or {}, sort_keys=True).encode()),
-        "hash_algo": "sha256",
-        "preimage_format": "jcs-v1",
+        "payment_hash": _settlement_digest(result_obj),
         "timestamp": int(claimed_at),
+        "claims": {
+            "request_id": request_id,
+            "source": "safeagent-settle",
+            "mocked": False,
+        },
+        "success": True,
+        "scope": request_id,
     }
-
-
-async def get_trail_anchor(trail_id: str) -> Optional[Dict[str, Any]]:
-    """
-    Fetch trail anchor data from Mycelium — block_time and tx_hash.
-    Returns anchor dict or None if not yet confirmed.
-    """
-    headers = {"Content-Type": "application/json"}
-    api_key = _api_key()
-    if api_key:
-        headers["X-API-Key"] = api_key
-
-    url = f"{_base_url()}/mycelium/trails/{trail_id}/verify_chain"
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, headers=headers)
-        if resp.status_code == 200:
-            data = resp.json()
-            if data.get("valid"):
-                return data
-    except Exception as e:
-        logger.warning("Mycelium anchor fetch error for trail_id=%s: %s", trail_id, e)
-    return None
 
 
 async def submit_trail_async(
@@ -130,13 +190,14 @@ async def submit_trail_async(
     agent_id: Optional[str],
     claimed_at: float,
     result: Optional[Dict[str, Any]],
-) -> Optional[str]:
-    """
-    POST to /action/submit. Returns trail_id on success, None on failure.
-    Never raises.
+) -> None:
+    """Fire-and-forget: POST a TrailRecord to Mycelium Trails.
+
+    Never raises. Logs success/failure at DEBUG/WARNING. No-op unless
+    MYCELIUM_ENABLED is truthy.
     """
     if not enabled():
-        return None
+        return
 
     payload = build_trail_payload(
         request_id=request_id,
@@ -151,7 +212,7 @@ async def submit_trail_async(
     if api_key:
         headers["X-API-Key"] = api_key
 
-    url = "https://argentum-api.rgiskard.xyz/nexus/trail"
+    url = f"{_base_url()}/trails"
     try:
         async with httpx.AsyncClient(timeout=_DEFAULT_TIMEOUT) as client:
             resp = await client.post(url, json=payload, headers=headers)
@@ -161,23 +222,13 @@ async def submit_trail_async(
                 resp.status_code,
                 resp.text[:500],
             )
-            return None
+            return
         data = resp.json()
-        trail_id = data.get("action_id") or data.get("id") or data.get("trail_id")
         logger.info(
-            "Mycelium trail recorded for request_id=%s proof=%s trail_id=%s",
+            "Mycelium trail recorded for request_id=%s action_ref=%s trail_id=%s",
             request_id,
-            payload["proof"],
-            trail_id,
+            payload["action_ref"],
+            data.get("trail_id", "?"),
         )
-        return trail_id
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - intentionally broad, best-effort
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
-        return None
-
-
-
-
-
-
-
