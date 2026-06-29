@@ -174,3 +174,4 @@ async def submit_trail_async(
         logger.warning("Mycelium trail submission error for request_id=%s: %s", request_id, exc)
         return None
 
+
