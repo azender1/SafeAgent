@@ -80,7 +80,7 @@ async def submit_trail_async(
     if not enabled():
         return None
 
-    ts = int(claimed_at * 1000) if claimed_at else int(time.time() * 1000)
+    ts = int(claimed_at) if claimed_at else int(time.time())
     _agent_id = agent_id or MYCELIUM_AGENT_ID
     scope = request_id
 
