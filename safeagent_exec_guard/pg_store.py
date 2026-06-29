@@ -68,7 +68,11 @@ class PgExecutionStore:
                     ADD COLUMN IF NOT EXISTS gov_verifier_pubkey TEXT,
                     ADD COLUMN IF NOT EXISTS gov_ots_proof_hex   TEXT,
                     ADD COLUMN IF NOT EXISTS gov_ots_confirmed   BOOLEAN DEFAULT FALSE,
-                    ADD COLUMN IF NOT EXISTS gov_ots_block_time  TEXT
+                    ADD COLUMN IF NOT EXISTS gov_ots_block_time  TEXT,
+                    ADD COLUMN IF NOT EXISTS gov_mycelium_trail_id TEXT,
+                    ADD COLUMN IF NOT EXISTS gov_mycelium_block_time BIGINT,
+                    ADD COLUMN IF NOT EXISTS gov_mycelium_tx_hash TEXT,
+                    ADD COLUMN IF NOT EXISTS gov_mycelium_precedence BOOLEAN DEFAULT FALSE
             """)
             conn.commit()
 
@@ -264,6 +268,50 @@ class PgExecutionStore:
                 (block_time, request_id),
             )
             conn.commit()
+
+    def update_anchor_mycelium(
+        self,
+        request_id: str,
+        trail_id: str,
+        block_time: Optional[int] = None,
+        tx_hash: Optional[str] = None,
+        precedence: bool = False,
+    ) -> None:
+        """Persist Mycelium on-chain anchor data to the claim row."""
+        with self._conn() as conn:
+            conn.execute(
+                """
+                UPDATE execution_requests
+                SET gov_mycelium_trail_id    = %s,
+                    gov_mycelium_block_time  = %s,
+                    gov_mycelium_tx_hash     = %s,
+                    gov_mycelium_precedence  = %s
+                WHERE request_id = %s
+                """,
+                (trail_id, block_time, tx_hash, precedence, request_id),
+            )
+            conn.commit()
+
+    def get_mycelium_anchor(self, request_id: str) -> Optional[Dict[str, Any]]:
+        """Return Mycelium anchor fields for a claim."""
+        with self._conn() as conn:
+            row = conn.execute(
+                """
+                SELECT gov_mycelium_trail_id, gov_mycelium_block_time,
+                       gov_mycelium_tx_hash, gov_mycelium_precedence
+                FROM execution_requests
+                WHERE request_id = %s
+                """,
+                (request_id,),
+            ).fetchone()
+        if row is None or not row.get("gov_mycelium_trail_id"):
+            return None
+        return {
+            "trail_id":   row["gov_mycelium_trail_id"],
+            "block_time": row["gov_mycelium_block_time"],
+            "tx_hash":    row["gov_mycelium_tx_hash"],
+            "precedence": row["gov_mycelium_precedence"] or False,
+        }
 
     def get_governance(self, request_id: str) -> Optional[Dict[str, Any]]:
         """Return governance fields for a claim, or None if not present."""
