@@ -84,15 +84,19 @@ def build_trail_payload(
     )
 
     return {
-        "api_key": _api_key(),
         "action_ref": action_ref,
         "service": "safeagent",
         "preimage": {
             "agent_id": resolved_agent_id,
             "action_type": action,
             "scope": request_id,
-            "timestamp": timestamp_iso,
+            "ts": int(claimed_at),
         },
+        "payment_hash": sha256hex(request_id.encode()),
+        "output_hash": sha256hex(json.dumps(result or {}, sort_keys=True).encode()),
+        "hash_algo": "sha256",
+        "preimage_format": "jcs-v1",
+        "timestamp": int(claimed_at),
     }
 
 
