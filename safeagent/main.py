@@ -993,14 +993,24 @@ def create_app(
                 logging.getLogger(__name__).warning("governance signing error: %s", _gov_err)
 
         if mycelium_trail.enabled():
-            background_tasks.add_task(
-                mycelium_trail.submit_trail_async,
-                request_id=body.request_id,
-                action=body.action,
-                agent_id=agent_id,
-                claimed_at=_claimed_at_ms / 1000,
-                result={},
-            )
+            async def _submit_trail_claim():
+                trail_id = await mycelium_trail.submit_trail_async(
+                    request_id=body.request_id,
+                    action=body.action,
+                    agent_id=agent_id,
+                    claimed_at=_claimed_at_ms / 1000,
+                    result={},
+                )
+                if trail_id and hasattr(store, "update_anchor_mycelium"):
+                    store.update_anchor_mycelium(
+                        request_id=body.request_id,
+                        trail_id=trail_id,
+                        precedence=False,
+                    )
+                    logging.getLogger(__name__).info(
+                        "Mycelium trail stored at claim: trail_id=%s", trail_id,
+                    )
+            background_tasks.add_task(_submit_trail_claim)
 
         return {
             "status": "PROCEED",
@@ -1115,14 +1125,24 @@ def create_app(
                 logging.getLogger(__name__).warning("governance signing error (test): %s", _gov_err_t)
 
         if mycelium_trail.enabled():
-            background_tasks.add_task(
-                mycelium_trail.submit_trail_async,
-                request_id=request_id,
-                action=body.action_type,
-                agent_id=body.agent_id,
-                claimed_at=_claimed_at_ms_t / 1000,
-                result={},
-            )
+            async def _submit_trail_claim_test():
+                trail_id = await mycelium_trail.submit_trail_async(
+                    request_id=request_id,
+                    action=body.action_type,
+                    agent_id=body.agent_id,
+                    claimed_at=_claimed_at_ms_t / 1000,
+                    result={},
+                )
+                if trail_id and hasattr(store, "update_anchor_mycelium"):
+                    store.update_anchor_mycelium(
+                        request_id=request_id,
+                        trail_id=trail_id,
+                        precedence=False,
+                    )
+                    logging.getLogger(__name__).info(
+                        "Mycelium trail stored at claim: trail_id=%s", trail_id,
+                    )
+            background_tasks.add_task(_submit_trail_claim_test)
 
         return {
             "status": "PROCEED",
