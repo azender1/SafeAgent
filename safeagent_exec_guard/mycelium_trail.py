@@ -74,58 +74,54 @@ async def submit_trail_async(
     claimed_at: float,
     result: Dict[str, Any],
 ) -> Optional[str]:
-    """
-    Submit a Mycelium Nexus trail. Returns trail_id (UUID) or None on failure.
-    Called as a background task from main.py _submit_and_anchor.
-    """
     if not enabled():
         return None
 
+    from datetime import datetime, timezone
     _ct = claimed_at if claimed_at else time.time()
-    ts = int(_ct)
     ts_str = datetime.fromtimestamp(_ct, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.') + f'{int(_ct * 1000) % 1000:03d}Z'
     _agent_id = agent_id or MYCELIUM_AGENT_ID
     scope = request_id
 
     preimage = {
-        "agent_id": _agent_id,
-        "action_type": action,
-        "scope": scope,
-        "timestamp": ts_str,
+        'action_type': action,
+        'agent_id': _agent_id,
+        'scope': scope,
+        'timestamp': ts_str,
     }
     action_ref = sha256hex(jcs(preimage))
-    payment_hash = sha256hex(f"payment:{action_ref}".encode())
-    output_hash = sha256hex(json.dumps(result, sort_keys=True).encode())
+    payment_hash = 'sha256-' + sha256hex(f'payment:{action_ref}'.encode())
+    output_hash = 'sha256-' + sha256hex(json.dumps(result, sort_keys=True).encode())
 
     payload = {
-        "packet_version": "1.0",
-        "canonicalization_profile_id": "8c7f71754e3daae1a0390d5e0287d51097d011e40df36bf15cad5c0f47efa05a",
-        "action_ref": action_ref,
-        "service": "safeagent",
-        "preimage": preimage,
-        "payment_hash": payment_hash,
-        "output_hash": output_hash,
-        "hash_algo": "SHA-256",
-        "preimage_format": "jcs",
-        "timestamp": int(_ct * 1000),
-        "api_key": MYCELIUM_API_KEY,
+        'packet_version': '1.0',
+        'canonicalization_profile_id': '8c7f71754e3daae1a0390d5e0287d51097d011e40df36bf15cad5c0f47efa05a',
+        'action_ref': action_ref,
+        'service': 'safeagent',
+        'preimage': preimage,
+        'payment_hash': payment_hash,
+        'output_hash': output_hash,
+        'hash_algo': 'SHA-256',
+        'preimage_format': 'jcs',
+        'timestamp': int(_ct * 1000),
+        'api_key': MYCELIUM_API_KEY,
     }
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(NEXUS_TRAIL_URL, json=payload)
             if resp.status_code not in (200, 201):
-                _log.warning("Mycelium 422 body: %s", resp.text)
+                _log.warning('Mycelium trail error: %s', resp.text)
             resp.raise_for_status()
             data = resp.json()
-            trail_id = data.get("trail_id") or data.get("id")
+            trail_id = data.get('trail_id') or data.get('id')
             if trail_id:
-                _log.info("Mycelium trail submitted: trail_id=%s action_ref=%s", trail_id, action_ref)
+                _log.info('Mycelium trail submitted: trail_id=%s action_ref=%s', trail_id, action_ref)
                 return trail_id
-            _log.warning("Mycelium trail: no trail_id in response: %s", data)
+            _log.warning('Mycelium trail: no trail_id in response: %s', data)
             return None
     except Exception as exc:
-        _log.warning("Mycelium trail submission failed: %s", exc)
+        _log.warning('Mycelium trail submission failed: %s', exc)
         return None
 
 
