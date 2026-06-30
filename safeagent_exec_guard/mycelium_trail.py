@@ -114,7 +114,7 @@ async def submit_trail_async(
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(NEXUS_TRAIL_URL, json=payload)
-            if resp.status_code != 200:
+            if resp.status_code not in (200, 201):
                 _log.warning("Mycelium 422 body: %s", resp.text)
             resp.raise_for_status()
             data = resp.json()
