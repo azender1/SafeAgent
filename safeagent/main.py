@@ -992,6 +992,16 @@ def create_app(
             except Exception as _gov_err:
                 logging.getLogger(__name__).warning("governance signing error: %s", _gov_err)
 
+        if mycelium_trail.enabled():
+            background_tasks.add_task(
+                mycelium_trail.submit_trail_async,
+                request_id=body.request_id,
+                action=body.action,
+                agent_id=agent_id,
+                claimed_at=_claimed_at_ms / 1000,
+                result={},
+            )
+
         return {
             "status": "PROCEED",
             "request_id": body.request_id,
@@ -1104,6 +1114,16 @@ def create_app(
             except Exception as _gov_err_t:
                 logging.getLogger(__name__).warning("governance signing error (test): %s", _gov_err_t)
 
+        if mycelium_trail.enabled():
+            background_tasks.add_task(
+                mycelium_trail.submit_trail_async,
+                request_id=request_id,
+                action=body.action_type,
+                agent_id=body.agent_id,
+                claimed_at=_claimed_at_ms_t / 1000,
+                result={},
+            )
+
         return {
             "status": "PROCEED",
             "request_id": request_id,
@@ -1127,65 +1147,6 @@ def create_app(
         outcome_ts_ms = int(_time_settle.time() * 1000)
 
         store.settle(request_id, body.result)
-
-        if mycelium_trail.enabled():
-            async def _submit_and_anchor():
-                trail_id = await mycelium_trail.submit_trail_async(
-                    request_id=request_id,
-                    action=existing["action"],
-                    agent_id=existing.get("agent_id"),
-                    claimed_at=existing["claimed_at"],
-                    result=body.result,
-                )
-                if not trail_id:
-                    return
-
-                # Fetch anchor data from Mycelium
-                import asyncio
-                anchor = None
-                for _ in range(6):  # poll up to 30s (6 * 5s)
-                    anchor = await mycelium_trail.get_trail_anchor(trail_id)
-                    if anchor:
-                        break
-                    await asyncio.sleep(5)
-
-                if not anchor:
-                    # Store trail_id without block_time — will confirm later
-                    if hasattr(store, "update_anchor_mycelium"):
-                        store.update_anchor_mycelium(
-                            request_id=request_id,
-                            trail_id=trail_id,
-                            precedence=False,
-                        )
-                    return
-
-                # Extract block_time and check precedence
-                block_time = anchor.get("block_time") or anchor.get("anchor_block_time")
-                tx_hash = anchor.get("tx_hash") or anchor.get("transaction_hash")
-
-                # Precedence: anchor_block_time_ms < outcome_ts_ms (strict)
-                precedence = False
-                if block_time:
-                    try:
-                        block_time_ms = int(block_time) * 1000
-                        precedence = block_time_ms < outcome_ts_ms
-                    except (TypeError, ValueError):
-                        pass
-
-                if hasattr(store, "update_anchor_mycelium"):
-                    store.update_anchor_mycelium(
-                        request_id=request_id,
-                        trail_id=trail_id,
-                        block_time=int(block_time) if block_time else None,
-                        tx_hash=tx_hash,
-                        precedence=precedence,
-                    )
-                    logging.getLogger(__name__).info(
-                        "Mycelium anchor: trail_id=%s block_time=%s precedence=%s",
-                        trail_id, block_time, precedence,
-                    )
-
-            background_tasks.add_task(_submit_and_anchor)
 
         return {"status": "committed", "request_id": request_id}
 
