@@ -14,6 +14,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import httpx
@@ -82,7 +83,7 @@ async def submit_trail_async(
 
     _ct = claimed_at if claimed_at else time.time()
     ts = int(_ct)
-    ts_ms_str = str(int(_ct * 1000))
+    ts_str = datetime.fromtimestamp(_ct, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.') + f'{int(_ct * 1000) % 1000:03d}Z'
     _agent_id = agent_id or MYCELIUM_AGENT_ID
     scope = request_id
 
@@ -90,21 +91,23 @@ async def submit_trail_async(
         "agent_id": _agent_id,
         "action_type": action,
         "scope": scope,
-        "timestamp": ts_ms_str,
+        "timestamp": ts_str,
     }
     action_ref = sha256hex(jcs(preimage))
     payment_hash = sha256hex(f"payment:{action_ref}".encode())
     output_hash = sha256hex(json.dumps(result, sort_keys=True).encode())
 
     payload = {
+        "packet_version": "1.0",
+        "canonicalization_profile_id": "8c7f71754e3daae1a0390d5e0287d51097d011e40df36bf15cad5c0f47efa05a",
         "action_ref": action_ref,
         "service": "safeagent",
         "preimage": preimage,
         "payment_hash": payment_hash,
         "output_hash": output_hash,
-        "hash_algo": "sha256",
-        "preimage_format": "jcs-v1",
-        "timestamp": ts,
+        "hash_algo": "SHA-256",
+        "preimage_format": "jcs",
+        "timestamp": int(_ct * 1000),
         "api_key": MYCELIUM_API_KEY,
     }
 
