@@ -1372,6 +1372,143 @@ def create_app(
             "failed": failed,
         }
 
+    @app.post("/sweep/anchor/mycelium")
+    async def sweep_anchor_mycelium() -> Dict[str, Any]:
+        """
+        Cron job endpoint — re-polls Mycelium trails that are stored in the DB
+        but missing gov_mycelium_block_time (polling gave up at claim time).
+
+        Wire as a Railway cron: POST /sweep/anchor/mycelium every 5 minutes.
+        Safe to call repeatedly — skips claims that already have a block_time.
+        """
+        if not mycelium_trail.enabled():
+            return {"status": "mycelium_not_configured", "updated": 0}
+
+        store = app.state.store
+        _log = logging.getLogger(__name__)
+        updated = 0
+        skipped = 0
+        failed = 0
+
+        try:
+            # Query claims with trail_id set but block_time still null
+            if hasattr(store, "_conn"):
+                # PgExecutionStore — query directly
+                with store._conn() as conn:
+                    rows = conn.execute(
+                        """
+                        SELECT request_id, gov_mycelium_trail_id, claimed_at
+                        FROM execution_requests
+                        WHERE gov_mycelium_trail_id IS NOT NULL
+                          AND gov_mycelium_block_time IS NULL
+                        ORDER BY claimed_at ASC
+                        LIMIT 100
+                        """
+                    ).fetchall()
+                candidates = [dict(r) for r in rows]
+            else:
+                # Fallback: scan audit log
+                result = store.audit_claims(limit=500)
+                rows = result.get("items", []) if isinstance(result, dict) else []
+                candidates = [
+                    r for r in rows
+                    if r.get("gov_mycelium_trail_id") and not r.get("gov_mycelium_block_time")
+                ]
+
+            _log.info("sweep/anchor/mycelium: checking %d candidates", len(candidates))
+
+            for record in candidates:
+                request_id = record.get("request_id")
+                trail_id = record.get("gov_mycelium_trail_id")
+                if not request_id or not trail_id:
+                    continue
+
+                try:
+                    # Try verify_chain first for full confirmation data
+                    anchor = await mycelium_trail.get_trail_anchor(trail_id)
+                    if anchor and anchor.get("block_time"):
+                        store.update_anchor_mycelium(
+                            request_id=request_id,
+                            trail_id=trail_id,
+                            block_time=anchor["block_time"],
+                            tx_hash=anchor.get("tx_hash"),
+                            precedence=True,
+                        )
+                        updated += 1
+                        _log.info(
+                            "sweep/anchor/mycelium: updated %s trail=%s block_time=%s",
+                            request_id[:8],
+                            trail_id[:8],
+                            anchor["block_time"],
+                        )
+                    else:
+                        # verify_chain not yet confirmed — try plain trail GET
+                        trail_url = f"https://argentum-api.rgiskard.xyz/trails/{trail_id}"
+                        import httpx as _httpx
+                        async with _httpx.AsyncClient(timeout=15) as client:
+                            resp = await client.get(
+                                trail_url,
+                                headers={"Authorization": f"Bearer {mycelium_trail.MYCELIUM_API_KEY}"},
+                            )
+                            if resp.status_code == 200:
+                                data = resp.json()
+                                block_time = (
+                                    data.get("block_time")
+                                    or data.get("anchor_block_time")
+                                    or data.get("anchor", {}).get("block_time")
+                                )
+                                tx_hash = (
+                                    data.get("tx_hash")
+                                    or data.get("transaction_hash")
+                                    or data.get("anchor", {}).get("tx_hash")
+                                )
+                                if block_time:
+                                    store.update_anchor_mycelium(
+                                        request_id=request_id,
+                                        trail_id=trail_id,
+                                        block_time=block_time,
+                                        tx_hash=tx_hash,
+                                        precedence=True,
+                                    )
+                                    updated += 1
+                                    _log.info(
+                                        "sweep/anchor/mycelium: updated via trail GET %s block_time=%s",
+                                        request_id[:8],
+                                        block_time,
+                                    )
+                                else:
+                                    skipped += 1
+                                    _log.debug(
+                                        "sweep/anchor/mycelium: trail %s not yet confirmed on-chain",
+                                        trail_id[:8],
+                                    )
+                            else:
+                                skipped += 1
+                                _log.debug(
+                                    "sweep/anchor/mycelium: trail GET %s returned %s",
+                                    trail_id[:8],
+                                    resp.status_code,
+                                )
+
+                except Exception as e:
+                    failed += 1
+                    _log.warning(
+                        "sweep/anchor/mycelium: error on %s: %s",
+                        request_id[:8] if request_id else "?",
+                        e,
+                    )
+
+        except Exception as e:
+            _log.warning("sweep/anchor/mycelium: outer error: %s", e)
+            return {"status": "error", "error": str(e), "updated": updated}
+
+        return {
+            "status": "ok",
+            "updated": updated,
+            "skipped": skipped,
+            "failed": failed,
+        }
+
     return app
 
 
