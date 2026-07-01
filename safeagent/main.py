@@ -1453,7 +1453,8 @@ def create_app(
                             if resp.status_code == 200:
                                 data = resp.json()
                                 block_time = (
-                                    data.get("block_time")
+                                    data.get("anchor_block")
+                                    or data.get("block_time")
                                     or data.get("anchor_block_time")
                                     or data.get("anchor", {}).get("block_time")
                                 )
