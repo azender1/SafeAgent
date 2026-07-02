@@ -1,4 +1,5 @@
 # SafeAgent — Execution Guard for AI Agents
+[![Mycelium Provider](https://img.shields.io/badge/Mycelium-Provider-4a90e2)](https://github.com/giskard09/argentum-core/blob/main/docs/mycelium-provider-protocol.md)
 ![SafeAgent — Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE2%20JUN%2017%2C%202026%2C%2010_41_10%20PM.png)
 <!-- mcp-name: io.github.azender1/safeagent -->
 
