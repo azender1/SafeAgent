@@ -36,6 +36,15 @@ Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02)
 
 ---
 
+## Mycelium Trails
+
+This implementation is a [Mycelium Provider](https://github.com/giskard09/argentum-core/blob/main/docs/mycelium-provider-protocol.md).
+Each completed action submits a trail to ARGENTUM with a content-addressed `action_ref`
+(JCS+SHA-256 over the four preimage fields). The returned `mycelium_trail_id` is included
+in every receipt for independent verification.
+
+---
+
 ## Verified on Soma
 
 SafeAgent is the first verified external integrator on [Soma](https://soma-api.rgiskard.xyz/catalog) — the Mycelium agent catalog. Every production execution is anchored on-chain via Mycelium Trails and independently verifiable without going through the operator.
