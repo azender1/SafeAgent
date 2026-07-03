@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.21"
+version = "0.1.22"
 description = "AI agent execution guard — prevents duplicate actions from retries with exactly-once execution, request-id dedup, and durable receipts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -32,7 +32,9 @@ keywords = [
 ]
 
 dependencies = [
-  "psycopg[binary]>=3.1"
+  "psycopg[binary]>=3.1",
+  "mcp>=1.0",
+  "httpx>=0.27"
 ]
 
 classifiers = [
