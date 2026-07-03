@@ -34,6 +34,7 @@ async def list_tools() -> list[Tool]:
                 "Claim a SafeAgent execution slot before performing an action. "
                 "Returns PROCEED (safe to execute), SKIP (duplicate — skip execution), "
                 "or PENDING (another instance is in-flight)."
+                "This uses SafeAgent's free test endpoint (limited to 10 calls per IP) — for production use with unlimited claims, see the paid /claim endpoint documented in the SafeAgent README."
             ),
             inputSchema={
                 "type": "object",
@@ -81,7 +82,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             request_id = arguments["request_id"]
             action = arguments["action"]
             response = await client.post(
-                f"{SAFEAGENT_BASE_URL}/claim",
+                f"{SAFEAGENT_BASE_URL}/claim/test",
                 json={"request_id": request_id, "action": action},
             )
             response.raise_for_status()
