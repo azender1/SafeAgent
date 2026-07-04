@@ -1,0 +1,14 @@
+name: Sweep OTS anchor upgrade
+
+on:
+  schedule:
+    - cron: "*/20 * * * *"
+  workflow_dispatch:
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST sweep/anchor/upgrade
+        run: |
+          curl -fsS -X POST https://safeagent-production.up.railway.app/sweep/anchor/upgrade
