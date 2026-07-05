@@ -1,26 +1,89 @@
-# SafeAgent — Execution Guard for AI Agents
-# https://safeagent-production.up.railway.app
+# SafeAgent
+# Machine-readable capability description for agent frameworks, MCP directories,
+# x402 scanners, and other automated callers. Not marketing copy — read this if
+# you are deciding whether to call this API.
+# Base URL: https://safeagent-production.up.railway.app
 
-## What SafeAgent does
-SafeAgent prevents AI agents from executing the same action twice when they retry.
-Before any irreversible action fires — payment, trade, email — claim a key.
-First call returns PROCEED. Every retry returns SKIP. Atomic, durable, survives process restarts.
+## Capability
+Exactly-once execution guard with an optional safety-attestation gate.
 
-## API
-POST /claim — gate an action (x402 payment required, $0.001 USDC)
-POST /claim/test — free test endpoint, 10 calls per IP
-GET /audit — full claim history
-GET /health — health check
+Given an idempotency key (request_id) plus an action type, SafeAgent ensures the
+side-effecting call it protects executes at most once. Retries, duplicate signals,
+webhook redelivery, and concurrent callers all collapse to a single execution;
+every call after the first returns the original cached result instead of firing
+the action again.
 
-## State machine
-PENDING → COMMITTED → SKIP
+Optionally (per-deployment flag, see "Attestation gate" below), each /claim also
+verifies a signed AgentGraph safety attestation for the action type before the
+claim is allowed to commit. This is a real safety gate, not a badge: a critical/
+high safety finding blocks the commit with an HTTP 403, not just a log line.
+
+## Guarantee — state machine
+PENDING -> COMMITTED | SKIP
+
+- New key -> PROCEED. Caller executes the action, then calls /settle.
+- Same key while still PENDING -> PENDING. Another caller has this in-flight;
+  retry after SAFEAGENT_PENDING_TTL (default 300s).
+- Same key after /settle -> SKIP + the original cached result. The action is
+  never re-executed.
+- With the attestation gate active and require_attestation=true -> DENY
+  (HTTP 403, body: {"error":"safety_denied","reason":...,"action":...}) if the
+  AgentGraph verdict flags a critical/high finding, or if the attestation
+  cannot be reached at all. No COMMITTED write happens on DENY.
+- With require_attestation=false (default): an unreachable or missing
+  attestation does not block the claim — it SKIPs the safety check and
+  records the reason, it never silently passes as "verified."
+
+## Call flow
+1. POST /claim  {"request_id": str, "action": str}
+   -> {"status": "PROCEED"} | {"status": "SKIP", "existing": {...}} | {"status": "PENDING"}
+   x402-gated: $0.001 USDC on Base (eip155:8453). See /.well-known/x402.
+2. Execute your action only when status is PROCEED.
+3. POST /settle/{request_id}  {"result": {...}}  -> marks COMMITTED. Free, not
+   payment-gated.
+4. POST /claim/test  {"agent_id": str, "action_type": str, "scope": str}
+   -> same PROCEED/SKIP semantics, no payment, 10 calls per IP total, for
+   evaluation only. The attestation gate does not apply to this endpoint.
+5. GET /audit?agent_id=&action=&status=&from_ts=&to_ts=&limit=&offset=
+   -> filterable claim history, newest first. Free.
+6. POST /sweep -> resets stale PENDING rows back to claimable. Free.
+
+## Attestation gate (AgentGraph)
+- Config: SAFEAGENT_REQUIRE_ATTESTATION env var on the deployment (not a
+  per-call parameter you set). Default false.
+- Verifies an Ed25519/JWS-signed AgentGraph safety attestation against the
+  issuer JWKS, binds it to this specific claim (action_ref + binding_digest,
+  JCS/RFC 8785 + SHA-256 — replay against a different charge is rejected),
+  and requires admission.verdict == "admit".
+- Distinguishes an availability stop (attestation_unreachable) from a safety
+  stop (safety_denied on a critical/high finding) — different failure modes,
+  different responses.
+- Optional freshness check (freshness_ttl_seconds): a stale or expired verdict
+  is rejected the same as a missing one.
+- Source: safeagent_exec_guard/attestation_gate.py in this repo.
+
+## Discovery documents
+- OpenAPI schema: /openapi.json
+- MCP manifest: /.well-known/mcp.json (MCP endpoint at /mcp)
+- Agent card (A2A-style): /.well-known/agent.json
+- x402 resource descriptor: /.well-known/x402
+- SafeAgent-specific discovery doc (most complete, includes payloads/pricing
+  per endpoint): /.well-known/safeagent.json
+
+## Not part of this API
+/audit-service is a human-facing HTML page (a paid duplicate-execution audit
+product, $2,500 flat fee). It returns marketing HTML, not JSON. Ignore it for
+automated integration — it is not a capability of the exactly-once guard.
 
 ## Integration
 pip install safeagent-exec-guard
 npm install n8n-nodes-safeagent
+MCP Registry: io.github.azender1/safeagent
 
-## Dashboard
-https://safeagent-dashboard-2.vercel.app
+## Compliance
+Tamper-evident execution logs. Cited as relevant to EU AI Act Art. 12
+(enforcement deadline August 2, 2026) — not a legal compliance guarantee,
+an audit-trail primitive.
 
-## EU AI Act Art. 12
-SafeAgent provides tamper-evident execution logs for AI agent compliance.
+## Source
+https://github.com/azender1/SafeAgent (Apache-2.0)
