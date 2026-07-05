@@ -808,6 +808,13 @@ def create_app(
         ``{"status": "SKIP", "existing": {...}}`` — already COMMITTED; reuse the stored result.
         ``{"status": "PENDING"}`` — another caller has this in-flight; retry after the TTL.
 
+        If the AgentGraph safety-attestation gate is active on this deployment
+        (SAFEAGENT_REQUIRE_ATTESTATION=true), a critical/high safety finding or an
+        unreachable attestation returns HTTP 403 before any COMMITTED write:
+        ``{"error": "safety_denied", "reason": ..., "action": ...}``. With the flag
+        unset/false (default), an unreachable or missing attestation does not block
+        the claim — it is recorded as skipped, never a silent pass.
+
         Requires x402 payment when SAFEAGENT_PAYMENT_ADDRESS is set.
         """
         if body is None:
