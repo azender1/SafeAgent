@@ -1,0 +1,56 @@
+{
+  "name": "n8n-nodes-safeagent",
+  "version": "0.1.23",
+  "description": "n8n community node - SafeAgent execution guard (claim-before-execute idempotency pattern)",
+  "keywords": [
+    "n8n-community-node-package",
+    "safeagent",
+    "idempotency",
+    "execution-guard",
+    "ai-agent",
+    "exactly-once",
+    "duplicate-prevention",
+    "webhook-idempotency",
+    "agent-retry",
+    "claim-before-execute",
+    "workflow-guard"
+  ],
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/azender1/SafeAgent",
+  "author": "Anthony Zender",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/azender1/SafeAgent"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "format": "prettier nodes credentials --write",
+    "lint": "eslint nodes credentials package.json",
+    "lintfix": "eslint nodes credentials package.json --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "n8n": {
+    "n8nNodesApiVersion": 1,
+    "nodes": [
+      "dist/nodes/SafeAgent/SafeAgent.node.js"
+    ]
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.8",
+    "@types/node": "^18.16.0",
+    "n8n-workflow": "*",
+    "typescript": "^5.1.0"
+  },
+  "peerDependencies": {
+    "n8n-workflow": "*"
+  }
+}
