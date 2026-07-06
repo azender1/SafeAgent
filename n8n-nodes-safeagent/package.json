@@ -41,12 +41,8 @@
       "dist/nodes/SafeAgent/SafeAgent.node.js"
     ]
   },
-  "dependencies": {
-    "better-sqlite3": "^12.11.1"
-  },
   "devDependencies": {
     "@n8n/node-cli": "^0.23.0",
-    "@types/better-sqlite3": "^7.6.8",
     "@types/node": "^18.16.0",
     "n8n-workflow": "*",
     "typescript": "^5.1.0"
