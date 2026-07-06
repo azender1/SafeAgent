@@ -27,8 +27,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
-    "lint": "eslint nodes credentials package.json",
-    "lintfix": "eslint nodes credentials package.json --fix",
+    "lint": "n8n-node lint",
+    "lintfix": "n8n-node lint --fix",
     "prepublishOnly": "npm run build"
   },
   "files": [
