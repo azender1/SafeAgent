@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-safeagent",
-  "version": "0.1.23",
+  "version": "0.2.0",
   "description": "n8n community node - SafeAgent execution guard (claim-before-execute idempotency pattern)",
   "keywords": [
     "n8n-community-node-package",
@@ -27,8 +27,8 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "format": "prettier nodes credentials --write",
-    "lint": "eslint nodes credentials package.json",
-    "lintfix": "eslint nodes credentials package.json --fix",
+    "lint": "n8n-node lint",
+    "lintfix": "n8n-node lint --fix",
     "prepublishOnly": "npm run build"
   },
   "files": [
@@ -41,11 +41,8 @@
       "dist/nodes/SafeAgent/SafeAgent.node.js"
     ]
   },
-  "dependencies": {
-    "better-sqlite3": "^9.4.3"
-  },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.8",
+    "@n8n/node-cli": "^0.23.0",
     "@types/node": "^18.16.0",
     "n8n-workflow": "*",
     "typescript": "^5.1.0"

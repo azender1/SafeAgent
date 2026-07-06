@@ -1,0 +1,90 @@
+# Publishes the n8n-nodes-safeagent package (lives in n8n-nodes-safeagent/ in
+# this monorepo) to npm using a GitHub Actions provenance statement.
+#
+# n8n requires this for any node submitted for Creator Portal verification,
+# as of May 1, 2026 (docs.n8n.io/integrations/creating-nodes/deploy/submit-community-nodes/).
+# Provenance lets anyone cryptographically verify the package was built by
+# this exact workflow, from this exact repository and commit, via GitHub's
+# OIDC infrastructure.
+#
+# --- WHY A CUSTOM TAG PREFIX -----------------------------------------------
+# This repo already uses bare "v*.*.*" tags (v0.1.12, v0.1.13, ...) for the
+# unrelated PyPI package (safeagent-exec-guard). To avoid this workflow
+# firing on those tags, it only triggers on "n8n-nodes-safeagent-v*.*.*".
+#
+# --- ONE-TIME SETUP: npm Trusted Publisher ----------------------------------
+# 1. Log in to npmjs.com and open n8n-nodes-safeagent's package settings.
+# 2. Under Publish access -> Trusted Publishers, click "Add a publisher".
+# 3. Select GitHub Actions and fill in:
+#      Repository owner: azender1
+#      Repository name:  SafeAgent
+#      Workflow name:    publish.yml   (the filename, not the "name:" field below)
+# No NPM_TOKEN secret is required when using a Trusted Publisher - GitHub's
+# OIDC token is exchanged for a short-lived npm publish credential instead.
+# (To use a classic Granular Access Token instead, set NPM_TOKEN in this
+# repo's Actions secrets and it will be picked up automatically below.)
+#
+# --- RELEASE PROCESS ---------------------------------------------------------
+# 1. Bump "version" in n8n-nodes-safeagent/package.json and commit.
+# 2. git tag n8n-nodes-safeagent-v<new-version> && git push origin <tag>
+# 3. This workflow lints, builds, and publishes that version with provenance.
+
+name: Publish n8n-nodes-safeagent
+
+on:
+  push:
+    tags:
+      - 'n8n-nodes-safeagent-v*.*.*'
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: n8n-nodes-safeagent
+
+    permissions:
+      # Required to mint an OIDC token for npm provenance attestation /
+      # Trusted Publisher exchange.
+      id-token: write
+      # Scoped down from the default (write) for least-privilege publishing.
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Use an npm version that supports Trusted Publishing (>=11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        # Using npm install (not npm ci): no package-lock.json is committed for this
+        # package yet, so there is nothing for ci to validate against.
+        run: npm install
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#n8n-nodes-safeagent-v}"
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Publish with provenance
+        run: |
+          [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
+          npm publish --provenance --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

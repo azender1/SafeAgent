@@ -5,89 +5,42 @@ import {
   INodeTypeDescription,
   NodeOperationError,
 } from 'n8n-workflow';
-import Database from 'better-sqlite3';
-import * as path from 'path';
 
-// ---------------------------------------------------------------------------
-// Database helpers
-// ---------------------------------------------------------------------------
+// -----------------------------------------------------------------------------
+// This node talks HTTP-only to the SafeAgent API (POST /claim/test, POST
+// /settle/{request_id}). It intentionally only wires up the FREE test endpoint
+// (rate-limited to 10 calls per IP address, total) rather than the paid POST
+// /claim endpoint.
+//
+// Why: paid /claim is gated by genuine on-chain x402 - each call requires a
+// fresh EIP-3009-signed USDC payment authorization from an EVM wallet, not a
+// reusable API key. Bundling a signing library (viem/ethers) to do that inside
+// this package would add a real runtime dependency, which disqualifies a
+// community node from n8n Cloud verification (verified nodes must not have
+// any runtime dependencies) - the exact problem removing better-sqlite3 was
+// meant to solve. So paid, production usage is intentionally left to direct
+// HTTP/Python/MCP integration outside n8n; see https://github.com/azender1/SafeAgent.
+// -----------------------------------------------------------------------------
 
-const TABLE_DDL = `
-  CREATE TABLE IF NOT EXISTS execution_claims (
-    request_id TEXT NOT NULL,
-    action     TEXT NOT NULL,
-    status     TEXT NOT NULL DEFAULT 'OPEN',
-    created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-    PRIMARY KEY (request_id, action)
-  )
-`;
+const DEFAULT_BASE_URL = 'https://safeagent-production.up.railway.app';
 
-function openDb(dbPath: string): Database.Database {
-  const resolved = path.isAbsolute(dbPath)
-    ? dbPath
-    : path.resolve(process.cwd(), dbPath);
-  const db = new Database(resolved);
-  db.pragma('journal_mode = WAL');
-  db.exec(TABLE_DDL);
-  return db;
-}
-
-interface ClaimRow {
+interface ClaimTestResponse {
   status: string;
+  request_id: string;
+  test: boolean;
+  calls_remaining: number;
+  existing?: unknown;
 }
 
-// ---------------------------------------------------------------------------
-// claim()  — INSERT OR IGNORE; returns whether the row was newly inserted
-// ---------------------------------------------------------------------------
-
-function claim(
-  db: Database.Database,
-  requestId: string,
-  action: string,
-): { inserted: boolean; status: string } {
-  const insert = db.prepare<[string, string]>(
-    `INSERT OR IGNORE INTO execution_claims (request_id, action, status)
-     VALUES (?, ?, 'OPEN')`,
-  );
-  const result = insert.run(requestId, action);
-  const inserted = result.changes === 1;
-
-  if (inserted) {
-    return { inserted: true, status: 'OPEN' };
-  }
-
-  // Row already existed — fetch current status for the caller
-  const row = db
-    .prepare<[string, string], ClaimRow>(
-      `SELECT status FROM execution_claims WHERE request_id = ? AND action = ?`,
-    )
-    .get(requestId, action);
-
-  return { inserted: false, status: row?.status ?? 'UNKNOWN' };
+interface SettleResponse {
+  status: string;
+  request_id: string;
 }
 
-// ---------------------------------------------------------------------------
-// settle()  — mark SETTLED after the action completed successfully
-// ---------------------------------------------------------------------------
-
-function settle(
-  db: Database.Database,
-  requestId: string,
-  action: string,
-): { settled: boolean } {
-  const update = db.prepare<[string, string]>(
-    `UPDATE execution_claims
-     SET status = 'SETTLED', updated_at = unixepoch()
-     WHERE request_id = ? AND action = ?`,
-  );
-  const result = update.run(requestId, action);
-  return { settled: result.changes > 0 };
+interface HttpLikeError extends Error {
+  response?: { statusCode?: number };
+  statusCode?: number;
 }
-
-// ---------------------------------------------------------------------------
-// Node definition
-// ---------------------------------------------------------------------------
 
 export class SafeAgent implements INodeType {
   description: INodeTypeDescription = {
@@ -95,20 +48,22 @@ export class SafeAgent implements INodeType {
     name: 'safeAgent',
     icon: 'fa:shield-alt',
     group: ['transform'],
-    version: 1,
-    subtitle: '={{$parameter["operation"] + ": " + $parameter["action"]}}',
+    version: 2,
+    subtitle: '={{$parameter["operation"]}}',
     description:
-      'Exactly-once execution guard. Claims a (request_id, action) slot before running ' +
-      'a side-effectful action, then routes to Proceed (new) or Skip (duplicate). ' +
-      'Call Settle after the action completes to mark the slot as done.',
+      'Exactly-once execution guard backed by the free SafeAgent test API ' +
+      '(POST /claim/test - limited to 10 calls per IP address, total). Claims ' +
+      'an (Agent ID, Action Type, Scope) slot before running a side-effectful ' +
+      'action, then routes to Proceed (new) or Skip (duplicate). Call Settle ' +
+      'after the action completes to record the result. For unlimited, paid ' +
+      "production usage, call SafeAgent's POST /claim endpoint directly outside " +
+      'n8n (see github.com/azender1/SafeAgent) - this node only wires up the ' +
+      'free tier so the package has no payment/wallet runtime dependency.',
     defaults: { name: 'SafeAgent Guard' },
     inputs: ['main'],
-    // Two named outputs: index 0 = Proceed, index 1 = Skip.
-    // Settle always emits on index 0.
     outputs: ['main', 'main'],
     outputNames: ['Proceed', 'Skip'],
     properties: [
-      // ── Operation ────────────────────────────────────────────────────────
       {
         displayName: 'Operation',
         name: 'operation',
@@ -119,56 +74,81 @@ export class SafeAgent implements INodeType {
             name: 'Claim',
             value: 'claim',
             description:
-              'Atomically claim the (Request ID, Action) pair. ' +
-              'Routes to Proceed if new, Skip if already seen.',
+              'Atomically claim an (Agent ID, Action Type, Scope) slot via the free ' +
+              'test API. Routes to Proceed if new, Skip if already seen.',
+            action: 'Claim an execution slot',
           },
           {
             name: 'Settle',
             value: 'settle',
             description:
-              'Mark a previously claimed pair as SETTLED once the action has completed successfully.',
+              'Mark a previously claimed request as committed, with its result.',
+            action: 'Settle a claimed execution',
           },
         ],
         default: 'claim',
       },
-      // ── Request ID ───────────────────────────────────────────────────────
+      {
+        displayName: 'Base URL',
+        name: 'baseUrl',
+        type: 'string',
+        default: DEFAULT_BASE_URL,
+        description:
+          'SafeAgent API base URL. Override only if you are running a self-hosted instance.',
+      },
+      {
+        displayName: 'Agent ID',
+        name: 'agentId',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'my-agent',
+        description: 'Identifier for the agent or workflow performing the action.',
+        displayOptions: { show: { operation: ['claim'] } },
+      },
+      {
+        displayName: 'Action Type',
+        name: 'actionType',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'send_payment',
+        description: 'Short label for the side-effectful action being guarded.',
+        displayOptions: { show: { operation: ['claim'] } },
+      },
+      {
+        displayName: 'Scope',
+        name: 'scope',
+        type: 'string',
+        default: '',
+        required: true,
+        placeholder: 'customer:123',
+        description:
+          'Everything that makes this execution unique (e.g. customer ID, order ID, ' +
+          'timestamp/bar). Combined with Agent ID and Action Type server-side into a ' +
+          'content-addressed request ID.',
+        displayOptions: { show: { operation: ['claim'] } },
+      },
       {
         displayName: 'Request ID',
         name: 'requestId',
         type: 'string',
         default: '',
         required: true,
-        placeholder: '={{ $json["requestId"] }}',
-        description:
-          'Unique identifier for this logical request ' +
-          '(e.g. webhook event ID, message UUID, idempotency key).',
+        placeholder: '={{ $json["request_id"] }}',
+        description: 'The request_id returned by a previous Claim call.',
+        displayOptions: { show: { operation: ['settle'] } },
       },
-      // ── Action ───────────────────────────────────────────────────────────
       {
-        displayName: 'Action',
-        name: 'action',
-        type: 'string',
-        default: '',
-        required: true,
-        placeholder: 'send_email',
-        description:
-          'Short label for the side-effectful action being guarded ' +
-          '(e.g. "send_email", "charge_card", "place_trade").',
-      },
-      // ── Database path ────────────────────────────────────────────────────
-      {
-        displayName: 'Database Path',
-        name: 'dbPath',
-        type: 'string',
-        default: 'safeagent.db',
-        description:
-          'Path to the SQLite database file. ' +
-          'Relative paths are resolved from the n8n working directory.',
+        displayName: 'Result',
+        name: 'result',
+        type: 'json',
+        default: '{}',
+        description: 'Arbitrary JSON result to store against this claim once settled.',
+        displayOptions: { show: { operation: ['settle'] } },
       },
     ],
   };
-
-  // ── Execute ──────────────────────────────────────────────────────────────
 
   async execute(this: IExecuteFunctions): Promise<INodeExecutionData[][]> {
     const items = this.getInputData();
@@ -177,47 +157,116 @@ export class SafeAgent implements INodeType {
 
     for (let i = 0; i < items.length; i++) {
       const operation = this.getNodeParameter('operation', i) as string;
-      const requestId = (this.getNodeParameter('requestId', i) as string).trim();
-      const action = (this.getNodeParameter('action', i) as string).trim();
-      const dbPath = (this.getNodeParameter('dbPath', i) as string) || 'safeagent.db';
+      const rawBaseUrl = (this.getNodeParameter('baseUrl', i) as string) || DEFAULT_BASE_URL;
+      const baseUrl = rawBaseUrl.replace(/\/+$/, '');
 
-      if (!requestId) {
-        throw new NodeOperationError(this.getNode(), 'Request ID must not be empty.', {
-          itemIndex: i,
-        });
-      }
-      if (!action) {
-        throw new NodeOperationError(this.getNode(), 'Action must not be empty.', {
-          itemIndex: i,
-        });
-      }
-
-      const db = openDb(dbPath);
       try {
         if (operation === 'claim') {
-          const { inserted, status } = claim(db, requestId, action);
+          const agentId = (this.getNodeParameter('agentId', i) as string).trim();
+          const actionType = (this.getNodeParameter('actionType', i) as string).trim();
+          const scope = (this.getNodeParameter('scope', i) as string).trim();
+
+          if (!agentId) {
+            throw new NodeOperationError(this.getNode(), 'Agent ID must not be empty.', {
+              itemIndex: i,
+            });
+          }
+          if (!actionType) {
+            throw new NodeOperationError(this.getNode(), 'Action Type must not be empty.', {
+              itemIndex: i,
+            });
+          }
+          if (!scope) {
+            throw new NodeOperationError(this.getNode(), 'Scope must not be empty.', {
+              itemIndex: i,
+            });
+          }
+
+          const response = (await this.helpers.httpRequest({
+            method: 'POST',
+            url: baseUrl + '/claim/test',
+            body: { agent_id: agentId, action_type: actionType, scope },
+            json: true,
+          })) as ClaimTestResponse;
 
           const outItem: INodeExecutionData = {
-            json: { requestId, action, dbPath, inserted, status },
+            json: { ...response },
             pairedItem: { item: i },
           };
 
-          if (inserted) {
+          if (response.status === 'PROCEED') {
             proceedItems.push(outItem);
           } else {
             skipItems.push(outItem);
           }
         } else {
-          // settle
-          const { settled } = settle(db, requestId, action);
+          const requestId = (this.getNodeParameter('requestId', i) as string).trim();
+          const resultRaw = this.getNodeParameter('result', i) as string | object;
+
+          if (!requestId) {
+            throw new NodeOperationError(this.getNode(), 'Request ID must not be empty.', {
+              itemIndex: i,
+            });
+          }
+
+          let result: unknown = resultRaw;
+          if (typeof resultRaw === 'string') {
+            try {
+              result = resultRaw.trim() ? JSON.parse(resultRaw) : {};
+            } catch (parseError) {
+              throw new NodeOperationError(
+                this.getNode(),
+                'Result must be valid JSON: ' + (parseError as Error).message,
+                { itemIndex: i },
+              );
+            }
+          }
+
+          const response = (await this.helpers.httpRequest({
+            method: 'POST',
+            url: baseUrl + '/settle/' + encodeURIComponent(requestId),
+            body: { result },
+            json: true,
+          })) as SettleResponse;
 
           proceedItems.push({
-            json: { requestId, action, dbPath, settled, status: settled ? 'SETTLED' : 'NOT_FOUND' },
+            json: { ...response },
             pairedItem: { item: i },
           });
         }
-      } finally {
-        db.close();
+      } catch (error) {
+        if (error instanceof NodeOperationError) {
+          if (this.continueOnFail()) {
+            proceedItems.push({ json: { error: error.message }, pairedItem: { item: i } });
+            continue;
+          }
+          throw error;
+        }
+
+        const statusCode =
+          (error as HttpLikeError).response?.statusCode ?? (error as HttpLikeError).statusCode;
+
+        if (statusCode === 429) {
+          const friendly = new NodeOperationError(
+            this.getNode(),
+            'Free test quota exhausted: POST /claim/test is limited to 10 calls per IP ' +
+              'address, total. This node only supports the free test endpoint - for ' +
+              'unlimited production usage, call the paid POST /claim endpoint directly ' +
+              'outside n8n.',
+            { itemIndex: i },
+          );
+          if (this.continueOnFail()) {
+            proceedItems.push({ json: { error: friendly.message }, pairedItem: { item: i } });
+            continue;
+          }
+          throw friendly;
+        }
+
+        if (this.continueOnFail()) {
+          proceedItems.push({ json: { error: (error as Error).message }, pairedItem: { item: i } });
+          continue;
+        }
+        throw error;
       }
     }
 

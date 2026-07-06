@@ -399,7 +399,7 @@ def create_app(
             "pypi": "pip install safeagent-exec-guard",
             "audit_service": {
                 "url": "https://safeagent-production.up.railway.app/audit-service",
-                "description": "Paid duplicate execution audit — $2,500 flat fee. Written report identifying every place your agent system can fire twice.",
+                "description": "Paid duplicate execution audit — $499 flat fee. Written report identifying every place your agent system can fire twice.",
                 "contact": "azender1@yahoo.com"
             },
             "conformance": {
@@ -556,7 +556,7 @@ def create_app(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SafeAgent — Duplicate Execution Audit Service | EU AI Act Compliance</title>
-<meta name="description" content="AI agent duplicate execution audit. Written report identifying every place your agent can fire twice. EU AI Act Art. 12 readiness. $2,500 flat fee, 5 business days.">
+<meta name="description" content="AI agent duplicate execution audit. Written report identifying every place your agent can fire twice. EU AI Act Art. 12 readiness. $499 flat fee, 5 business days.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -576,7 +576,7 @@ def create_app(
   },
   "offers": {
     "@type": "Offer",
-    "price": "2500",
+    "price": "499",
     "priceCurrency": "USD",
     "description": "Flat fee. Written report. 5 business days."
   },
@@ -605,7 +605,7 @@ def create_app(
 <body>
 <h1>Duplicate Execution Audit</h1>
 <div class="tagline">Find every place your AI agent can fire twice before it costs you money.</div>
-<div class="price">$2,500 <span>flat fee &middot; written report &middot; 5 business days</span></div>
+<div class="price">$499 <span>flat fee &middot; written report &middot; 5 business days</span></div>
 <h2>What you get</h2>
 <ul>
   <li>Full review of your agent's retry paths and side-effect boundaries</li>
@@ -807,6 +807,13 @@ def create_app(
         ``{"status": "PROCEED"}``  — new claim; execute your action, then POST /settle/{request_id}.
         ``{"status": "SKIP", "existing": {...}}`` — already COMMITTED; reuse the stored result.
         ``{"status": "PENDING"}`` — another caller has this in-flight; retry after the TTL.
+
+        If the AgentGraph safety-attestation gate is active on this deployment
+        (SAFEAGENT_REQUIRE_ATTESTATION=true), a critical/high safety finding or an
+        unreachable attestation returns HTTP 403 before any COMMITTED write:
+        ``{"error": "safety_denied", "reason": ..., "action": ...}``. With the flag
+        unset/false (default), an unreachable or missing attestation does not block
+        the claim — it is recorded as skipped, never a silent pass.
 
         Requires x402 payment when SAFEAGENT_PAYMENT_ADDRESS is set.
         """

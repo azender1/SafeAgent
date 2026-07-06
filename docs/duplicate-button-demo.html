@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Button That Breaks Things — SafeAgent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0E11;
+    --panel: #12161A;
+    --ink: #E8ECEF;
+    --dim: #6B7580;
+    --chaos: #FF3B3B;
+    --chaos-dim: #4A1414;
+    --calm: #00D9A3;
+    --calm-dim: #0A3A2E;
+    --amber: #FFB020;
+    --border: #22282E;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { background: var(--bg); }
+
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'JetBrains Mono', monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 16px 64px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+
+  header {
+    text-align: center;
+    max-width: 640px;
+    margin-bottom: 28px;
+  }
+
+  h1 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(28px, 5vw, 44px);
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    margin-bottom: 10px;
+  }
+
+  h1 span { color: var(--amber); }
+
+  header p {
+    color: var(--dim);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .stage {
+    width: 100%;
+    max-width: 920px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .fire-button {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: clamp(16px, 3vw, 20px);
+    color: #0B0E11;
+    background: var(--amber);
+    border: none;
+    border-radius: 10px;
+    padding: 22px 40px;
+    cursor: pointer;
+    box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.5);
+    transition: transform 0.08s ease, box-shadow 0.2s ease;
+    letter-spacing: 0.01em;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .fire-button:hover { box-shadow: 0 0 24px 4px rgba(255, 176, 32, 0.35); }
+  .fire-button:active { transform: scale(0.96); }
+  .fire-button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
+
+  .hint {
+    color: var(--dim);
+    font-size: 12px;
+    margin-top: 10px;
+    margin-bottom: 30px;
+  }
+
+  .panels {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  @media (max-width: 680px) {
+    .panels { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    min-height: 340px;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
+  }
+
+  .panel-label {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .chaos .panel-label { color: var(--chaos); }
+  .calm .panel-label { color: var(--calm); }
+
+  .panel-sub {
+    color: var(--dim);
+    font-size: 11px;
+    margin-bottom: 16px;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .stat {
+    flex: 1;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+  }
+
+  .stat-num {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.1;
+  }
+
+  .chaos .stat-num { color: var(--chaos); }
+  .calm .stat-num { color: var(--calm); }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 2px;
+  }
+
+  .log {
+    flex: 1;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.7;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 3px;
+    padding-right: 4px;
+  }
+
+  .log::-webkit-scrollbar { width: 4px; }
+  .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-line { opacity: 0; animation: fadeIn 0.2s ease forwards; }
+  @keyframes fadeIn { to { opacity: 1; } }
+
+  .chaos .log-line.exec { color: var(--chaos); }
+  .calm .log-line.proceed { color: var(--calm); font-weight: 500; }
+  .calm .log-line.skip { color: var(--dim); }
+
+  .placeholder { color: var(--dim); font-size: 11px; opacity: 0.6; }
+
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0) rotate(0deg); }
+    25% { transform: translate(var(--sx), var(--sy)) rotate(var(--sr)); }
+    75% { transform: translate(calc(var(--sx) * -1), calc(var(--sy) * -1)) rotate(calc(var(--sr) * -1)); }
+  }
+
+  .panel.shaking {
+    animation: shake 0.28s ease;
+  }
+
+  .panel.flash {
+    border-color: var(--chaos);
+    box-shadow: 0 0 30px -6px rgba(255, 59, 59, 0.5);
+  }
+
+  .panel.pulse {
+    border-color: var(--calm);
+    box-shadow: 0 0 20px -6px rgba(0, 217, 163, 0.4);
+  }
+
+  footer {
+    max-width: 640px;
+    text-align: center;
+    margin-top: 44px;
+    color: var(--dim);
+    font-size: 12.5px;
+    line-height: 1.7;
+  }
+
+  footer a { color: var(--amber); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  .reset {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+  .reset:hover { border-color: var(--dim); color: var(--ink); }
+</style>
+</head>
+<body>
+
+<div style="max-width:640px;margin:1.5rem auto 0;padding:0 1rem;font-family:'JetBrains Mono',monospace;font-size:13px;color:#888;text-align:center;">
+  <a href="index.html" style="color:#888;text-decoration:underline;">← SafeAgent home</a> &nbsp;·&nbsp; <a href="demo.html" style="color:#888;text-decoration:underline;">more scenarios</a>
+</div>
+
+<header>
+  <h1>Mash the button.<br>One side <span>breaks</span>. One doesn't.</h1>
+  <p>This is the actual failure mode that duplicates payments, trades, and emails in production agents — every time a retry fires. Click as fast as you want.</p>
+</header>
+
+<div class="stage">
+  <button class="fire-button" id="fireBtn">🚀 BUY 100 SHARES — $4,500</button>
+  <div class="hint">real bots fire this exact call on every timeout retry</div>
+
+  <div class="panels">
+    <div class="panel chaos" id="chaosPanel">
+      <div class="panel-label">Without a guard</div>
+      <div class="panel-sub">every click submits a fresh order</div>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-num" id="chaosCount">0</div>
+          <div class="stat-label">orders fired</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="chaosTotal">$0</div>
+          <div class="stat-label">total charged</div>
+        </div>
+      </div>
+      <div class="log" id="chaosLog">
+        <div class="placeholder">waiting for input…</div>
+      </div>
+    </div>
+
+    <div class="panel calm" id="calmPanel">
+      <div class="panel-label">With SafeAgent</div>
+      <div class="panel-sub">claim → execute once → skip every repeat</div>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="stat-num" id="calmCharged">$0</div>
+          <div class="stat-label">charged (once)</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num" id="calmSaved">$0</div>
+          <div class="stat-label">blocked $ saved</div>
+        </div>
+      </div>
+      <div class="log" id="calmLog">
+        <div class="placeholder">waiting for input…</div>
+      </div>
+    </div>
+  </div>
+
+  <button class="reset" id="resetBtn">reset simulation</button>
+</div>
+
+<footer>
+  This is exactly what SafeAgent stops in production — a claim-before-execute guard, about 10 lines to add to any agent or workflow.<br>
+  MIT licensed → <a href="https://github.com/azender1/SafeAgent" target="_blank" rel="noopener">github.com/azender1/SafeAgent</a>
+</footer>
+
+<script>
+  const AMOUNT = 4500;
+  const chaosPanel = document.getElementById('chaosPanel');
+  const calmPanel = document.getElementById('calmPanel');
+  const chaosLog = document.getElementById('chaosLog');
+  const calmLog = document.getElementById('calmLog');
+  const chaosCountEl = document.getElementById('chaosCount');
+  const chaosTotalEl = document.getElementById('chaosTotal');
+  const calmChargedEl = document.getElementById('calmCharged');
+  const calmSavedEl = document.getElementById('calmSaved');
+  const fireBtn = document.getElementById('fireBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  let chaosCount = 0;
+  let calmClaimed = false;
+  let calmBlocked = 0;
+  let firstClick = true;
+
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function fmt(n) {
+    return '$' + n.toLocaleString('en-US');
+  }
+
+  function clearPlaceholder(log) {
+    const ph = log.querySelector('.placeholder');
+    if (ph) ph.remove();
+  }
+
+  function addLine(log, text, cls) {
+    clearPlaceholder(log);
+    const line = document.createElement('div');
+    line.className = 'log-line ' + (cls || '');
+    line.textContent = text;
+    log.prepend(line);
+    while (log.children.length > 40) log.removeChild(log.lastChild);
+  }
+
+  function shakeChaos(intensity) {
+    if (reducedMotion) return;
+    const mag = Math.min(2 + intensity * 0.6, 14);
+    chaosPanel.style.setProperty('--sx', mag + 'px');
+    chaosPanel.style.setProperty('--sy', (mag * 0.5) + 'px');
+    chaosPanel.style.setProperty('--sr', Math.min(0.4 + intensity * 0.15, 3) + 'deg');
+    chaosPanel.classList.remove('shaking');
+    void chaosPanel.offsetWidth;
+    chaosPanel.classList.add('shaking', 'flash');
+    clearTimeout(chaosPanel._t);
+    chaosPanel._t = setTimeout(() => chaosPanel.classList.remove('flash'), 260);
+  }
+
+  function pulseCalm() {
+    calmPanel.classList.add('pulse');
+    clearTimeout(calmPanel._t);
+    calmPanel._t = setTimeout(() => calmPanel.classList.remove('pulse'), 260);
+  }
+
+  function fire() {
+    // chaos side: always executes
+    chaosCount++;
+    chaosCountEl.textContent = chaosCount;
+    chaosTotalEl.textContent = fmt(chaosCount * AMOUNT);
+    const ts = new Date().toLocaleTimeString('en-US', { hour12: false });
+    addLine(chaosLog, `[${ts}] EXECUTED duplicate order #${chaosCount} — ${fmt(AMOUNT)} charged`, 'exec');
+    shakeChaos(chaosCount);
+
+    // calm side: exactly once
+    const ts2 = new Date().toLocaleTimeString('en-US', { hour12: false });
+    if (!calmClaimed) {
+      calmClaimed = true;
+      calmChargedEl.textContent = fmt(AMOUNT);
+      addLine(calmLog, `[${ts2}] PROCEED — order placed — ${fmt(AMOUNT)} charged`, 'proceed');
+      pulseCalm();
+    } else {
+      calmBlocked++;
+      calmSavedEl.textContent = fmt(calmBlocked * AMOUNT);
+      addLine(calmLog, `[${ts2}] SKIP — duplicate blocked ✓`, 'skip');
+    }
+
+    if (firstClick) {
+      firstClick = false;
+      fireBtn.textContent = '🚀 BUY 100 SHARES — $4,500 (spam it)';
+    }
+  }
+
+  function reset() {
+    chaosCount = 0;
+    calmClaimed = false;
+    calmBlocked = 0;
+    firstClick = true;
+    chaosCountEl.textContent = '0';
+    chaosTotalEl.textContent = '$0';
+    calmChargedEl.textContent = '$0';
+    calmSavedEl.textContent = '$0';
+    chaosLog.innerHTML = '<div class="placeholder">waiting for input…</div>';
+    calmLog.innerHTML = '<div class="placeholder">waiting for input…</div>';
+    fireBtn.textContent = '🚀 BUY 100 SHARES — $4,500';
+    chaosPanel.classList.remove('flash', 'shaking');
+    calmPanel.classList.remove('pulse');
+  }
+
+  fireBtn.addEventListener('click', fire);
+  resetBtn.addEventListener('click', reset);
+</script>
+
+</body>
+</html>
