@@ -58,14 +58,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
-          cache: 'npm'
-          cache-dependency-path: n8n-nodes-safeagent/package-lock.json
 
       - name: Use an npm version that supports Trusted Publishing (>=11.5.1)
         run: npm install -g npm@latest
 
       - name: Install dependencies
-        run: npm ci
+        # Using npm install (not npm ci): no package-lock.json is committed for this
+        # package yet, so there is nothing for ci to validate against.
+        run: npm install
 
       - name: Lint
         run: npm run lint
