@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-safeagent",
-  "version": "0.1.23",
+  "version": "0.2.0",
   "description": "n8n community node - SafeAgent execution guard (claim-before-execute idempotency pattern)",
   "keywords": [
     "n8n-community-node-package",
