@@ -8,6 +8,26 @@ Cited as a normative requirement in the A2A v0.4 RFC #1920 (https://github.com/a
 
 ---
 
+## Free tier only - please read
+
+This node talks HTTP to SafeAgent's hosted API and only calls the **free test endpoint**
+(`POST /claim/test`), which is rate-limited to 10 calls per IP address, total, with no
+payment required. It does not store anything locally (earlier versions used a local
+SQLite file - that has been removed).
+
+Why only the free tier: SafeAgent's paid, unlimited endpoint (`POST /claim`) is gated by
+genuine on-chain x402 payment - each call needs a fresh EIP-3009-signed USDC authorization
+from an EVM wallet, not a reusable API key. Bundling a wallet-signing library into this
+package to support that would add a real runtime dependency, and n8n's Cloud verification
+program does not allow verified community nodes to have any runtime dependencies. Keeping
+this node free-tier-only and dependency-free keeps it eligible for verification and safe to
+install.
+
+For unlimited, paid, production usage, call SafeAgent's `POST /claim` endpoint directly
+outside n8n - see the options under "Also available as" below.
+
+---
+
 ## Installation
 
 In your n8n instance go to Settings -> Community Nodes -> Install and enter:
@@ -24,12 +44,12 @@ npm install n8n-nodes-safeagent
 
 State machine: PENDING -> COMMITTED | SKIP
 
-Before any irreversible action - a Stripe charge, an outbound email, a trade, a webhook handler - the node claims a (Request ID, Action) pair in durable storage:
+Before any irreversible action - a Stripe charge, an outbound email, a trade, a webhook handler - the node claims an (Agent ID, Action Type, Scope) triple against SafeAgent's hosted API:
 
 PROCEED - New claim, first time seeing this key. Run your action, then call Settle.
-SKIP - Already COMMITTED, this action already ran. Return the cached result, do not re-execute.
+SKIP - Already seen (COMMITTED or still PENDING). If COMMITTED, the cached result comes back in `existing` - do not re-execute.
 
-If the workflow crashes between Claim and Settle, the claim stays PENDING. The next run with the same Request ID will safely re-attempt.
+If the workflow crashes between Claim and Settle, the claim stays PENDING. The next run with the same Agent ID / Action Type / Scope will safely re-attempt.
 
 ---
 
@@ -37,11 +57,11 @@ If the workflow crashes between Claim and Settle, the claim stays PENDING. The n
 
 ### Claim
 
-Atomically reserves a (Request ID, Action) pair before execution. Returns PROCEED on first call, SKIP on any repeat with the same key.
+Calls `POST /claim/test` with your Agent ID, Action Type, and Scope, which SafeAgent combines server-side into a content-addressed request ID. Returns PROCEED on first call, SKIP on any repeat with the same combination.
 
 ### Settle
 
-Marks a previously claimed pair as COMMITTED once the action has completed successfully. Call this at the end of your Proceed branch.
+Calls `POST /settle/{request_id}` to mark a previously claimed request as committed, with its result. Call this at the end of your Proceed branch. Not rate-limited.
 
 ---
 
@@ -50,34 +70,42 @@ Marks a previously claimed pair as COMMITTED once the action has completed succe
 Build a workflow with three nodes:
 
 [Manual Trigger] -> [SafeAgent Guard (Claim)] -> PROCEED -> [your action] -> [SafeAgent Guard (Settle)]
-                                              -> SKIP    -> [No Operation]
+-> SKIP -> [No Operation]
 
-1. Set Request ID to a fixed value, e.g. test-001.
-2. Set Action to a label, e.g. send_email.
-3. Execute the workflow - item exits PROCEED.
-4. Execute again with the same Request ID - item exits SKIP.
+1. Set Agent ID to a fixed value, e.g. my-agent.
+2. Set Action Type to a label, e.g. send_email.
+3. Set Scope to something unique per logical request, e.g. customer:123.
+4. Execute the workflow - item exits PROCEED.
+5. Execute again with the same Agent ID / Action Type / Scope - item exits SKIP.
 
 ---
 
 ## Node parameters
 
 Operation - claim or settle - default: claim
-Request ID - Unique idempotency key (e.g. webhook event ID, message UUID)
-Action - Short label for the action being guarded (e.g. send_email, payment.send)
-Database Path - Path to the local SQLite file (relative to n8n working directory) - default: safeagent.db
+Base URL - SafeAgent API base URL - default: https://safeagent-production.up.railway.app (override only for a self-hosted instance)
+
+Claim:
+Agent ID - identifier for the agent or workflow performing the action
+Action Type - short label for the action being guarded (e.g. send_email, payment.send)
+Scope - everything that makes this execution unique (e.g. customer ID, order ID, timestamp/bar)
+
+Settle:
+Request ID - the request_id returned by a previous Claim call
+Result - arbitrary JSON to store against this claim once settled
 
 ---
 
 ## Output fields
 
 Claim -> PROCEED:
-{ "requestId": "evt-abc123", "action": "send_email", "status": "PROCEED" }
+{ "status": "PROCEED", "request_id": "...", "test": true, "calls_remaining": 9 }
 
 Claim -> SKIP:
-{ "requestId": "evt-abc123", "action": "send_email", "status": "SKIP", "existing": {} }
+{ "status": "SKIP", "request_id": "...", "test": true, "calls_remaining": 8, "existing": {} }
 
 Settle:
-{ "requestId": "evt-abc123", "action": "send_email", "status": "COMMITTED" }
+{ "status": "committed", "request_id": "..." }
 
 ---
 
@@ -88,7 +116,9 @@ Webhook delivered twice (Stripe/GitHub/Twilio at-least-once) -> Event processed 
 Email node retried after transient error -> Duplicate email sent -> With SafeAgent: SKIP on second call
 AI agent tool call retried after crash -> Duplicate side effect -> With SafeAgent: SKIP on second call
 
-For webhook deduplication, use the provider event ID (e.g. Stripe event.id) as the Request ID - it is stable across retries.
+For webhook deduplication, use the provider event ID (e.g. Stripe event.id) as the Scope - it is stable across retries.
+
+Remember: this node's free tier is limited to 10 total calls per IP address. For real production volume, use one of the options below instead of this node.
 
 ---
 
