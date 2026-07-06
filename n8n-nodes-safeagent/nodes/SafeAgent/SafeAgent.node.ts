@@ -1,4 +1,5 @@
 import {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -29,7 +30,7 @@ interface ClaimTestResponse {
   request_id: string;
   test: boolean;
   calls_remaining: number;
-  existing?: unknown;
+  existing?: IDataObject;
 }
 
 interface SettleResponse {
