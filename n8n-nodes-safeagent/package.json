@@ -15,9 +15,11 @@
     "claim-before-execute",
     "workflow-guard"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://github.com/azender1/SafeAgent",
-  "author": "Anthony Zender",
+  "author": {
+    "name": "Anthony Zender"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/azender1/SafeAgent"
