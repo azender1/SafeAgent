@@ -1,6 +1,6 @@
 {
   "name": "n8n-nodes-safeagent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "n8n community node - SafeAgent execution guard (claim-before-execute idempotency pattern)",
   "keywords": [
     "n8n-community-node-package",
@@ -15,9 +15,12 @@
     "claim-before-execute",
     "workflow-guard"
   ],
-  "license": "Apache-2.0",
+  "license": "MIT",
   "homepage": "https://github.com/azender1/SafeAgent",
-  "author": "Anthony Zender",
+  "author": {
+    "name": "Anthony Zender",
+    "email": "azender1@yahoo.com"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/azender1/SafeAgent"
