@@ -1,4 +1,5 @@
 import {
+  IDataObject,
   IExecuteFunctions,
   INodeExecutionData,
   INodeType,
@@ -29,7 +30,7 @@ interface ClaimTestResponse {
   request_id: string;
   test: boolean;
   calls_remaining: number;
-  existing?: unknown;
+  existing?: IDataObject;
 }
 
 interface SettleResponse {
@@ -44,9 +45,10 @@ interface HttpLikeError extends Error {
 
 export class SafeAgent implements INodeType {
   description: INodeTypeDescription = {
+    usableAsTool: true,
     displayName: 'SafeAgent Execution Guard',
     name: 'safeAgent',
-    icon: 'fa:shield-alt',
+    icon: 'file:safeagent.svg',
     group: ['transform'],
     version: 2,
     subtitle: '={{$parameter["operation"]}}',
@@ -82,7 +84,7 @@ export class SafeAgent implements INodeType {
             name: 'Settle',
             value: 'settle',
             description:
-              'Mark a previously claimed request as committed, with its result.',
+              'Mark a previously claimed request as committed, with its result',
             action: 'Settle a claimed execution',
           },
         ],
@@ -103,7 +105,7 @@ export class SafeAgent implements INodeType {
         default: '',
         required: true,
         placeholder: 'my-agent',
-        description: 'Identifier for the agent or workflow performing the action.',
+        description: 'Identifier for the agent or workflow performing the action',
         displayOptions: { show: { operation: ['claim'] } },
       },
       {
@@ -113,7 +115,7 @@ export class SafeAgent implements INodeType {
         default: '',
         required: true,
         placeholder: 'send_payment',
-        description: 'Short label for the side-effectful action being guarded.',
+        description: 'Short label for the side-effectful action being guarded',
         displayOptions: { show: { operation: ['claim'] } },
       },
       {
@@ -136,7 +138,7 @@ export class SafeAgent implements INodeType {
         default: '',
         required: true,
         placeholder: '={{ $json["request_id"] }}',
-        description: 'The request_id returned by a previous Claim call.',
+        description: 'The request_id returned by a previous Claim call',
         displayOptions: { show: { operation: ['settle'] } },
       },
       {
@@ -144,7 +146,7 @@ export class SafeAgent implements INodeType {
         name: 'result',
         type: 'json',
         default: '{}',
-        description: 'Arbitrary JSON result to store against this claim once settled.',
+        description: 'Arbitrary JSON result to store against this claim once settled',
         displayOptions: { show: { operation: ['settle'] } },
       },
     ],
