@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Execution Integrity for Irreversible APIs â SafeAgent</title>
-<meta name="description" content="Retries are safe. Duplicate side effects aren't. SafeAgent makes any API call exactly-once, even when the network isn't â for payments, webhooks, and agent tool calls.">
+<title>Execution Integrity for Irreversible APIs — SafeAgent</title>
+<meta name="description" content="Retries are safe. Duplicate side effects aren't. SafeAgent makes any API call exactly-once, even when the network isn't — for payments, webhooks, and agent tool calls.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -418,25 +418,25 @@ margin: 0 auto;
 <li><a href="#demo">See it happen</a></li>
 <li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
 </ul>
-<a href="https://pypi.org/project/safeagent-exec-guard/" class="nav-cta">Install â</a>
+<a href="https://pypi.org/project/safeagent-exec-guard/" class="nav-cta">Install →</a>
 </nav>
 
 <!-- HERO -->
 <section class="hero">
 <div class="hero-badge">
-Same execution guard â one lens: any irreversible API call
+Same execution guard — one lens: any irreversible API call
 </div>
 
 <h1>Execution Integrity for <em>Irreversible APIs</em></h1>
 
 <p class="hero-sub">
-Retries are safe. Duplicate side effects aren't. <strong>SafeAgent makes any API call exactly-once, even when the network isn't.</strong> Payments, webhooks, agent tool calls â anywhere a retry can turn into a second real-world action.
+Retries are safe. Duplicate side effects aren't. <strong>SafeAgent makes any API call exactly-once, even when the network isn't.</strong> Payments, webhooks, agent tool calls — anywhere a retry can turn into a second real-world action.
 </p>
 
 <div class="hero-actions">
 <a href="https://pypi.org/project/safeagent-exec-guard/" class="btn-primary">Install from PyPI</a>
 <a href="https://github.com/azender1/SafeAgent" class="btn-ghost">View on GitHub</a>
-<a href="#demo" class="btn-ghost">See it happen â</a>
+<a href="#demo" class="btn-ghost">See it happen ↓</a>
 </div>
 
 <div class="install-strip">
@@ -452,7 +452,7 @@ Retries are safe. Duplicate side effects aren't. <strong>SafeAgent makes any API
 
 <!-- WHERE IT APPLIES -->
 <section class="section" id="platforms">
-<div class="section-label">01 â Where it applies</div>
+<div class="section-label">01 — Where it applies</div>
 <h2>Any API where "it happened" and "the response arrived" aren't the same fact.</h2>
 <p class="section-intro">
 The gap between an action firing and your code confirming it fired is where duplicates come from. These are the categories where that gap has a direct dollar or trust cost.
@@ -461,7 +461,7 @@ The gap between an action firing and your code confirming it fired is where dupl
 <div class="how-grid">
 <div class="how-card">
 <div class="how-title">Payments</div>
-<div class="how-desc">Stripe, Coinbase, Binance, and broker APIs (Alpaca, Interactive Brokers) all execute irreversible transfers of money. A retried charge, trade, or transfer isn't a UI glitch â it's a second real-world transaction.</div>
+<div class="how-desc">Stripe, Coinbase, Binance, and broker APIs (Alpaca, Interactive Brokers) all execute irreversible transfers of money. A retried charge, trade, or transfer isn't a UI glitch — it's a second real-world transaction.</div>
 <div class="framework-list">
 <div class="fw-tag">Stripe</div>
 <div class="fw-tag">Coinbase</div>
@@ -473,7 +473,7 @@ The gap between an action firing and your code confirming it fired is where dupl
 
 <div class="how-card">
 <div class="how-title">Webhooks</div>
-<div class="how-desc">Stripe, GitHub, and Twilio explicitly document at-least-once delivery â they will redeliver an event your endpoint doesn't cleanly acknowledge. Slack's Events API behaves the same way, retrying on anything but a fast 200. None of them guarantee exactly-once. That's the receiving side's job.</div>
+<div class="how-desc">Stripe, GitHub, and Twilio explicitly document at-least-once delivery — they will redeliver an event your endpoint doesn't cleanly acknowledge. Slack's Events API behaves the same way, retrying on anything but a fast 200. None of them guarantee exactly-once. That's the receiving side's job.</div>
 <div class="framework-list">
 <div class="fw-tag">Stripe</div>
 <div class="fw-tag">GitHub</div>
@@ -500,24 +500,24 @@ The gap between an action firing and your code confirming it fired is where dupl
 
 <!-- SEE IT HAPPEN -->
 <section class="section" id="demo">
-<div class="section-label">02 â See it happen</div>
+<div class="section-label">02 — See it happen</div>
 <h2>One button. Two outcomes.</h2>
 <p class="section-intro">
-This is the actual failure mode â mash the button and watch one side fire a duplicate order on every click while the other side blocks every repeat after the first. Full interactive demo, live below.
+This is the actual failure mode — mash the button and watch one side fire a duplicate order on every click while the other side blocks every repeat after the first. Full interactive demo, live below.
 </p>
 
 <div class="demo-frame-wrap">
 <iframe src="duplicate-button-demo.html" title="SafeAgent duplicate execution demo" loading="lazy"></iframe>
 </div>
-<a href="duplicate-button-demo.html" class="demo-open-link" target="_blank" rel="noopener">Open full demo in a new tab â</a>
+<a href="duplicate-button-demo.html" class="demo-open-link" target="_blank" rel="noopener">Open full demo in a new tab →</a>
 </section>
 
 <div class="divider"></div>
 
 <!-- PRODUCTION PROOF -->
 <section class="section">
-<div class="section-label">03 â Production proof</div>
-<h2>Live duplicate blocking â May 21, 2026.</h2>
+<div class="section-label">03 — Production proof</div>
+<h2>Live duplicate blocking — May 21, 2026.</h2>
 <p class="section-intro">
 Not a simulation. Six confirmed SKIP events from a live trading session on the full stack: DashClaw, SafeAgent, Mycelium Trails, Base/Arbitrum, broker Alpaca.
 </p>
@@ -525,23 +525,23 @@ Not a simulation. Six confirmed SKIP events from a live trading session on the f
 <div class="origin">
 <div class="origin-tag">Six duplicates blocked in one live session</div>
 <div class="event-log">
-<div><span class="ts">09:42 ET</span> â duplicate buy TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
-<div><span class="ts">09:47 ET</span> â duplicate add TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
-<div><span class="ts">09:49 ET</span> â duplicate sell TQQQ qty=12 on flip <span class="blocked">blocked</span>, $902</div>
-<div><span class="ts">10:00 ET</span> â duplicate entry TQQQ qty=6 <span class="blocked">blocked</span>, $454</div>
-<div><span class="ts">10:14 ET</span> â duplicate sell TQQQ qty=18 on V20 flip <span class="blocked">blocked</span>, $1,350</div>
-<div><span class="ts">11:06 ET</span> â duplicate SQQQ add during scale-in <span class="blocked">blocked</span>, $43</div>
+<div><span class="ts">09:42 ET</span> — duplicate buy TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
+<div><span class="ts">09:47 ET</span> — duplicate add TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
+<div><span class="ts">09:49 ET</span> — duplicate sell TQQQ qty=12 on flip <span class="blocked">blocked</span>, $902</div>
+<div><span class="ts">10:00 ET</span> — duplicate entry TQQQ qty=6 <span class="blocked">blocked</span>, $454</div>
+<div><span class="ts">10:14 ET</span> — duplicate sell TQQQ qty=18 on V20 flip <span class="blocked">blocked</span>, $1,350</div>
+<div><span class="ts">11:06 ET</span> — duplicate SQQQ add during scale-in <span class="blocked">blocked</span>, $43</div>
 </div>
 <div class="event-total">Sum of the six blocked events above: $3,653 in duplicate exposure prevented in a single session.</div>
 </div>
-<a href="https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26" class="gist-link" target="_blank" rel="noopener">Full session data â</a>
+<a href="https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26" class="gist-link" target="_blank" rel="noopener">Full session data →</a>
 </section>
 
 <div class="divider"></div>
 
 <!-- CTA -->
 <section class="section" style="padding-bottom: 2rem;">
-<div class="section-label">04 â Get started</div>
+<div class="section-label">04 — Get started</div>
 </section>
 
 <div class="cta-section" style="margin-left: 2rem; margin-right: 2rem;">
@@ -558,7 +558,7 @@ Not a simulation. Six confirmed SKIP events from a live trading session on the f
 <!-- FOOTER -->
 <footer>
 <div class="footer-left">
-Â© 2026 Zender Gaming Technologies LLC Â· SafeAgent Â· USPTO 63/914,036
+© 2026 Zender Gaming Technologies LLC · SafeAgent · USPTO 63/914,036
 </div>
 <ul class="footer-links">
 <li><a href="index.html">Home</a></li>
