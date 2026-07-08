@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Execution Integrity for Irreversible APIs â SafeAgent</title>
+<meta name="description" content="Retries are safe. Duplicate side effects aren't. SafeAgent makes any API call exactly-once, even when the network isn't â for payments, webhooks, and agent tool calls.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+--bg: #080808;
+--bg2: #0f0f0f;
+--bg3: #161616;
+--border: rgba(255,255,255,0.08);
+--border2: rgba(255,255,255,0.14);
+--text: #f0ede8;
+--muted: #888580;
+--accent: #e8ff47;
+--accent2: #47ffd4;
+--danger: #ff4747;
+--mono: 'IBM Plex Mono', monospace;
+--display: 'Syne', sans-serif;
+--body: 'Inter', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+background: var(--bg);
+color: var(--text);
+font-family: var(--body);
+font-size: 16px;
+line-height: 1.6;
+-webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* NAV */
+nav {
+position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+display: flex; align-items: center; justify-content: space-between;
+padding: 0 2rem; height: 56px;
+background: rgba(8,8,8,0.85);
+backdrop-filter: blur(12px);
+border-bottom: 0.5px solid var(--border);
+}
+
+.nav-logo {
+font-family: var(--mono);
+font-size: 13px;
+font-weight: 500;
+letter-spacing: 0.08em;
+color: var(--accent);
+}
+
+.nav-links {
+display: flex; gap: 2rem;
+font-size: 13px; color: var(--muted);
+list-style: none;
+}
+
+.nav-links a:hover { color: var(--text); }
+
+.nav-cta {
+font-family: var(--mono);
+font-size: 12px;
+padding: 6px 16px;
+border: 0.5px solid var(--accent);
+color: var(--accent);
+border-radius: 2px;
+transition: background 0.15s;
+}
+
+.nav-cta:hover { background: rgba(232,255,71,0.08); }
+
+/* HERO */
+.hero {
+min-height: 70vh;
+display: flex; flex-direction: column; justify-content: center;
+padding: 8rem 2rem 4rem;
+max-width: 1100px; margin: 0 auto;
+position: relative;
+}
+
+.hero-badge {
+display: inline-flex; align-items: center; gap: 8px;
+font-family: var(--mono); font-size: 11px;
+color: var(--accent2);
+border: 0.5px solid rgba(71,255,212,0.25);
+padding: 4px 12px; border-radius: 2px;
+margin-bottom: 2rem;
+width: fit-content;
+}
+
+.hero h1 {
+font-family: var(--display);
+font-size: clamp(2.4rem, 5.5vw, 4.2rem);
+font-weight: 800;
+line-height: 1.08;
+letter-spacing: -0.02em;
+margin-bottom: 1.5rem;
+max-width: 900px;
+}
+
+.hero h1 em {
+font-style: normal;
+color: var(--accent);
+}
+
+.hero-sub {
+font-size: 1.15rem;
+color: var(--muted);
+max-width: 620px;
+line-height: 1.65;
+margin-bottom: 2.5rem;
+}
+
+.hero-sub strong {
+color: var(--text);
+font-weight: 500;
+}
+
+.hero-actions {
+display: flex; gap: 1rem; flex-wrap: wrap;
+margin-bottom: 3.5rem;
+}
+
+.btn-primary {
+font-family: var(--mono);
+font-size: 13px;
+padding: 12px 24px;
+background: var(--accent);
+color: #080808;
+border: none; border-radius: 2px;
+cursor: pointer;
+font-weight: 500;
+transition: opacity 0.15s;
+}
+
+.btn-primary:hover { opacity: 0.88; }
+
+.btn-ghost {
+font-family: var(--mono);
+font-size: 13px;
+padding: 12px 24px;
+background: transparent;
+color: var(--muted);
+border: 0.5px solid var(--border2);
+border-radius: 2px;
+cursor: pointer;
+transition: color 0.15s, border-color 0.15s;
+}
+
+.btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.3); }
+
+/* INSTALL STRIP */
+.install-strip {
+display: flex; align-items: center; gap: 1rem;
+font-family: var(--mono); font-size: 13px;
+color: var(--muted);
+flex-wrap: wrap;
+}
+
+.install-cmd {
+background: var(--bg3);
+border: 0.5px solid var(--border);
+border-radius: 2px;
+padding: 8px 16px;
+color: var(--accent);
+display: flex; align-items: center; gap: 10px;
+}
+
+.install-meta {
+display: flex; gap: 1.5rem; font-size: 11px;
+}
+
+/* SECTION */
+.section {
+max-width: 1100px; margin: 0 auto;
+padding: 5rem 2rem;
+}
+
+.section-label {
+font-family: var(--mono);
+font-size: 11px;
+letter-spacing: 0.12em;
+color: var(--muted);
+text-transform: uppercase;
+margin-bottom: 1.5rem;
+}
+
+.section h2 {
+font-family: var(--display);
+font-size: clamp(1.8rem, 3.5vw, 2.6rem);
+font-weight: 700;
+line-height: 1.15;
+letter-spacing: -0.02em;
+margin-bottom: 1.5rem;
+}
+
+.section-intro {
+color: var(--muted);
+font-size: 14px;
+max-width: 680px;
+line-height: 1.7;
+margin-bottom: 2.5rem;
+}
+
+/* PLATFORM CARDS */
+.how-grid {
+display: grid;
+grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+gap: 1px;
+background: var(--border);
+border: 0.5px solid var(--border);
+border-radius: 4px;
+overflow: hidden;
+}
+
+.how-card {
+background: var(--bg2);
+padding: 2rem 1.75rem;
+}
+
+.how-title {
+font-family: var(--display);
+font-size: 1.1rem;
+font-weight: 700;
+color: var(--text);
+margin-bottom: 0.75rem;
+line-height: 1.2;
+}
+
+.how-desc {
+font-size: 13px;
+color: var(--muted);
+line-height: 1.65;
+margin-bottom: 1.25rem;
+}
+
+.framework-list {
+display: flex; flex-wrap: wrap; gap: 8px;
+}
+
+.fw-tag {
+font-family: var(--mono);
+font-size: 11px;
+padding: 4px 12px;
+border: 0.5px solid var(--border2);
+border-radius: 2px;
+color: var(--muted);
+}
+
+/* DEMO EMBED */
+.demo-frame-wrap {
+border: 0.5px solid var(--border);
+border-radius: 4px;
+overflow: hidden;
+background: #0B0E11;
+margin-top: 2rem;
+}
+
+.demo-frame-wrap iframe {
+width: 100%;
+height: 980px;
+border: 0;
+display: block;
+background: #0B0E11;
+}
+
+.demo-open-link {
+display: inline-block;
+margin-top: 1rem;
+font-family: var(--mono);
+font-size: 12px;
+color: var(--accent2);
+}
+
+.demo-open-link:hover { text-decoration: underline; }
+
+/* CASE STUDY */
+.origin {
+background: var(--bg2);
+border: 0.5px solid var(--border);
+border-left: 2px solid var(--danger);
+border-radius: 0 4px 4px 0;
+padding: 2rem 2.5rem;
+margin-top: 2.5rem;
+}
+
+.origin-tag {
+font-family: var(--mono);
+font-size: 10px;
+letter-spacing: 0.12em;
+color: var(--danger);
+text-transform: uppercase;
+margin-bottom: 1rem;
+}
+
+.origin p {
+font-size: 15px;
+color: var(--muted);
+line-height: 1.7;
+max-width: 720px;
+}
+
+.event-log {
+font-family: var(--mono);
+font-size: 13px;
+line-height: 2;
+color: var(--text);
+margin-top: 1.5rem;
+padding-top: 1.5rem;
+border-top: 0.5px solid var(--border);
+}
+
+.event-log .ts { color: var(--muted); }
+.event-log .blocked { color: var(--accent2); }
+
+.event-total {
+font-family: var(--mono);
+font-size: 13px;
+color: var(--accent);
+margin-top: 1.25rem;
+padding-top: 1.25rem;
+border-top: 0.5px solid var(--border);
+}
+
+.gist-link {
+display: inline-block;
+margin-top: 1.25rem;
+font-family: var(--mono);
+font-size: 11px;
+color: var(--muted);
+}
+
+.gist-link:hover { color: var(--text); }
+
+/* CTA */
+.cta-section {
+background: var(--bg2);
+border: 0.5px solid var(--border);
+border-top: 2px solid var(--accent);
+border-radius: 0 0 4px 4px;
+padding: 3.5rem 3rem;
+text-align: center;
+max-width: 1100px;
+margin: 0 auto 6rem;
+}
+
+.cta-section h2 {
+font-family: var(--display);
+font-size: clamp(1.5rem, 3vw, 2rem);
+font-weight: 700;
+margin-bottom: 1rem;
+}
+
+.cta-section p {
+color: var(--muted);
+font-size: 14px;
+max-width: 500px;
+margin: 0 auto 2rem;
+line-height: 1.65;
+}
+
+.cta-actions {
+display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+}
+
+/* FOOTER */
+footer {
+border-top: 0.5px solid var(--border);
+padding: 2rem;
+max-width: 1100px;
+margin: 0 auto;
+display: flex;
+justify-content: space-between;
+align-items: center;
+flex-wrap: wrap;
+gap: 1rem;
+}
+
+.footer-left {
+font-family: var(--mono);
+font-size: 11px;
+color: var(--muted);
+}
+
+.footer-links {
+display: flex; gap: 1.5rem;
+font-family: var(--mono);
+font-size: 11px;
+color: var(--muted);
+list-style: none;
+}
+
+.footer-links a:hover { color: var(--text); }
+
+.divider {
+height: 0.5px;
+background: var(--border);
+max-width: 1100px;
+margin: 0 auto;
+}
+</style>
+</head>
+<body>
+
+<nav>
+<div class="nav-logo"><a href="index.html">SAFEAGENT</a></div>
+<ul class="nav-links">
+<li><a href="index.html">Home</a></li>
+<li><a href="#platforms">Where it applies</a></li>
+<li><a href="#demo">See it happen</a></li>
+<li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+</ul>
+<a href="https://pypi.org/project/safeagent-exec-guard/" class="nav-cta">Install â</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+<div class="hero-badge">
+Same execution guard â one lens: any irreversible API call
+</div>
+
+<h1>Execution Integrity for <em>Irreversible APIs</em></h1>
+
+<p class="hero-sub">
+Retries are safe. Duplicate side effects aren't. <strong>SafeAgent makes any API call exactly-once, even when the network isn't.</strong> Payments, webhooks, agent tool calls â anywhere a retry can turn into a second real-world action.
+</p>
+
+<div class="hero-actions">
+<a href="https://pypi.org/project/safeagent-exec-guard/" class="btn-primary">Install from PyPI</a>
+<a href="https://github.com/azender1/SafeAgent" class="btn-ghost">View on GitHub</a>
+<a href="#demo" class="btn-ghost">See it happen â</a>
+</div>
+
+<div class="install-strip">
+<div class="install-cmd">pip install safeagent-exec-guard</div>
+<div class="install-meta">
+<span>Python 3.10+</span>
+<span>Apache-2.0</span>
+</div>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- WHERE IT APPLIES -->
+<section class="section" id="platforms">
+<div class="section-label">01 â Where it applies</div>
+<h2>Any API where "it happened" and "the response arrived" aren't the same fact.</h2>
+<p class="section-intro">
+The gap between an action firing and your code confirming it fired is where duplicates come from. These are the categories where that gap has a direct dollar or trust cost.
+</p>
+
+<div class="how-grid">
+<div class="how-card">
+<div class="how-title">Payments</div>
+<div class="how-desc">Stripe, Coinbase, Binance, and broker APIs (Alpaca, Interactive Brokers) all execute irreversible transfers of money. A retried charge, trade, or transfer isn't a UI glitch â it's a second real-world transaction.</div>
+<div class="framework-list">
+<div class="fw-tag">Stripe</div>
+<div class="fw-tag">Coinbase</div>
+<div class="fw-tag">Binance</div>
+<div class="fw-tag">Alpaca</div>
+<div class="fw-tag">Interactive Brokers</div>
+</div>
+</div>
+
+<div class="how-card">
+<div class="how-title">Webhooks</div>
+<div class="how-desc">Stripe, GitHub, and Twilio explicitly document at-least-once delivery â they will redeliver an event your endpoint doesn't cleanly acknowledge. Slack's Events API behaves the same way, retrying on anything but a fast 200. None of them guarantee exactly-once. That's the receiving side's job.</div>
+<div class="framework-list">
+<div class="fw-tag">Stripe</div>
+<div class="fw-tag">GitHub</div>
+<div class="fw-tag">Twilio</div>
+<div class="fw-tag">Slack</div>
+</div>
+</div>
+
+<div class="how-card">
+<div class="how-title">Agent tool calls</div>
+<div class="how-desc">OpenAI tool calls, Anthropic/Claude tool use, and any agent framework with side-effecting actions can be retried by the orchestration layer without knowing whether the underlying action already executed.</div>
+<div class="framework-list">
+<div class="fw-tag">OpenAI tools</div>
+<div class="fw-tag">Claude / MCP</div>
+<div class="fw-tag">LangChain</div>
+<div class="fw-tag">CrewAI</div>
+<div class="fw-tag">n8n</div>
+</div>
+</div>
+</div>
+</section>
+
+<div class="divider"></div>
+
+<!-- SEE IT HAPPEN -->
+<section class="section" id="demo">
+<div class="section-label">02 â See it happen</div>
+<h2>One button. Two outcomes.</h2>
+<p class="section-intro">
+This is the actual failure mode â mash the button and watch one side fire a duplicate order on every click while the other side blocks every repeat after the first. Full interactive demo, live below.
+</p>
+
+<div class="demo-frame-wrap">
+<iframe src="duplicate-button-demo.html" title="SafeAgent duplicate execution demo" loading="lazy"></iframe>
+</div>
+<a href="duplicate-button-demo.html" class="demo-open-link" target="_blank" rel="noopener">Open full demo in a new tab â</a>
+</section>
+
+<div class="divider"></div>
+
+<!-- PRODUCTION PROOF -->
+<section class="section">
+<div class="section-label">03 â Production proof</div>
+<h2>Live duplicate blocking â May 21, 2026.</h2>
+<p class="section-intro">
+Not a simulation. Six confirmed SKIP events from a live trading session on the full stack: DashClaw, SafeAgent, Mycelium Trails, Base/Arbitrum, broker Alpaca.
+</p>
+
+<div class="origin">
+<div class="origin-tag">Six duplicates blocked in one live session</div>
+<div class="event-log">
+<div><span class="ts">09:42 ET</span> â duplicate buy TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
+<div><span class="ts">09:47 ET</span> â duplicate add TQQQ qty=6 <span class="blocked">blocked</span>, $452</div>
+<div><span class="ts">09:49 ET</span> â duplicate sell TQQQ qty=12 on flip <span class="blocked">blocked</span>, $902</div>
+<div><span class="ts">10:00 ET</span> â duplicate entry TQQQ qty=6 <span class="blocked">blocked</span>, $454</div>
+<div><span class="ts">10:14 ET</span> â duplicate sell TQQQ qty=18 on V20 flip <span class="blocked">blocked</span>, $1,350</div>
+<div><span class="ts">11:06 ET</span> â duplicate SQQQ add during scale-in <span class="blocked">blocked</span>, $43</div>
+</div>
+<div class="event-total">Sum of the six blocked events above: $3,653 in duplicate exposure prevented in a single session.</div>
+</div>
+<a href="https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26" class="gist-link" target="_blank" rel="noopener">Full session data â</a>
+</section>
+
+<div class="divider"></div>
+
+<!-- CTA -->
+<section class="section" style="padding-bottom: 2rem;">
+<div class="section-label">04 â Get started</div>
+</section>
+
+<div class="cta-section" style="margin-left: 2rem; margin-right: 2rem;">
+<h2>Add the guard before the next retry fires.</h2>
+<p>MIT-licensed claim-before-execute guard. About 10 lines to add to any agent, workflow, or webhook handler.</p>
+<div class="cta-actions">
+<a href="https://github.com/azender1/SafeAgent" class="btn-primary">View on GitHub</a>
+</div>
+<div class="install-strip" style="justify-content: center; margin-top: 1.5rem;">
+<div class="install-cmd">pip install safeagent-exec-guard</div>
+</div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+<div class="footer-left">
+Â© 2026 Zender Gaming Technologies LLC Â· SafeAgent Â· USPTO 63/914,036
+</div>
+<ul class="footer-links">
+<li><a href="index.html">Home</a></li>
+<li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+<li><a href="https://pypi.org/project/safeagent-exec-guard/">PyPI</a></li>
+<li><a href="mailto:azender1@yahoo.com">Contact</a></li>
+</ul>
+</footer>
+
+</body>
+</html>
