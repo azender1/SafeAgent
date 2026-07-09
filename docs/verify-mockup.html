@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SafeAgent Verify — Idempotency Scan Report (Preview)</title>
+<meta name="description" content="Preview mockup of SafeAgent Verify, a planned scanner that tests any live API for duplicate-execution safety. Illustrative example report, not a real scan.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+--bg: #080808;
+--bg2: #0f0f0f;
+--bg3: #161616;
+--border: rgba(255,255,255,0.08);
+--border2: rgba(255,255,255,0.14);
+--text: #f0ede8;
+--muted: #888580;
+--accent: #e8ff47;
+--accent2: #47ffd4;
+--danger: #ff4747;
+--mono: 'IBM Plex Mono', monospace;
+--display: 'Syne', sans-serif;
+--body: 'Inter', sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+background: var(--bg);
+color: var(--text);
+font-family: var(--body);
+font-size: 16px;
+line-height: 1.6;
+-webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* NAV */
+nav {
+position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+display: flex; align-items: center; justify-content: space-between;
+padding: 0 2rem; height: 56px;
+background: rgba(8,8,8,0.85);
+backdrop-filter: blur(12px);
+border-bottom: 0.5px solid var(--border);
+}
+
+.nav-logo {
+font-family: var(--mono);
+font-size: 13px;
+font-weight: 500;
+letter-spacing: 0.08em;
+color: var(--accent);
+}
+
+.nav-links {
+display: flex; gap: 2rem;
+font-size: 13px; color: var(--muted);
+list-style: none;
+}
+
+.nav-links a:hover { color: var(--text); }
+
+.nav-cta {
+font-family: var(--mono);
+font-size: 12px;
+padding: 6px 16px;
+border: 0.5px solid var(--accent);
+color: var(--accent);
+border-radius: 2px;
+transition: background 0.15s;
+}
+
+.nav-cta:hover { background: rgba(232,255,71,0.08); }
+
+/* DISCLAIMER BANNER */
+.disclaimer {
+margin-top: 56px;
+padding: 10px 2rem;
+background: rgba(232,255,71,0.06);
+border-bottom: 0.5px solid rgba(232,255,71,0.2);
+text-align: center;
+font-family: var(--mono);
+font-size: 12px;
+color: var(--accent);
+}
+
+/* HEADER / SCAN META */
+.report-header {
+max-width: 1000px; margin: 0 auto;
+padding: 4rem 2rem 2.5rem;
+}
+
+.section-label {
+font-family: var(--mono);
+font-size: 11px;
+letter-spacing: 0.12em;
+color: var(--muted);
+text-transform: uppercase;
+margin-bottom: 1.5rem;
+}
+
+.report-header h1 {
+font-family: var(--display);
+font-size: clamp(2rem, 4.5vw, 3.2rem);
+font-weight: 800;
+line-height: 1.1;
+letter-spacing: -0.02em;
+margin-bottom: 1rem;
+}
+
+.report-header h1 em {
+font-style: normal;
+color: var(--accent);
+}
+
+.report-sub {
+color: var(--muted);
+font-size: 1.05rem;
+max-width: 640px;
+line-height: 1.65;
+}
+
+/* SCAN META CARD */
+.meta-card {
+max-width: 1000px; margin: 0 auto 3rem;
+padding: 0 2rem;
+}
+
+.meta-inner {
+background: var(--bg2);
+border: 0.5px solid var(--border);
+border-radius: 4px;
+padding: 2rem;
+display: grid;
+grid-template-columns: 1fr auto;
+gap: 2rem;
+align-items: center;
+}
+
+@media (max-width: 700px) {
+.meta-inner { grid-template-columns: 1fr; }
+}
+
+.meta-rows {
+display: flex; flex-direction: column; gap: 0.9rem;
+}
+
+.meta-row {
+display: flex; gap: 1rem; align-items: baseline;
+font-family: var(--mono); font-size: 13px;
+}
+
+.meta-key {
+color: var(--muted);
+min-width: 110px;
+}
+
+.meta-val {
+color: var(--text);
+}
+
+.meta-val.target { color: var(--accent2); }
+
+.score-block {
+display: flex; flex-direction: column; align-items: center;
+padding: 1.5rem 2.5rem;
+border: 0.5px solid var(--border2);
+border-radius: 4px;
+background: var(--bg3);
+}
+
+.score-number {
+font-family: var(--display);
+font-size: 3.2rem;
+font-weight: 800;
+line-height: 1;
+color: var(--danger);
+}
+
+.score-number span {
+font-size: 1.4rem;
+color: var(--muted);
+font-weight: 700;
+}
+
+.score-label {
+font-family: var(--mono);
+font-size: 11px;
+letter-spacing: 0.1em;
+text-transform: uppercase;
+color: var(--muted);
+margin-top: 0.6rem;
+}
+
+.score-risk {
+margin-top: 0.75rem;
+font-family: var(--mono);
+font-size: 11px;
+padding: 4px 12px;
+border-radius: 2px;
+background: rgba(255,71,71,0.1);
+border: 0.5px solid rgba(255,71,71,0.35);
+color: var(--danger);
+}
+
+/* SUMMARY STRIP */
+.summary-strip {
+max-width: 1000px; margin: 0 auto 3rem;
+padding: 0 2rem;
+display: flex; gap: 1px;
+background: var(--border);
+border: 0.5px solid var(--border);
+border-radius: 4px;
+overflow: hidden;
+}
+
+.summary-cell {
+flex: 1;
+background: var(--bg2);
+padding: 1.25rem 1.5rem;
+text-align: center;
+}
+
+.summary-num {
+font-family: var(--display);
+font-size: 1.8rem;
+font-weight: 800;
+}
+
+.summary-num.pass { color: var(--accent2); }
+.summary-num.fail { color: var(--danger); }
+.summary-num.neutral { color: var(--text); }
+
+.summary-cap {
+font-family: var(--mono);
+font-size: 10px;
+letter-spacing: 0.08em;
+text-transform: uppercase;
+color: var(--muted);
+margin-top: 0.4rem;
+}
+
+/* FINDINGS */
+.findings {
+max-width: 1000px; margin: 0 auto;
+padding: 0 2rem 5rem;
+}
+
+.findings h2 {
+font-family: var(--display);
+font-size: 1.5rem;
+font-weight: 700;
+margin-bottom: 1.75rem;
+}
+
+.finding {
+background: var(--bg2);
+border: 0.5px solid var(--border);
+border-left: 2px solid var(--border2);
+border-radius: 0 4px 4px 0;
+padding: 1.5rem 1.75rem;
+margin-bottom: 1rem;
+}
+
+.finding.fail { border-left-color: var(--danger); }
+.finding.pass { border-left-color: var(--accent2); }
+
+.finding-top {
+display: flex; align-items: center; gap: 0.75rem;
+margin-bottom: 0.6rem;
+flex-wrap: wrap;
+}
+
+.finding-icon {
+font-family: var(--mono);
+font-weight: 700;
+font-size: 15px;
+}
+
+.finding.fail .finding-icon { color: var(--danger); }
+.finding.pass .finding-icon { color: var(--accent2); }
+
+.finding-title {
+font-family: var(--mono);
+font-size: 14px;
+color: var(--text);
+font-weight: 500;
+}
+
+.finding-tag {
+font-family: var(--mono);
+font-size: 10px;
+letter-spacing: 0.08em;
+padding: 2px 8px;
+border-radius: 2px;
+margin-left: auto;
+}
+
+.finding.fail .finding-tag {
+color: var(--danger);
+background: rgba(255,71,71,0.1);
+border: 0.5px solid rgba(255,71,71,0.35);
+}
+
+.finding.pass .finding-tag {
+color: var(--accent2);
+background: rgba(71,255,212,0.08);
+border: 0.5px solid rgba(71,255,212,0.25);
+}
+
+.finding-desc {
+color: var(--muted);
+font-size: 13.5px;
+line-height: 1.65;
+max-width: 760px;
+}
+
+/* CTA */
+.cta-section {
+background: var(--bg2);
+border: 0.5px solid var(--border);
+border-top: 2px solid var(--accent);
+border-radius: 0 0 4px 4px;
+padding: 3rem;
+text-align: center;
+max-width: 1000px;
+margin: 0 auto 6rem;
+}
+
+.cta-section h2 {
+font-family: var(--display);
+font-size: clamp(1.4rem, 3vw, 1.9rem);
+font-weight: 700;
+margin-bottom: 1rem;
+}
+
+.cta-section p {
+color: var(--muted);
+font-size: 14px;
+mǅ�max-width: 520px;
+margin: 0 auto 1.75rem;
+line-height: 1.65;
+}
+
+.btn-primary {
+font-family: var(--mono);
+font-size: 13px;
+padding: 12px 24px;
+background: var(--accent);
+color: #080808;
+border: none; border-radius: 2px;
+cursor: pointer;
+font-weight: 500;
+transition: opacity 0.15s;
+display: inline-block;
+}
+
+.btn-primary:hover { opacity: 0.88; }
+
+/* FOOTER */
+footer {
+border-top: 0.5px solid var(--border);
+padding: 2rem;
+max-width: 1000px;
+margin: 0 auto;
+display: flex;
+justify-content: space-between;
+align-items: center;
+flex-wrap: wrap;
+gap: 1rem;
+}
+
+.footer-left {
+font-family: var(--mono);
+font-size: 11px;
+color: var(--muted);
+}
+
+.footer-links {
+display: flex; gap: 1.5rem;
+font-family: var(--mono);
+font-size: 11px;
+color: var(--muted);
+list-style: none;
+}
+
+.footer-links a:hover { color: var(--text); }
+
+.divider {
+height: 0.5px;
+background: var(--border);
+max-width: 1000px;
+margin: 0 auto 3rem;
+}
+</style>
+</head>
+<body>
+
+<nav>
+<div class="nav-logo"><a href="index.html">SAFEAGENT</a></div>
+<ul class="nav-links">
+<li><a href="index.html">Home</a></li>
+<li><a href="irreversible-apis.html">Irreversible APIs</a></li>
+<li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+</ul>
+<a href="https://github.com/azender1/SafeAgent" class="nav-cta">Star on GitHub</a>
+</nav>
+
+<div class="disclaimer">
+PREVIEW MOCKUP — this is a preview of a planned tool. The findings shown below are illustrative examples, not a real scan.
+</div>
+
+<!-- HEADER -->
+<div class="report-header">
+<div class="section-label">SafeAgent Verify — concept preview</div>
+<h1>What a duplicate-execution <em>scan report</em> would look like.</h1>
+<p class="report-sub">
+SafeAgent Verify is a planned scanner that would probe any live API endpoint for duplicate-execution safety — retry races, missing idempotency keys, webhook replay handling — and return a report like the one below. This page shows example output only. No scan has been run and no such tool exists yet.
+</p>
+</div>
+
+<!-- SCAN META -->
+<div class="meta-card">
+<div class="meta-inner">
+<div class="meta-rows">
+<div class="meta-row"><span class="meta-key">Target</span><span class="meta-val target">api.example.com</span></div>
+<div class="meta-row"><span class="meta-key">Scanned</span><span class="meta-val">2026-07-08 · 14:02 UTC</span></div>
+<div class="meta-row"><span class="meta-key">Endpoints probed</span><span class="meta-val">6 (POST /charge, POST /orders, DELETE /orders/:id, GET /orders/:id, POST /webhooks/stripe, POST /signup)</span></div>
+<div class="meta-row"><span class="meta-key">Scan type</span><span class="meta-val">Idempotency &amp; duplicate-execution probe (example)</span></div>
+</div>
+<div class="score-block">
+<div class="score-number">61<span>/100</span></div>
+<div class="score-label">Idempotency Score</div>
+<div class="score-risk">Elevated risk</div>
+</div>
+</div>
+</div>
+
+<!-- SUMMARY -->
+<div class="summary-strip">
+<div class="summary-cell">
+<div class="summary-num neutral">6</div>
+<div class="summary-cap">Checks run</div>
+</div>
+<div class="summary-cell">
+<div class="summary-num pass">3</div>
+<div class="summary-cap">Passed</div>
+</div>
+<div class="summary-cell">
+<div class="summary-num fail">3</div>
+<div class="summary-cap">Failed</div>
+</div>
+</div>
+
+<!-- FINDINGS -->
+<div class="findings">
+<h2>Findings</h2>
+
+<div class="finding fail">
+<div class="finding-top">
+<span class="finding-icon">✗</span>
+<span class="finding-title">Retry race: 2 concurrent identical requests produced 2 distinct side effects</span>
+<span class="finding-tag">FAIL</span>
+</div>
+<div class="finding-desc">
+Two identical <code>POST /orders</code> requests fired at the same instant both went through as separate orders instead of one being rejected or deduplicated. This is the classic double-submit failure — a slow network or a retrying client can silently double a charge or a trade with no error surfaced to the caller.
+</div>
+</div>
+
+<div class="finding pass">
+<div class="finding-top">
+<span class="finding-icon">✓</span>
+<span class="finding-title">Idempotency-Key header respected on POST /charge</span>
+<span class="finding-tag">PASS</span>
+</div>
+<div class="finding-desc">
+Sending the same <code>Idempotency-Key</code> value twice on <code>POST /charge</code> correctly returned the original response on the second call instead of creating a new charge. This is the standard pattern (as used by Stripe) and it's implemented correctly here.
+</div>
+</div>
+
+<div class="finding fail">
+<div class="finding-top">
+<span class="finding-icon">✗</span>
+<span class="finding-title">Timeout-then-retry produced a duplicate within 400ms window</span>
+<span class="finding-tag">FAIL</span>
+</div>
+<div class="finding-desc">
+Simulating a client that times out waiting for a response and retries the same request 400ms later resulted in the action executing twice. In production this is exactly the scenario that causes double-charges and double-sends when a network hiccup makes a client believe a request failed when it actually succeeded.
+</div>
+</div>
+
+<div class="finding pass">
+<div class="finding-top">
+<span class="finding-icon">✓</span>
+<span class="finding-title">GET/DELETE correctly idempotent</span>
+<span class="finding-tag">PASS</span>
+</div>
+<div class="finding-desc">
+Repeating <code>GET /orders/:id</code> and <code>DELETE /orders/:id</code> multiple times produced consistent, side-effect-free results as expected for these HTTP methods. No issues found here — this is the baseline behavior the spec requires.
+</div>
+</div>
+
+<div class="finding fail">
+<div class="finding-top">
+<span class="finding-icon">✗</span>
+<span class="finding-title">Webhook replay (same event ID redelivered) not deduplicated</span>
+<span class="finding-tag">FAIL</span>
+</div>
+<div class="finding-desc">
+Redelivering the same Stripe-style webhook event ID to <code>POST /webhooks/stripe</code> triggered the downstream handler a second time. Since providers like Stripe, GitHub, and Twilio all guarantee only at-least-once delivery, a webhook receiver that doesn't dedupe on event ID will double-process any event that gets redelivered.
+</div>
+</div>
+
+<div class="finding pass">
+<div class="finding-top">
+<span class="finding-icon">✓</span>
+<span class="finding-title">Error responses precede any side effect (fail-safe ordering)</span>
+<span class="finding-tag">PASS</span>
+</div>
+<div class="finding-desc">
+When a request was malformed or failed validation, the server rejected it before touching any downstream system — no partial writes or dangling side effects observed on the failure paths that were probed. Good defensive ordering.
+</div>
+</div>
+
+</div>
+
+<div class="divider"></div>
+
+<!-- CTA -->
+<div class="cta-section">
+<h2>Would a tool like this be useful to you?</h2>
+<p>This is a concept preview, not a live product. If a scanner like this — point it at your API, get a report like the one above — sounds useful, we'd like to hear from real developers before building it.</p>
+<a href="https://github.com/azender1/SafeAgent" class="btn-primary">Star the repo / open an issue to discuss →</a>
+</div>
+
+<!-- FOOTER -->
+<footer>
+<div class="footer-left">
+© 2026 Zender Gaming Technologies LLC · SafeAgent · USPTO 63/914,036
+</div>
+<ul class="footer-links">
+<li><a href="index.html">Home</a></li>
+<li><a href="https://github.com/azender1/SafeAgent">GitHub</a></li>
+<li><a href="https://pypi.org/project/safeagent-exec-guard/">PyPI</a></li>
+<li><a href="mailto:azender1@yahoo.com">Contact</a></li>
+</ul>
+</footer>
+
+</body>
+</html>
