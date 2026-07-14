@@ -8,5 +8,11 @@
     "protocol": "x402",
     "endpoint": "/claim",
     "price_usd": 0.001
+  },
+  "health_check": {
+    "endpoint": "/health",
+    "method": "GET",
+    "auth_required": false,
+    "note": "Use this endpoint for uptime/liveness monitoring. POST /claim is payment-gated (x402) and correctly returns 402 for any unauthenticated request, including monitoring probes - a 402 here is not downtime."
   }
 }

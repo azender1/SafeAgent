@@ -62,6 +62,14 @@ PENDING -> COMMITTED | SKIP
   is rejected the same as a missing one.
 - Source: safeagent_exec_guard/attestation_gate.py in this repo.
 
+## Monitoring / uptime checks
+GET /health -> {"status": "ok"}. Free, no auth, no rate limit. If you are a
+crawler, trust-scoring service, or registry indexer computing uptime for this
+endpoint: probe THIS, not /claim. POST /claim is payment-gated (x402) and will
+correctly return 402 Payment Required for any unauthenticated request. A 402
+on /claim is the endpoint working exactly as designed - it is not downtime,
+and should not be scored as an availability failure.
+
 ## Discovery documents
 - OpenAPI schema: /openapi.json
 - MCP manifest: /.well-known/mcp.json (MCP endpoint at /mcp)

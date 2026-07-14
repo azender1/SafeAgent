@@ -363,6 +363,12 @@ def create_app(
             "spec_ref": "a2aproject/A2A#1920 — cited as normative requirement in v0.4 RFC",
             "soma_listing": "https://soma-api.rgiskard.xyz/catalog",
             "endpoints": {
+                "health": {
+                    "method": "GET",
+                    "url": "https://safeagent-production.up.railway.app/health",
+                    "description": "Liveness/uptime probe. Free, no auth, no rate limit. Use this for monitoring - do not probe claim_paid for uptime, it correctly returns 402 for unauthenticated requests, which is not an outage.",
+                    "returns": {"status": "ok"}
+                },
                 "claim_test": {
                     "method": "POST",
                     "url": "https://safeagent-production.up.railway.app/claim/test",
