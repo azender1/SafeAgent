@@ -83,13 +83,11 @@ SafeAgent is the exactly-once enforcement layer in a formally specified agent ex
 Polaris (commit-gated authorization)
 └── AgentGraph safety verdict (pre-execution safety gate)
     └── SafeAgent (exactly-once execution guard)  ← you are here
-        └── Nobulex (signed bilateral receipt)
-            └── Mycelium Trails (on-chain anchor)
+        └── Mycelium Trails (on-chain anchor)
 ```
 
 Each layer is independently authored and independently verifiable. None trusts the others.
 
-**EU AI Act Art. 12** — enforcement deadline August 2, 2026. SafeAgent provides tamper-evident execution logs for agent compliance. The full stack satisfies "tamper-evident" independently of platform logs.
 
 ---
 
