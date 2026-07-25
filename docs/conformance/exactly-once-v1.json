@@ -1,5 +1,5 @@
 {
-  "fixture_version": "1.1",
+  "fixture_version": "1.2",
   "spec_ref": "argentum-core action-ref-v1.0 + a2aproject/A2A#1920",
   "preimage_format": "jcs-rfc8785-v1",
   "hash_algo": "sha256",
@@ -107,6 +107,7 @@
     "verifier_attestation_fixture": "https://github.com/haroldmalikfrimpong-ops/agentid/blob/main/tests/verifier_attestation_fixture.json",
     "action_ref_method": "argentum-core action-ref-v1",
     "action_ref_byte_identical": true,
+    "action_ref_byte_identical_note": "This asserts construction equivalence (both sides use SHA-256(JCS({agent_id, action_type, scope, timestamp})) per argentum-core action-ref-v1), confirmed by inspecting haroldmalikfrimpong-ops/agentid's fixture and spec directly. It is NOT a byte-for-byte match of a shared example value \u2014 each side's published example vector uses its own preimage, so the resulting digests differ, as expected. No single fixture file can verify this claim in isolation; doing so would require a shared preimage run through both implementations, which does not currently exist as an artifact. Flagged rather than silently assumed after a negative-test pass (a2aproject/A2A#1920) found this field had no verification code behind it.",
     "vectors": {
       "admit": {
         "verdict": "admit",
