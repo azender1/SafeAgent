@@ -21,7 +21,7 @@ import httpx
 
 _log = logging.getLogger(__name__)
 
-MYCELIUM_API_KEY = os.environ.get("MYCELIUM_API_KEY", "9d4cd6ce64ec43abb8a7db41b7f40c56")
+MYCELIUM_API_KEY = os.environ.get("MYCELIUM_API_KEY", "")
 MYCELIUM_AGENT_ID = os.environ.get("MYCELIUM_AGENT_ID", "safeagent-prod")
 MYCELIUM_ENABLED = os.environ.get("MYCELIUM_ENABLED", "1") == "1"
 
