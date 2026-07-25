@@ -246,6 +246,51 @@ def main():
         for b in blind_spots:
             print(f"  - {b}")
 
+    # ── Pin the residual escape as an exact set ───────────────────────────
+    # Per eriknewton (a2aproject/A2A#1920): a documented-but-unfixed escape
+    # should be pinned in CI as an exact set, so a NEW escape fails the build,
+    # and so does the pinned one quietly getting fixed without the label
+    # being updated. Either direction of drift must be caught here, not left
+    # to someone noticing the docs are stale.
+    PINNED_RESIDUAL_ESCAPES = {
+        "cross_impl.action_ref_byte_identical flag lied to true after breaking it",
+    }
+
+    print("\n" + "=" * 70)
+    print("PINNED CHECK: residual Battery B escapes must equal the documented set exactly")
+
+    exit_code = 0
+
+    if escaped:
+        print(f"\nFAIL — Battery A has {len(escaped)} escape(s). These are checks "
+              "verify_fixture.py claims to make; any escape here is a real "
+              "regression, not a documented limitation. Fix before merging.")
+        exit_code = 1
+
+    actual_blind_spots = set(blind_spots)
+    if actual_blind_spots != PINNED_RESIDUAL_ESCAPES:
+        new_escapes = actual_blind_spots - PINNED_RESIDUAL_ESCAPES
+        closed_escapes = PINNED_RESIDUAL_ESCAPES - actual_blind_spots
+        print("\nFAIL — Battery B blind spots drifted from the pinned set.")
+        if new_escapes:
+            print("  NEW, undocumented escape(s) — these need either a fix in "
+                  "verify_fixture.py or an explicit label + addition to "
+                  "PINNED_RESIDUAL_ESCAPES with a stated reason it can't be closed:")
+            for e in new_escapes:
+                print(f"    + {e}")
+        if closed_escapes:
+            print("  Previously-pinned escape(s) no longer reproduce — good news, "
+                  "but PINNED_RESIDUAL_ESCAPES and the fixture's *_note field(s) "
+                  "are now stale and must be updated to match reality:")
+            for e in closed_escapes:
+                print(f"    - {e}")
+        exit_code = 1
+    else:
+        print(f"\nPASS — Battery B blind spots match the pinned, documented set exactly "
+              f"({len(PINNED_RESIDUAL_ESCAPES)} residual escape(s), unchanged).")
+
+    sys.exit(exit_code)
+
 
 if __name__ == "__main__":
     main()
