@@ -34,6 +34,16 @@ curl -s -X POST https://safeagent-production.up.railway.app/claim/test \
 
 Indexed on [Bazaar](https://orbisapi.com/proxy/safeagent-execution-guard-bb0b02).
 
+## Measured CrewAI retry A/B
+
+A credential-free experiment exercises CrewAI 1.15.21's actual same-process \`ToolUsage._use\` retry against SafeAgent 0.1.23. Across 30 post-effect/pre-confirmation trials, the unguarded path recorded two effects per logical action; the SafeAgent path recorded one effect and retained a \`PENDING\` claim for reconciliation.
+
+**Scope:** scripted deterministic LLM and harmless effect recorded through an out-of-process capability-separated ledger. This does not validate process death, fresh-worker recovery, a real external provider, or SafeAgent Control reconciliation.
+
+[Method, source, tests, hashes, and 180-trial evidence](evidence/crewai-retry-ab-v3/README.md)
+
+---
+
 ---
 
 ## Mycelium Trails
