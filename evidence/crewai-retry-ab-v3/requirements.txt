@@ -1,0 +1,2 @@
+crewai==1.15.21
+safeagent-exec-guard==0.1.23
