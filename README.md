@@ -42,6 +42,12 @@ A credential-free experiment exercises CrewAI 1.15.21's actual same-process \`To
 
 [Method, source, tests, hashes, and 180-trial evidence](evidence/crewai-retry-ab-v3/README.md)
 
+## SafeAgent Control founding pilots
+
+Two bounded, read-only reconciliation pilots are open for outside operators. There is no fee unless SafeAgent Control identifies a previously unknown, reproducible discrepancy that the operator agrees is actionable.
+
+[Scope and outcome-based terms](https://github.com/azender1/SafeAgent/discussions/14)
+
 ---
 
 ---
