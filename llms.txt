@@ -5,13 +5,12 @@
 # Base URL: https://safeagent-production.up.railway.app
 
 ## Capability
-Exactly-once execution guard with an optional safety-attestation gate.
+Durable execution-claim guard with an optional safety-attestation gate.
 
-Given an idempotency key (request_id) plus an action type, SafeAgent ensures the
-side-effecting call it protects executes at most once. Retries, duplicate signals,
-webhook redelivery, and concurrent callers all collapse to a single execution;
-every call after the first returns the original cached result instead of firing
-the action again.
+Given a stable logical-action key (request_id) plus an action type, SafeAgent
+atomically admits one caller and blocks concurrent or repeated callers. A settled
+claim returns its stored result. An unresolved PENDING claim remains blocked;
+SafeAgent does not infer an external outcome from local state or elapsed time.
 
 Optionally (per-deployment flag, see "Attestation gate" below), each /claim also
 verifies a signed AgentGraph safety attestation for the action type before the
@@ -22,8 +21,8 @@ high safety finding blocks the commit with an HTTP 403, not just a log line.
 PENDING -> COMMITTED | SKIP
 
 - New key -> PROCEED. Caller executes the action, then calls /settle.
-- Same key while still PENDING -> PENDING. Another caller has this in-flight;
-  retry after SAFEAGENT_PENDING_TTL (default 300s).
+- Same key while still PENDING -> PENDING. The external outcome is unresolved.
+  Do not re-execute based on age; reconcile with provider records first.
 - Same key after /settle -> SKIP + the original cached result. The action is
   never re-executed.
 - With the attestation gate active and require_attestation=true -> DENY
@@ -46,7 +45,8 @@ PENDING -> COMMITTED | SKIP
    evaluation only. The attestation gate does not apply to this endpoint.
 5. GET /audit?agent_id=&action=&status=&from_ts=&to_ts=&limit=&offset=
    -> filterable claim history, newest first. Free.
-6. POST /sweep -> resets stale PENDING rows back to claimable. Free.
+6. POST /sweep -> reports stale PENDING rows and requires reconciliation; it
+   never resets them to claimable. Free.
 
 ## Attestation gate (AgentGraph)
 - Config: SAFEAGENT_REQUIRE_ATTESTATION env var on the deployment (not a

@@ -4,11 +4,11 @@ SafeAgent — Execution Guard for AI Agents
 Endpoints
 ---------
 GET  /                  Landing page
-POST /claim             x402-gated exactly-once claim → PROCEED / SKIP / PENDING
+POST /claim             x402-gated durable claim → PROCEED / SKIP / PENDING
 POST /claim/test        Free test claim (rate-limited: 10 calls per IP total)
 POST /settle/{id}       Commit a PENDING claim with its result (free)
 GET  /audit             Filterable claim history ($0.005 USDC via Orbis)
-POST /sweep             Reset stale PENDING rows (free)
+POST /sweep             Detect stale PENDING rows; never releases them (free)
 GET  /.well-known/x402  x402 discovery document
 GET  /health            Liveness probe (free)
 
@@ -149,7 +149,7 @@ def create_app(
     app = FastAPI(
         title="SafeAgent",
         version="0.1.0",
-        description="Execution Guard for AI Agents — exactly-once claim before execute.",
+        description="Execution Guard for AI Agents — durable claim before execute.",
     )
 
     # ------------------------------------------------------------------
@@ -342,8 +342,8 @@ def create_app(
             "schema_version": "v1",
             "name_for_human": "SafeAgent Execution Guard",
             "name_for_model": "safeagent",
-            "description_for_human": "Prevents duplicate payments, trades, emails and webhooks when AI agents retry. Claim before execute — PROCEED on first call, SKIP on retry.",
-            "description_for_model": "SafeAgent is an exactly-once execution guard for AI agents. Before any irreversible action (payment, email, trade, webhook), call POST /claim/test with agent_id, action_type, and scope. Returns PROCEED if this is a new action, or SKIP with the cached result if it already ran. This prevents duplicate side effects when agents retry after crashes or timeouts. Free test endpoint, no payment required. Cited as normative requirement in A2A v0.4 RFC #1920.",
+            "description_for_human": "Durably claim actions before execution: PROCEED when new, SKIP when settled, PENDING when the external outcome is unresolved.",
+            "description_for_model": "SafeAgent is a durable execution-claim guard for AI agents. Before an irreversible action, call POST /claim/test with a stable logical-action identity. PROCEED admits one caller; SKIP returns a settled result; PENDING is unresolved and must not be retried based on age. SafeAgent does not prove the external outcome without provider reconciliation.",
             "auth": {"type": "none"},
             "api": {
                 "type": "openapi",
@@ -359,7 +359,7 @@ def create_app(
         return {
             "name": "SafeAgent Execution Guard",
             "version": "0.1.21",
-            "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, trades, emails, and webhooks when agents retry after crashes or timeouts.",
+            "description": "Durable execution-claim guard for AI agents. Suppresses repeated logical actions and preserves unresolved outcomes for reconciliation.",
             "spec_ref": "a2aproject/A2A#1920 — cited as normative requirement in v0.4 RFC",
             "soma_listing": "https://soma-api.rgiskard.xyz/catalog",
             "endpoints": {
@@ -372,7 +372,7 @@ def create_app(
                 "claim_test": {
                     "method": "POST",
                     "url": "https://safeagent-production.up.railway.app/claim/test",
-                    "description": "Free exactly-once claim — no payment required. Returns PROCEED (new) or SKIP (duplicate).",
+                    "description": "Free durable claim — no payment required. Returns PROCEED, SKIP, or unresolved PENDING.",
                     "payload": {
                         "agent_id": "your-agent-id",
                         "action_type": "payment.send | email.send | trade.execute | webhook.process",
@@ -380,13 +380,14 @@ def create_app(
                     },
                     "returns": {
                         "PROCEED": "New claim — safe to execute your action",
-                        "SKIP": "Already ran — return cached result, do not re-execute"
+                        "SKIP": "Settled claim — return stored result, do not re-execute",
+                        "PENDING": "Unresolved claim — do not re-execute; reconcile externally"
                     }
                 },
                 "claim_paid": {
                     "method": "POST",
                     "url": "https://safeagent-production.up.railway.app/claim",
-                    "description": "x402-gated exactly-once claim. $0.001 USDC per call on Base.",
+                    "description": "x402-gated durable claim. $0.001 USDC per call on Base.",
                     "x402": True
                 },
                 "settle": {
@@ -476,13 +477,13 @@ def create_app(
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SafeAgent — Execution Guard for AI Agents</title>
-<meta name="description" content="Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry. BIP-340 signed receipts. EU AI Act Art. 12 compliant audit trail.">
+<meta name="description" content="Durable execution-claim guard for AI agents. Suppresses repeated logical actions and preserves unresolved outcomes for reconciliation.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "SafeAgent",
-  "description": "Exactly-once execution guard for AI agents. Prevents duplicate payments, emails, trades and webhooks when agents retry after crashes or timeouts.",
+  "description": "Durable execution-claim guard for AI agents with explicit unresolved-outcome handling.",
   "applicationCategory": "DeveloperApplication",
   "operatingSystem": "Any",
   "url": "https://safeagent-production.up.railway.app",
@@ -497,7 +498,7 @@ def create_app(
     "description": "Per claim via x402 micropayment"
   },
   "codeRepository": "https://github.com/azender1/SafeAgent",
-  "keywords": "AI agent, exactly-once execution, idempotency, duplicate prevention, EU AI Act, agent governance"
+  "keywords": "AI agent, execution claims, idempotency, duplicate suppression, reconciliation, agent governance"
 }
 </script>
 <style>
@@ -519,16 +520,16 @@ def create_app(
 </head>
 <body>
 <h1>SafeAgent</h1>
-<div class="tagline">Exactly-once execution guard for AI agents and SaaS applications.</div>
+<div class="tagline">Durable execution-claim guard for AI agents and SaaS applications.</div>
 <span class="badge">&#10003; Verified on Soma &mdash; First Integrator</span>
 <p style="font-size: 0.9rem; color: #555; margin: 8px 0 24px;">496 installs this month &middot; 520 GitHub clones &middot; Cited in Stripe, CrewAI, A2A, AutoGen threads &middot; Live audit trail on Postgres</p>
-<p>Prevents duplicate payments, emails, trades, and webhook processing when agents retry after a crash or timeout. Claim before you execute. Commit after. Every retry returns the same receipt.</p>
+<p>Suppresses repeated logical actions and keeps uncertain outcomes visibly PENDING. Claim before execution, settle after a receipt, and reconcile unresolved attempts with the external provider.</p>
 <h2>State machine</h2>
-<p><code>PENDING &rarr; COMMITTED | SKIP</code></p>
+<p><code>CLAIMABLE &rarr; PENDING &rarr; COMMITTED</code>; later claims observe <code>PENDING</code> or <code>SKIP</code>.</p>
 <h2>Endpoints</h2>
 <table>
   <tr><th>Method</th><th>Path</th><th>Description</th><th>Cost</th></tr>
-  <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED or SKIP</td><td>$0.001 USDC</td></tr>
+  <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED, SKIP, or PENDING</td><td>$0.001 USDC</td></tr>
   <tr><td>POST</td><td class="endpoint">/claim/test</td><td>Free test endpoint (10 calls/IP)</td><td>Free</td></tr>
   <tr><td>POST</td><td class="endpoint">/settle/{id}</td><td>Commit a PENDING claim</td><td>Free</td></tr>
   <tr><td>GET</td><td class="endpoint">/audit</td><td>Full claim history with filters</td><td>$0.005 USDC</td></tr>
@@ -808,11 +809,11 @@ def create_app(
         request: Request, background_tasks: BackgroundTasks, body: Optional[ClaimRequest] = None
     ) -> Dict[str, Any]:
         """
-        Two-phase exactly-once claim.
+        Two-phase durable execution claim.
 
         ``{"status": "PROCEED"}``  — new claim; execute your action, then POST /settle/{request_id}.
         ``{"status": "SKIP", "existing": {...}}`` — already COMMITTED; reuse the stored result.
-        ``{"status": "PENDING"}`` — another caller has this in-flight; retry after the TTL.
+        ``{"status": "PENDING"}`` — outcome unresolved; reconcile externally before retry.
 
         If the AgentGraph safety-attestation gate is active on this deployment
         (SAFEAGENT_REQUIRE_ATTESTATION=true), a critical/high safety finding or an
@@ -1219,10 +1220,16 @@ def create_app(
 
     @app.post("/sweep")
     async def sweep() -> Dict[str, Any]:
-        """Reset stale PENDING rows to CLAIMABLE. Not payment-gated."""
+        """Detect stale PENDING rows without making them claimable."""
         store: SQLiteExecutionStore = app.state.store
+        stale_pending = store.count_stale_pending()
         swept = store.sweep_stale_pending()
-        return {"swept": swept}
+        return {
+            "swept": swept,
+            "stale_pending": stale_pending,
+            "requires_reconciliation": stale_pending > 0,
+            "action": "none",
+        }
 
     @app.post("/sweep/anchor/upgrade")
     async def sweep_anchor_upgrade() -> Dict[str, Any]:

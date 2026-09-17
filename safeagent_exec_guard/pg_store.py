@@ -183,19 +183,24 @@ class PgExecutionStore:
 
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
-    def sweep_stale_pending(self) -> int:
+    def count_stale_pending(self) -> int:
+        """Count stale PENDING claims without changing their state."""
         cutoff = time.time() - self.pending_ttl_seconds
         with self._conn() as conn:
-            cur = conn.execute(
+            row = conn.execute(
                 """
-                DELETE FROM execution_requests
+                SELECT COUNT(*) AS count
+                FROM execution_requests
                 WHERE  status     = 'PENDING'
                   AND  claimed_at < %s
                 """,
                 (cutoff,),
-            )
-            conn.commit()
-            return cur.rowcount
+            ).fetchone()
+            return int(row["count"])
+
+    def sweep_stale_pending(self) -> int:
+        """Deprecated fail-closed compatibility method; modifies no rows."""
+        return 0
 
     def attach_governance(
         self,

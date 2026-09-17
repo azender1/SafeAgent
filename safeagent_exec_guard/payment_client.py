@@ -137,7 +137,7 @@ class PaymentClient:
 
     async def sweep(self) -> Dict[str, Any]:
         """
-        Call ``POST /sweep`` — resets stale PENDING rows to CLAIMABLE.
+        Call ``POST /sweep`` — reports stale PENDING rows without releasing them.
 
         No payment required.
         """

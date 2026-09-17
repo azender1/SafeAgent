@@ -306,7 +306,8 @@ class SettlementRequestRegistry:
                     payload=clean_payload,
                     timestamp_utc=self._now_utc(),
                 ).to_dict()
-            # PENDING: in-flight or a prior crash — caller should retry after TTL
+            # PENDING: in-flight or a prior crash. External outcome is unknown;
+            # keep it blocked until provider reconciliation supports recovery.
             return SafeExecuteReceipt(
                 ok=False,
                 reason="claim_pending",
@@ -367,19 +368,25 @@ class SettlementRequestRegistry:
             )
 
         # Phase 2: settle — PENDING → COMMITTED (called even on fn failure)
-        # A crash before this line leaves the row PENDING; the sweeper will reset it.
+        # A crash before this line leaves the row PENDING.  It remains blocked
+        # until external evidence supports an explicit recovery decision.
         self.sqlite.settle(request_id, receipt.to_dict())  # type: ignore[union-attr]
         return receipt.to_dict()
 
     def sweep_pending(self) -> int:
         """
-        Reset stale PENDING executions to CLAIMABLE.
+        Deprecated compatibility method. Stale PENDING executions stay blocked.
 
-        Delegates to the SQLiteExecutionStore when configured; returns 0
-        otherwise.  Intended to be called periodically (e.g. a cron job or
-        background thread) so that requests stranded by a crash can be
-        retried once their TTL expires.
+        Age is not evidence of the external outcome, so this method never
+        releases a request for re-execution. Reconcile against the provider
+        before taking an explicit recovery action.
         """
         if self.sqlite:
             return self.sqlite.sweep_stale_pending()
+        return 0
+
+    def stale_pending_count(self) -> int:
+        """Return unresolved stale PENDING executions without mutating them."""
+        if self.sqlite:
+            return self.sqlite.count_stale_pending()
         return 0

@@ -98,16 +98,18 @@ class TestSettle:
 # ---------------------------------------------------------------------------
 
 class TestSweeper:
-    def test_sweeper_removes_stale_pending(self):
+    def test_sweeper_detects_but_preserves_stale_pending(self):
         store = SQLiteExecutionStore(":memory:", pending_ttl_seconds=0.01)
         store.claim("stale", "action")
         time.sleep(0.05)
-        assert store.sweep_stale_pending() == 1
-        assert store.get("stale") is None
+        assert store.count_stale_pending() == 1
+        assert store.sweep_stale_pending() == 0
+        assert store.get("stale")["status"] == "PENDING"
 
     def test_sweeper_leaves_fresh_pending(self):
         store = _store(ttl=60.0)
         store.claim("fresh", "action")
+        assert store.count_stale_pending() == 0
         assert store.sweep_stale_pending() == 0
         assert store.get("fresh") is not None
 
@@ -116,23 +118,25 @@ class TestSweeper:
         store.claim("done", "action")
         store.settle("done", {"ok": True})
         time.sleep(0.05)
+        assert store.count_stale_pending() == 0
         assert store.sweep_stale_pending() == 0
         assert store.get("done")["status"] == "COMMITTED"
 
-    def test_swept_request_becomes_reclaimable(self):
+    def test_stale_request_remains_unclaimable(self):
         store = SQLiteExecutionStore(":memory:", pending_ttl_seconds=0.01)
         store.claim("retry", "action")
         time.sleep(0.05)
         store.sweep_stale_pending()
-        assert store.get("retry") is None
-        assert store.claim("retry", "action") is True
+        assert store.get("retry")["status"] == "PENDING"
+        assert store.claim("retry", "action") is False
 
-    def test_sweeper_returns_count(self):
+    def test_detector_returns_count(self):
         store = SQLiteExecutionStore(":memory:", pending_ttl_seconds=0.01)
         for i in range(3):
             store.claim(f"batch-{i}", "action")
         time.sleep(0.05)
-        assert store.sweep_stale_pending() == 3
+        assert store.count_stale_pending() == 3
+        assert store.sweep_stale_pending() == 0
 
     def test_configurable_ttl_respected(self):
         store = SQLiteExecutionStore(":memory:", pending_ttl_seconds=1000.0)
@@ -161,17 +165,18 @@ class TestCrashSafety:
         assert store.claim("dup", "action") is True
         assert store.claim("dup", "action") is False
 
-    def test_sweeper_clears_crash_residue_and_allows_retry(self):
+    def test_stale_crash_residue_fails_closed(self):
         store = SQLiteExecutionStore(":memory:", pending_ttl_seconds=0.01)
         store.claim("crashed", "action")
 
         # Crash: settle never called.  TTL expires.
         time.sleep(0.05)
         swept = store.sweep_stale_pending()
-        assert swept == 1
+        assert swept == 0
+        assert store.count_stale_pending() == 1
 
-        # Safe to re-claim and re-execute.
-        assert store.claim("crashed", "action") is True
+        # The external outcome is unknown, so time alone cannot authorize retry.
+        assert store.claim("crashed", "action") is False
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +270,9 @@ class TestRegistrySQLite:
         self.reg.sqlite.claim("manual-pending", "action")
         time.sleep(0.05)
         swept = self.reg.sweep_pending()
-        assert swept == 1
+        assert swept == 0
+        assert self.reg.stale_pending_count() == 1
+        assert self.reg.sqlite.claim("manual-pending", "action") is False
 
     def test_sweep_pending_no_sqlite_returns_zero(self):
         reg_no_sqlite = SettlementRequestRegistry()
@@ -288,7 +295,9 @@ class TestRegistrySQLite:
         reg = SettlementRequestRegistry(sqlite_path=":memory:", pending_ttl_seconds=0.01)
         reg.sqlite.claim("ttl-req", "action")
         time.sleep(0.05)
-        assert reg.sweep_pending() == 1
+        assert reg.stale_pending_count() == 1
+        assert reg.sweep_pending() == 0
+        assert reg.sqlite.claim("ttl-req", "action") is False
 
 
 # ---------------------------------------------------------------------------

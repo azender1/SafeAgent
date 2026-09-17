@@ -7,9 +7,8 @@ Status lifecycle
     -> PENDING   (row inserted; execution is in flight)
     -> COMMITTED (execution finished; result is persisted)
 
-A crash between claim and settle leaves the row PENDING.
-sweep_stale_pending() deletes PENDING rows older than pending_ttl_seconds,
-returning those request-IDs to CLAIMABLE so they can be retried.
+A crash between claim and settle leaves the row PENDING.  It stays PENDING:
+age alone cannot prove whether an external side effect occurred.
 """
 from __future__ import annotations
 
@@ -251,25 +250,26 @@ class SQLiteExecutionStore:
 
         return {"items": items, "total": total, "limit": limit, "offset": offset}
 
-    def sweep_stale_pending(self) -> int:
-        """
-        Delete PENDING rows whose ``claimed_at`` is older than
-        ``pending_ttl_seconds``.
-
-        Swept rows become CLAIMABLE again — a subsequent call may re-claim
-        and re-execute the same request_id.
-
-        Returns the count of rows deleted.
-        """
+    def count_stale_pending(self) -> int:
+        """Count stale PENDING claims without changing their state."""
         cutoff = time.time() - self.pending_ttl_seconds
         conn = self._connect()
-        cur = conn.execute(
+        row = conn.execute(
             """
-            DELETE FROM execution_requests
+            SELECT COUNT(*) AS count
+            FROM execution_requests
             WHERE  status     = 'PENDING'
               AND  claimed_at < ?
             """,
             (cutoff,),
-        )
-        conn.commit()
-        return cur.rowcount
+        ).fetchone()
+        return int(row["count"])
+
+    def sweep_stale_pending(self) -> int:
+        """Deprecated fail-closed compatibility method; modifies no rows.
+
+        Older releases deleted stale PENDING rows here.  That could permit an
+        externally accepted action to execute again after a timeout or crash.
+        Reconcile with the provider before an explicit recovery decision.
+        """
+        return 0

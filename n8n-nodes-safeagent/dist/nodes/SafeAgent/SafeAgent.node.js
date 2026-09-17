@@ -102,7 +102,7 @@ class SafeAgent {
             group: ['transform'],
             version: 1,
             subtitle: '={{$parameter["operation"] + ": " + $parameter["action"]}}',
-            description: 'Exactly-once execution guard. Claims a (request_id, action) slot before running ' +
+            description: 'Durable execution-claim guard. Claims a (request_id, action) slot before running ' +
                 'a side-effectful action, then routes to Proceed (new) or Skip (duplicate). ' +
                 'Call Settle after the action completes to mark the slot as done.',
             defaults: { name: 'SafeAgent Guard' },

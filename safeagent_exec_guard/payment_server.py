@@ -16,7 +16,7 @@ Endpoints
     POST /claim           Pay-gated two-phase claim → PROCEED / SKIP / PENDING
     POST /settle/{id}     Commit a PENDING claim with its result (free)
     GET  /audit           Filterable claim history (free)
-    POST /sweep           Reset stale PENDING rows (free)
+    POST /sweep           Detect stale PENDING rows; never releases them (free)
     GET  /health          Liveness probe (free)
 
 Environment variables
@@ -301,7 +301,7 @@ def create_app(
     # Routes
     # ------------------------------------------------------------------
 
-@app.get("/robots.txt", response_class=PlainTextResponse)
+    @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
         return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
 
@@ -336,15 +336,15 @@ def create_app(
 </head>
 <body>
 <h1>SafeAgent</h1>
-<div class="tagline">Exactly-once execution guard for AI agents and SaaS applications.</div>
+<div class="tagline">Durable execution-claim guard for AI agents and SaaS applications.</div>
 <span class="badge">&#10003; Verified on Soma &mdash; First Integrator</span>
-<p>Prevents duplicate payments, emails, trades, and webhook processing when agents retry after a crash or timeout. Claim before you execute. Commit after. Every retry returns the same receipt.</p>
+<p>Suppresses repeated logical actions and preserves uncertain outcomes as PENDING until they can be reconciled with the external provider.</p>
 <h2>State machine</h2>
-<p><code>PENDING &rarr; COMMITTED | SKIP</code></p>
+<p><code>CLAIMABLE &rarr; PENDING &rarr; COMMITTED</code>; later claims observe <code>PENDING</code> or <code>SKIP</code>.</p>
 <h2>Endpoints</h2>
 <table>
   <tr><th>Method</th><th>Path</th><th>Description</th><th>Cost</th></tr>
-  <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED or SKIP</td><td>$0.001 USDC</td></tr>
+  <tr><td>POST</td><td class="endpoint">/claim</td><td>Gate an action &mdash; returns PROCEED, SKIP, or PENDING</td><td>$0.001 USDC</td></tr>
   <tr><td>POST</td><td class="endpoint">/claim/test</td><td>Free test endpoint (10 calls/IP)</td><td>Free</td></tr>
   <tr><td>POST</td><td class="endpoint">/settle/{id}</td><td>Commit a PENDING claim</td><td>Free</td></tr>
   <tr><td>GET</td><td class="endpoint">/audit</td><td>Full claim history with filters</td><td>Free</td></tr>
@@ -456,8 +456,8 @@ def create_app(
         ``{"status": "SKIP", "existing": {...}}`` — already COMMITTED;
         caller should reuse the stored result.
 
-        ``{"status": "PENDING"}`` — another caller has this in-flight;
-        retry after the pending TTL expires and the sweeper resets it.
+        ``{"status": "PENDING"}`` — outcome unresolved; do not re-execute
+        based on age. Reconcile against the external provider first.
 
         Requires x402 payment when the server is started with
         ``SAFEAGENT_PAYMENT_ADDRESS`` set.  The payer's EVM wallet address
@@ -568,10 +568,16 @@ def create_app(
 
     @app.post("/sweep")
     async def sweep() -> Dict[str, Any]:
-        """Reset stale PENDING rows to CLAIMABLE.  Not payment-gated."""
+        """Detect stale PENDING rows without making them claimable."""
         store: SQLiteExecutionStore = app.state.store
+        stale_pending = store.count_stale_pending()
         swept = store.sweep_stale_pending()
-        return {"swept": swept}
+        return {
+            "swept": swept,
+            "stale_pending": stale_pending,
+            "requires_reconciliation": stale_pending > 0,
+            "action": "none",
+        }
 
     return app
 

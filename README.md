@@ -1,6 +1,5 @@
 # SafeAgent — Execution Guard for AI Agents
 [![Mycelium Provider](https://img.shields.io/badge/Mycelium-Provider-4a90e2)](https://github.com/giskard09/argentum-core/blob/main/docs/mycelium-provider-protocol.md)
-![SafeAgent — Exactly-Once Execution for AI Agents](assets/HERO%20IMAGE2%20JUN%2017%2C%202026%2C%2010_41_10%20PM.png)
 <!-- mcp-name: io.github.azender1/safeagent -->
 
 `POST /claim` · [safeagent-production.up.railway.app](https://safeagent-production.up.railway.app)  
@@ -73,32 +72,34 @@ SafeAgent is the first verified external integrator on [Soma](https://soma-api.r
 
 ## What it does
 
-SafeAgent is an exactly-once execution guard. It prevents AI agents and SaaS applications from firing the same action twice — on crash-retry, duplicate signal, webhook replay, or concurrent execution across multiple instances.
+SafeAgent is a durable execution-claim guard. It suppresses concurrent and repeated attempts that use the same stable `request_id`, and preserves unresolved attempts for reconciliation instead of silently retrying them.
 
-Every action gets a stable `request_id` derived from what the agent is doing and when. The first call commits. Every subsequent call with the same key returns `SKIP` and the original result. No double charges. No double emails. No double orders. No duplicate webhooks.
+Every action gets a stable `request_id` derived from the logical action. A new key returns `PROCEED`; a settled key returns `SKIP` with its stored result. A key left `PENDING` after a timeout or crash remains blocked because local state alone cannot prove whether the provider accepted the action. Recover it only after checking provider evidence or using provider-native idempotency.
 
-**State machine:** `PENDING → COMMITTED | SKIP`
+**State machine:** `CLAIMABLE → PENDING → COMMITTED`; later claims observe `PENDING` or `SKIP`.
 
 **Common failure modes SafeAgent prevents:**
 
 | Scenario | Without SafeAgent | With SafeAgent |
 |---|---|---|
-| Stripe charge times out, retry fires | Customer charged twice | Second charge returns SKIP |
+| Stripe charge times out after acceptance | Retry may charge twice | Same key remains PENDING until provider reconciliation |
 | Welcome email on signup retried | User gets two welcome emails | Second send returns SKIP |
 | Webhook delivered twice (Stripe/GitHub/Twilio guarantee at-least-once) | Event processed twice | Second processing returns SKIP |
 | Workspace provisioned on retry | Two workspaces created | Second provision returns SKIP |
-| AI agent tool call retried after crash | Duplicate side effect | Second call returns SKIP |
+| AI agent tool call retried after crash | Duplicate side effect | Same key stays blocked; outcome is explicitly unresolved |
+
+> **Guarantee boundary:** SafeAgent proves local claim state, not the external outcome. `COMMITTED` means the caller settled a receipt. `PENDING` means unresolved—not failed and not confirmed successful. End-to-end exactly-once effects require provider-native idempotency and/or reconciliation with the provider's authoritative records.
 
 ---
 
 ## The stack
 
-SafeAgent is the exactly-once enforcement layer in a formally specified agent execution integrity stack:
+SafeAgent is the durable claim and duplicate-suppression layer in an agent execution integrity stack:
 
 ```
 Polaris (commit-gated authorization)
 └── AgentGraph safety verdict (pre-execution safety gate)
-    └── SafeAgent (exactly-once execution guard)  ← you are here
+    └── SafeAgent (durable claim guard)  ← you are here
         └── Mycelium Trails (on-chain anchor)
 ```
 
@@ -236,7 +237,7 @@ def safe_stripe_charge(customer_id, amount, idempotency_key):
     return charge
 ```
 
-**Webhook deduplication** — Stripe, GitHub, and Twilio all guarantee at-least-once delivery. SafeAgent turns at-least-once into exactly-once:
+**Webhook deduplication** — stable event IDs suppress repeated processing after a settled result; unresolved PENDING events stay blocked for investigation:
 
 ```python
 def handle_stripe_webhook(event):
@@ -369,7 +370,7 @@ SafeAgent participates in the A2A cross-implementation conformance corpus. Byte-
 - kenneives (agentgraph) — verifier-attestation-v0: 30/30 ✓
 - evidai (LemonCake) — gated-preflight-v1: 33/33 ✓
 - haroldmalikfrimpong-ops (agentid) — independent verifier ✓
-- SafeAgent — exactly-once-v1.1 ✓
+- SafeAgent — claim-lifecycle conformance v1.1 ✓
 
 A2A #1920 closed. All four implementations satisfy freshness and replay requirements.
 

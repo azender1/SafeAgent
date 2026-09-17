@@ -53,11 +53,12 @@ export class SafeAgent implements INodeType {
     version: 2,
     subtitle: '={{$parameter["operation"]}}',
     description:
-      'Exactly-once execution guard backed by the free SafeAgent test API ' +
+      'Durable execution-claim guard backed by the free SafeAgent test API ' +
       '(POST /claim/test - limited to 10 calls per IP address, total). Claims ' +
       'an (Agent ID, Action Type, Scope) slot before running a side-effectful ' +
       'action, then routes to Proceed (new) or Skip (duplicate). Call Settle ' +
-      'after the action completes to record the result. For unlimited, paid ' +
+      'after the action completes to record the result. PENDING means the ' +
+      'external outcome is unresolved and requires reconciliation. For unlimited, paid ' +
       "production usage, call SafeAgent's POST /claim endpoint directly outside " +
       'n8n (see github.com/azender1/SafeAgent) - this node only wires up the ' +
       'free tier so the package has no payment/wallet runtime dependency.',

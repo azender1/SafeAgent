@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Execution Integrity for Irreversible APIs — SafeAgent</title>
-<meta name="description" content="Retries are safe. Duplicate side effects aren't. SafeAgent makes any API call exactly-once, even when the network isn't — for payments, webhooks, and agent tool calls.">
+<meta name="description" content="Retries are ambiguous. SafeAgent durably claims logical actions, suppresses repeats, and keeps uncertain outcomes visible for reconciliation.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;700;800&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -430,7 +430,7 @@ Same execution guard — one lens: any irreversible API call
 <h1>Execution Integrity for <em>Irreversible APIs</em></h1>
 
 <p class="hero-sub">
-Retries are safe. Duplicate side effects aren't. <strong>SafeAgent makes any API call exactly-once, even when the network isn't.</strong> Payments, webhooks, agent tool calls — anywhere a retry can turn into a second real-world action.
+Retries are ambiguous. Duplicate side effects aren't. <strong>SafeAgent durably claims a logical action and keeps uncertain outcomes blocked until they are reconciled.</strong> Payments, webhooks, and agent tool calls still require provider evidence for end-to-end outcome certainty.
 </p>
 
 <div class="hero-actions">

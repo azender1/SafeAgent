@@ -145,7 +145,7 @@ class TestSettleRoute:
 
 
 class TestSweepRoute:
-    def test_sweep_removes_stale_pending(
+    def test_sweep_reports_but_preserves_stale_pending(
         self, client: TestClient, store: SQLiteExecutionStore
     ) -> None:
         store.pending_ttl_seconds = 0.01
@@ -154,7 +154,14 @@ class TestSweepRoute:
         time.sleep(0.05)
         resp = client.post("/sweep")
         assert resp.status_code == 200
-        assert resp.json()["swept"] == 2
+        assert resp.json() == {
+            "swept": 0,
+            "stale_pending": 2,
+            "requires_reconciliation": True,
+            "action": "none",
+        }
+        assert store.get("stale-1")["status"] == "PENDING"
+        assert store.get("stale-2")["status"] == "PENDING"
 
     def test_sweep_does_not_remove_committed(
         self, client: TestClient, store: SQLiteExecutionStore
@@ -165,6 +172,8 @@ class TestSweepRoute:
         time.sleep(0.05)
         resp = client.post("/sweep")
         assert resp.json()["swept"] == 0
+        assert resp.json()["stale_pending"] == 0
+        assert resp.json()["requires_reconciliation"] is False
 
     def test_sweep_not_payment_gated(
         self, client: TestClient, store: SQLiteExecutionStore
