@@ -73,6 +73,15 @@ test = [
 packages = ["safeagent_exec_guard", "settlement"]
 
 [tool.hatch.build.targets.sdist]
+include = [
+  "/safeagent_exec_guard",
+  "/settlement",
+  "/README.md",
+  "/LICENSE",
+  "/pyproject.toml",
+  "/setup.cfg",
+  "/RELEASE_NOTES_0.1.24.md",
+]
 exclude = [
   ".venv",
   "*.db",
