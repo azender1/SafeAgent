@@ -1,6 +1,8 @@
 # n8n-nodes-safeagent
 
-**SafeAgent Execution Guard for n8n** - exactly-once execution for any workflow that touches payments, emails, trades, or webhooks.
+**SafeAgent Execution Guard for n8n** — durable claim-before-execute protection for workflows that touch payments, emails, trades, or webhooks.
+
+SafeAgent suppresses repeated logical actions after a settled receipt. A `PENDING` claim is unresolved: it stays blocked and must be reconciled with the external provider before any retry. Local claim state alone does not prove the external outcome.
 
 Gives every workflow item a durable claim before a side-effectful action runs, then routes to PROCEED (new) or SKIP (duplicate already seen). Prevents double-sends, double-charges, and double-trades when agents or webhooks retry.
 

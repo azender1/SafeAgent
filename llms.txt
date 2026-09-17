@@ -81,7 +81,7 @@ and should not be scored as an availability failure.
 ## Not part of this API
 /audit-service is a human-facing HTML page (a paid duplicate-execution audit
 product, $2,500 flat fee). It returns marketing HTML, not JSON. Ignore it for
-automated integration — it is not a capability of the exactly-once guard.
+automated integration — it is not a capability of the durable claim guard.
 
 ## Integration
 pip install safeagent-exec-guard

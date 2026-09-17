@@ -847,7 +847,7 @@ def create_app(
         # ------------------------------------------------------------------
         # Attestation gate — verify AgentGraph safety verdict before
         # allowing any COMMITTED write. Keyed on body.action (the tool/
-        # endpoint identity), not request_id (the exactly-once key).
+        # endpoint identity), not request_id (the logical-action key).
         # require_attestation=False (default): SKIP on unreachable/absent,
         # recorded as safety_skipped — never a silent pass.
         # require_attestation=True: DENY before COMMITTED write.
