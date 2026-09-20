@@ -41,7 +41,7 @@ request = ActionRequest(
     run_id="run-2026-09-20-001",
     action="stripe.payment_intent.create",
     target="customer:cus_123",
-    payload={"amount_minor": 2500, "currency": "USD"},
+    payload={"amount": 2500, "currency": "USD", "customer": "cus_123"},
 )
 permit = authority.issue(request, ttl_seconds=120)
 
@@ -60,6 +60,80 @@ receipt = gateway.dispatch(
 
 The example keeps issuance and dispatch together only for brevity. Real
 deployments must separate them so the agent cannot mint its own authority.
+
+## Stripe Test Mode adapter
+
+The optional Stripe adapter turns the boundary primitive into an operational
+PaymentIntent control. It is deliberately narrow: v1 permits only
+`stripe.payment_intent.create` and rejects unknown request fields, including
+credentials supplied by an agent.
+
+```bash
+pip install "safeagent-exec-guard[stripe]"
+export STRIPE_SECRET_KEY=sk_test_...
+export STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
+```python
+import os
+
+from safeagent_exec_guard import (
+    ActionRequest,
+    BoundaryGateway,
+    PermitAuthority,
+    SQLitePermitStore,
+    SQLiteStripeStore,
+    StripePaymentIntentGateway,
+)
+
+authority = PermitAuthority.generate(issuer="payments-control")
+permit_store = SQLitePermitStore("safeagent-boundary.db")
+boundary = BoundaryGateway(authority.public_key_hex(), permit_store)
+stripe_store = SQLiteStripeStore("safeagent-stripe.db")
+stripe_gateway = StripePaymentIntentGateway.from_api_key(
+    boundary,
+    os.environ["STRIPE_SECRET_KEY"],
+    stripe_store,
+)
+
+request = ActionRequest(
+    principal="invoice-agent",
+    run_id="run-2026-09-20-001",
+    action="stripe.payment_intent.create",
+    target="customer:cus_123",
+    payload={
+        "amount": 2500,
+        "currency": "usd",
+        "customer": "cus_123",
+        "metadata": {"invoice_id": "inv_456"},
+    },
+)
+permit = authority.issue(request, ttl_seconds=120)
+receipt = stripe_gateway.dispatch(permit, request)
+```
+
+The adapter:
+
+- keeps the Stripe secret at the external effect boundary;
+- uses `safeagent:{permit_id}` as Stripe's idempotency key;
+- adds the permit and run IDs to Stripe metadata;
+- durably correlates the permit and PaymentIntent;
+- refuses live secret keys unless `allow_live=True` is explicitly set;
+- replays a lost create request only with the original parameters and original
+  idempotency key;
+- retrieves a known PaymentIntent for authoritative read-back; and
+- verifies Stripe webhook signatures before applying webhook observations.
+
+Use `StripeWebhookVerifier.process(raw_body, stripe_signature)` with the exact
+raw request bytes and the `Stripe-Signature` header. Duplicate Stripe event IDs
+are journaled once. A successful create response remains `SETTLED` at the
+boundary; only a retrieved PaymentIntent or verified webhook with status
+`succeeded` produces a `CONFIRMED` Stripe observation.
+
+This is a Test Mode reference adapter. Before live use, move both SQLite stores
+to a shared transactional backend, enforce default-deny agent egress, configure
+restricted Stripe keys, and require explicit operator policy for amount,
+currency, customer and velocity limits.
 
 ## Current decisions
 
@@ -95,7 +169,8 @@ it is deliberately not inferred by this module.
 - Incorrect operator policy
 - Distributed consumption without a shared atomic store
 - DNS rebinding, SSRF and network-protocol enforcement
-- Provider-specific finality or automatic reconciliation
+- Provider-specific finality or automatic reconciliation beyond the Stripe
+  PaymentIntent reference adapter
 - Budget, velocity and human-approval policy
 
 Those are integration requirements, not claims this module makes.
@@ -116,5 +191,8 @@ Those are integration requirements, not claims this module makes.
 `tests/test_boundary.py` covers valid dispatch, exact binding, tool/target/
 payload/run/principal mutation, expiry, signature forgery, wrong issuer key,
 ambiguous outcomes, unserializable receipts, replay, one-use enforcement and a
-24-way concurrent-consumption race.
-
+24-way concurrent-consumption race. `tests/test_stripe_gateway.py` covers
+native idempotency propagation, lost-response recovery, provider retrieval,
+payload mutation, credential-field rejection, live-key fail-closed behavior,
+webhook event deduplication and provider-state classification without making
+network calls.
