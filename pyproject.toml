@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.24"
+version = "0.1.25"
 description = "AI agent execution guard with durable claims, request-id deduplication, unresolved-outcome handling, and receipts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -87,7 +87,7 @@ include = [
   "/LICENSE",
   "/pyproject.toml",
   "/setup.cfg",
-  "/RELEASE_NOTES_0.1.24.md",
+  "/RELEASE_NOTES_0.1.25.md",
 ]
 exclude = [
   ".venv",

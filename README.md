@@ -221,6 +221,12 @@ verifies webhook signatures and supports authoritative read-back. The simple
 claim/settle snippet below illustrates the generic API only; it is not the
 provider adapter.
 
+Run the bounded test-mode example in
+[`examples/stripe_payment_intent_guard.py`](examples/stripe_payment_intent_guard.py).
+The [verification record](docs/STRIPE_VERIFICATION.md) documents the observed
+end-to-end result: one successful Stripe sandbox PaymentIntent, an exact replay
+blocked before provider dispatch, and authoritative reconciliation by retrieve.
+
 ```python
 import requests
 

@@ -196,3 +196,7 @@ native idempotency propagation, lost-response recovery, provider retrieval,
 payload mutation, credential-field rejection, live-key fail-closed behavior,
 webhook event deduplication and provider-state classification without making
 network calls.
+
+An end-to-end Stripe sandbox run is recorded in
+[`STRIPE_VERIFICATION.md`](STRIPE_VERIFICATION.md). The executable test-mode
+example is [`../examples/stripe_payment_intent_guard.py`](../examples/stripe_payment_intent_guard.py).
