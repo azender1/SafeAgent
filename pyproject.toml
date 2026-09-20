@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "safeagent-exec-guard"
-version = "0.1.24"
+version = "0.1.25"
 description = "AI agent execution guard with durable claims, request-id deduplication, unresolved-outcome handling, and receipts."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,7 +34,9 @@ keywords = [
 dependencies = [
   "psycopg[binary]>=3.1",
   "mcp>=1.0",
-  "httpx>=0.27"
+  "httpx>=0.27",
+  "cryptography>=42.0",
+  "rfc8785>=0.1.4"
 ]
 
 classifiers = [
@@ -53,6 +55,10 @@ Source = "https://github.com/azender1/SafeAgent"
 Issues = "https://github.com/azender1/SafeAgent/issues"
 
 [project.optional-dependencies]
+# pip install safeagent-exec-guard[stripe]
+stripe = [
+    "stripe>=10.0",
+]
 # pip install safeagent-exec-guard[payment]
 payment = [
     "x402[fastapi,httpx,evm]>=2.0",
@@ -67,6 +73,7 @@ test = [
     "pytest>=8.0",
     "httpx>=0.27",
     "rfc8785>=0.1.4",
+    "stripe>=10.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -80,7 +87,7 @@ include = [
   "/LICENSE",
   "/pyproject.toml",
   "/setup.cfg",
-  "/RELEASE_NOTES_0.1.24.md",
+  "/RELEASE_NOTES_0.1.25.md",
 ]
 exclude = [
   ".venv",

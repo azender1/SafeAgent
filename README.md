@@ -213,6 +213,20 @@ elif response["status"] == "SKIP":
 
 ### SaaS (Stripe / email / webhooks)
 
+For production Stripe PaymentIntents, use the permit-gated adapter documented
+in [SafeAgent Boundary](docs/SAFEAGENT_BOUNDARY.md#stripe-test-mode-adapter).
+It keeps the Stripe credential outside the agent, passes the consumed permit ID
+to Stripe as the native idempotency key, persists the provider correlation,
+verifies webhook signatures and supports authoritative read-back. The simple
+claim/settle snippet below illustrates the generic API only; it is not the
+provider adapter.
+
+Run the bounded test-mode example in
+[`examples/stripe_payment_intent_guard.py`](examples/stripe_payment_intent_guard.py).
+The [verification record](docs/STRIPE_VERIFICATION.md) documents the observed
+end-to-end result: one successful Stripe sandbox PaymentIntent, an exact replay
+blocked before provider dispatch, and authoritative reconciliation by retrieve.
+
 ```python
 import requests
 
@@ -228,7 +242,12 @@ def safe_stripe_charge(customer_id, amount, idempotency_key):
     if response["status"] == "SKIP":
         return response.get("existing")
 
-    charge = stripe.PaymentIntent.create(amount=amount, customer=customer_id)
+    charge = stripe.PaymentIntent.create(
+        amount=amount,
+        currency="usd",
+        customer=customer_id,
+        idempotency_key=request_id,
+    )
     requests.post(
         f"https://safeagent-production.up.railway.app/settle/{request_id}",
         headers={"Content-Type": "application/json"},
