@@ -74,6 +74,7 @@ def stripe_system(tmp_path):
             "amount": 2500,
             "currency": "USD",
             "customer": "cus_123",
+            "payment_method_types": ["card"],
             "metadata": {"invoice_id": "inv_456"},
         },
     )
@@ -101,6 +102,20 @@ def test_permit_gates_payment_intent_and_supplies_native_idempotency(stripe_syst
     assert operation["payment_intent_id"] == "pi_1"
     assert operation["reconciliation_state"] == "OPEN"
     assert operation["boundary_decision"] == "SETTLED"
+
+
+def test_provider_create_error_is_durable_for_operator_diagnosis(stripe_system):
+    authority, _, stripe_store, stripe, gateway, request, token = stripe_system
+    permit_id = verify_permit(token, authority.public_key_hex()).permit_id
+    stripe.lose_next_response = True
+
+    receipt = gateway.dispatch(token, request, now=NOW + 1)
+
+    assert receipt.decision == "PENDING_RECONCILIATION"
+    operation = stripe_store.get(permit_id)
+    assert operation["reconciliation_state"] == "UNCERTAIN"
+    assert operation["last_source"] == "create"
+    assert operation["last_error"] == "response lost"
 
 
 def test_replay_never_reaches_stripe(stripe_system):
