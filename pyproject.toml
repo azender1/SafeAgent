@@ -55,6 +55,10 @@ Source = "https://github.com/azender1/SafeAgent"
 Issues = "https://github.com/azender1/SafeAgent/issues"
 
 [project.optional-dependencies]
+# pip install safeagent-exec-guard[stripe]
+stripe = [
+    "stripe>=10.0",
+]
 # pip install safeagent-exec-guard[payment]
 payment = [
     "x402[fastapi,httpx,evm]>=2.0",
@@ -69,6 +73,7 @@ test = [
     "pytest>=8.0",
     "httpx>=0.27",
     "rfc8785>=0.1.4",
+    "stripe>=10.0",
 ]
 
 [tool.hatch.build.targets.wheel]
