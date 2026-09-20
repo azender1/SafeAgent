@@ -32,6 +32,7 @@ _ALLOWED_CREATE_FIELDS = {
     "customer",
     "description",
     "payment_method",
+    "payment_method_types",
     "confirm",
     "capture_method",
     "confirmation_method",
@@ -298,6 +299,14 @@ class StripePaymentIntentGateway:
             raise PermitDenied("invalid_stripe_metadata")
         if "confirm" in params and not isinstance(params["confirm"], bool):
             raise PermitDenied("invalid_stripe_confirm")
+        if "payment_method_types" in params:
+            payment_method_types = params["payment_method_types"]
+            if (
+                not isinstance(payment_method_types, list)
+                or not payment_method_types
+                or any(not isinstance(value, str) or not value for value in payment_method_types)
+            ):
+                raise PermitDenied("invalid_stripe_payment_method_types")
         params["currency"] = currency.lower()
         return params
 
@@ -320,9 +329,15 @@ class StripePaymentIntentGateway:
         self.store.prepare(claims.permit_id, idempotency_key, provider_params, now=now)
 
         def create(_: ActionRequest) -> dict[str, Any]:
-            payment_intent = _plain_object(
-                self.stripe.create(**provider_params, idempotency_key=idempotency_key)
-            )
+            try:
+                payment_intent = _plain_object(
+                    self.stripe.create(**provider_params, idempotency_key=idempotency_key)
+                )
+            except Exception as exc:
+                self.store.record_error(
+                    claims.permit_id, str(exc), source="create", now=now
+                )
+                raise
             self.store.record_observation(
                 claims.permit_id, payment_intent, source="create_response", now=now
             )
