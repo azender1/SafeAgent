@@ -9,6 +9,13 @@ from safeagent_exec_guard.boundary import (
     PermitDenied,
     SQLitePermitStore,
 )
+from safeagent_exec_guard.stripe_gateway import (
+    STRIPE_PAYMENT_INTENT_CREATE,
+    SQLiteStripeStore,
+    StripeObservation,
+    StripePaymentIntentGateway,
+    StripeWebhookVerifier,
+)
 
 __all__ = [
     "SettlementRequestRegistry",
@@ -20,6 +27,11 @@ __all__ = [
     "PermitAuthority",
     "PermitDenied",
     "SQLitePermitStore",
+    "STRIPE_PAYMENT_INTENT_CREATE",
+    "SQLiteStripeStore",
+    "StripeObservation",
+    "StripePaymentIntentGateway",
+    "StripeWebhookVerifier",
 ]
 
 __version__ = "0.1.13"
