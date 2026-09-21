@@ -1,0 +1,17 @@
+{
+  "first_decision": "SETTLED",
+  "first_provider_status": "requires_payment_method",
+  "replay": "BLOCKED",
+  "replay_reason": "permit_already_consumed",
+  "provider_create_calls_after_replay": 1,
+  "lost_response_decision": "PENDING_RECONCILIATION",
+  "lost_response_reconciliation_source": "idempotent_replay",
+  "provider_objects_after_reconciliation": 1,
+  "authoritative_readback": "CONFIRMED",
+  "canonicalization": {
+    "key_order_equal": true,
+    "equivalent_json_number_equal": true,
+    "number_and_string_different": true
+  },
+  "invariants_passed": 10
+}

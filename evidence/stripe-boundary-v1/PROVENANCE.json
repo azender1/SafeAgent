@@ -1,0 +1,31 @@
+{
+  "fixture": "safeagent-stripe-boundary-v1",
+  "source_issue": "https://github.com/stripe/ai/issues/402",
+  "issue_opened_by": "azender1",
+  "issue_opened_on": "2026-05-03",
+  "discussion_sources": [
+    {
+      "author": "giskard09",
+      "contribution": "guard/receipt linkage and action-ref-v1 JCS boundary",
+      "url": "https://github.com/stripe/ai/issues/402#issuecomment-4631490794"
+    },
+    {
+      "author": "iwasinnam2",
+      "contribution": "witnessed pipe, signed receipts, durable claim and cross-language canonicalization",
+      "url": "https://github.com/stripe/ai/issues/402#issuecomment-5765632917"
+    },
+    {
+      "author": "tonydzi",
+      "contribution": "retry-window timing discriminator and fast-return mitigation",
+      "url": "https://github.com/stripe/ai/issues/402#issuecomment-5763933245"
+    },
+    {
+      "author": "azender1",
+      "contribution": "SafeAgent Stripe boundary implementation and bounded validation",
+      "url": "https://github.com/stripe/ai/issues/402#issuecomment-5768318242"
+    }
+  ],
+  "provider": "Stripe PaymentIntents",
+  "mode": "offline deterministic fixture; separate live observation used Stripe test mode",
+  "external_endorsement": false
+}
