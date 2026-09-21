@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -66,6 +67,26 @@ class FakeStripePaymentIntents:
 
 def digest(value) -> str:
     return hashlib.sha256(rfc8785.dumps(value)).hexdigest()
+
+
+def jcs_parity() -> tuple[dict, dict]:
+    fixture_root = Path(__file__).resolve().parent
+    vectors = json.loads((fixture_root / "jcs_vectors.json").read_text(encoding="utf-8"))
+    completed = subprocess.run(
+        ["node", str(fixture_root / "jcs_parity.js"), str(fixture_root / "jcs_vectors.json")],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    node_results = json.loads(completed.stdout)
+    python_results = {
+        name: {
+            "canonical": rfc8785.dumps(value).decode("utf-8"),
+            "sha256": digest(value),
+        }
+        for name, value in vectors.items()
+    }
+    return python_results, node_results
 
 
 def build(root: Path, name: str):
@@ -150,13 +171,45 @@ def main() -> int:
             passed,
         )
 
+        python_jcs, node_jcs = jcs_parity()
+        for vector_name, label in (
+            ("ascii_control", "Python/Node ASCII control parity"),
+            ("bmp_control", "Python/Node all-BMP control parity"),
+            ("supplementary_minimal_pair", "Python/Node supplementary-plane parity"),
+            ("payment_metadata_pair", "Python/Node payment metadata parity"),
+        ):
+            check(
+                python_jcs[vector_name] == node_jcs[vector_name],
+                label,
+                passed,
+            )
+
+        minimal = python_jcs["supplementary_minimal_pair"]["canonical"]
+        check(
+            minimal.index("\U00010000") < minimal.index("\ufffd"),
+            "RFC 8785 UTF-16 order puts U+10000 before U+FFFD",
+            passed,
+        )
+        naive = json.dumps(
+            {key: {"\ufffd": "replacement", "\U00010000": "supplementary"}[key]
+             for key in sorted(("\ufffd", "\U00010000"))},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        check(
+            hashlib.sha256(naive.encode("utf-8")).hexdigest()
+            != python_jcs["supplementary_minimal_pair"]["sha256"],
+            "naive Python code-point ordering is detected",
+            passed,
+        )
+
     result = {
         "result": "PASS",
         "invariants_passed": len(passed),
         "invariants": passed,
     }
     print(json.dumps(result, indent=2))
-    print(f"RESULT: {len(passed)}/10 invariants passed")
+    print(f"RESULT: {len(passed)}/16 invariants passed")
     return 0
 
 

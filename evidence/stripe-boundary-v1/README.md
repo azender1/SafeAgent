@@ -17,6 +17,12 @@ It also checks the RFC 8785/JCS identity boundary: object-key order and the
 equivalent JSON number representations `100` and `100.0` produce the same
 digest, while the string `"100"` does not.
 
+The parity matrix includes Python and Node/JavaScript. It covers the RFC 8785
+UTF-16 ordering edge identified by `tonydzi`: `U+10000` must sort before
+`U+FFFD`, even though naive Python code-point ordering puts it last. The matrix
+contains the minimal pair, a payment-shaped metadata object, an ASCII control,
+and an all-BMP non-ASCII control.
+
 ## Run
 
 From the repository root:
@@ -29,7 +35,7 @@ python evidence/stripe-boundary-v1/run_fixture.py
 Expected final line:
 
 ```text
-RESULT: 10/10 invariants passed
+RESULT: 16/16 invariants passed
 ```
 
 The fake provider implements Stripe's idempotent-create behavior and makes the
@@ -43,6 +49,10 @@ or claim database is included here.
 This fixture is implementation evidence, not a Stripe endorsement and not a
 claim of fuzzy semantic equivalence. Canonicalization removes representational
 drift; it must not merge materially different payment intent.
+
+Metrecept's own replay identity is exact-match normalization, not JCS. In this
+control chain, JCS belongs to the SafeAgent/argentum-core action boundary;
+Metrecept contributes independently verifiable post-crossing receipts.
 
 See [`PROVENANCE.json`](PROVENANCE.json) for the contribution lineage and
 source discussion.

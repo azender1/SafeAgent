@@ -11,7 +11,13 @@
   "canonicalization": {
     "key_order_equal": true,
     "equivalent_json_number_equal": true,
-    "number_and_string_different": true
+    "number_and_string_different": true,
+    "python_node_ascii_parity": true,
+    "python_node_bmp_parity": true,
+    "python_node_supplementary_parity": true,
+    "python_node_payment_metadata_parity": true,
+    "supplementary_precedes_replacement_character": true,
+    "naive_python_order_is_detected": true
   },
-  "invariants_passed": 10
+  "invariants_passed": 16
 }

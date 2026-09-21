@@ -1,0 +1,22 @@
+{
+  "ascii_control": {
+    "z": 1,
+    "a": 2
+  },
+  "bmp_control": {
+    "\ue000": "private-use",
+    "\ufffd": "replacement"
+  },
+  "supplementary_minimal_pair": {
+    "\ufffd": "replacement",
+    "\ud800\udc00": "supplementary"
+  },
+  "payment_metadata_pair": {
+    "amount": 100,
+    "currency": "usd",
+    "metadata": {
+      "\ufffd": "replacement",
+      "\ud800\udc00": "supplementary"
+    }
+  }
+}

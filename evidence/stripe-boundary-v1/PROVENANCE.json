@@ -11,13 +11,18 @@
     },
     {
       "author": "iwasinnam2",
-      "contribution": "witnessed pipe, signed receipts, durable claim and cross-language canonicalization",
+      "contribution": "witnessed pipe, signed receipts and exact-match Python/Rust replay-key parity; Metrecept identity is not JCS",
       "url": "https://github.com/stripe/ai/issues/402#issuecomment-5765632917"
     },
     {
       "author": "tonydzi",
       "contribution": "retry-window timing discriminator and fast-return mitigation",
       "url": "https://github.com/stripe/ai/issues/402#issuecomment-5763933245"
+    },
+    {
+      "author": "tonydzi",
+      "contribution": "supplementary-plane versus BMP UTF-16 ordering vector and JavaScript counterparty requirement",
+      "url": "https://github.com/stripe/ai/issues/402#issuecomment-5768569114"
     },
     {
       "author": "azender1",
