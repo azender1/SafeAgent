@@ -1,0 +1,13 @@
+{
+  "action": "stripe.payment_intent.create",
+  "allowed_uses": 1,
+  "expires_at": 1790012071,
+  "issued_at": 1790011771,
+  "issuer": "flowsignal-safeagent-ec009-fixture",
+  "payload_sha256": "f357f53e7d3f5ed3d5dec22e4d5260110388cb37bc514d271cee2a0f390b53ac",
+  "permit_id": "524e47ff-c1fb-57bf-b9c5-e3925895a15a",
+  "principal": "institution-001",
+  "run_id": "flowsignal-ec009-595bb11a-0be9-4c0c-93a1-8759d7a2d16c",
+  "target": "stripe:test-payment",
+  "version": "safeagent-permit-v1"
+}

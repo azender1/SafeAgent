@@ -1,0 +1,28 @@
+{
+  "claim_scope": "gateway-controlled path only",
+  "files_sha256": {
+    "records/binding.json": "a6bbfe23dd0f2da1f950a3ed302656584b4aab32e5584c0397cfd136aa3b3f2b",
+    "records/flowsignal_authority_receipt.json": "3344c850e1daf9fe470fd95b4195b865aea2b5df98ae3ce14e24ff1c999a5ee1",
+    "records/flowsignal_authority_request.json": "9599825824a6b5dfeb3928d0e2869522fdb75ed9407222fa8afec283595c66e1",
+    "records/flowsignal_authority_response.json": "673a893ceea54e734062262d964c09439bfc21afdc484dbb8a17cb16bafc6507",
+    "records/flowsignal_execution_permit.json": "093ff1a8af4f21e4814e928afd68e07b85e9ffdefb3a2f15dc3003dc92473c24",
+    "records/flowsignal_gateway_result.json": "a331a8a4ce230f9075c8baf134431ad29466b122fca2cf5b4cf5bcbeb7f8ee40",
+    "records/safeagent_action_request.json": "b3d55f1f6dddecaa52e57ccb5f3a71028ba2fb125dc76d66e03bbcebdda3c8f8",
+    "records/safeagent_boundary_events.json": "41f38a01c527e8f96173836697b72dd31908dbaec0ea9045e9e0fd34355d080d",
+    "records/safeagent_boundary_record.json": "cc6cd05de88ca54a3634d23b8f294b05ddb0a7bc1480c7536cf3b9cdee38decb",
+    "records/safeagent_first_dispatch.json": "20014794647afd136b84b2ed5da28ca7f3e36f660e4df7cb907cf2e93d48e150",
+    "records/safeagent_permit_claims.json": "3c142c18632cbb0ffb6b863157dd5d83fc86f10d6a1980297495094bd4d6ce39",
+    "records/safeagent_replay_attempt.json": "c4c371c7a9476df124804aa7381f42899831e9c32dd189de8ed4fe8767c3bcac",
+    "records/simulated_provider_calls.json": "b51f813612d987f2daffe0f72db9d6b06ec91b96d254c8d1ded7e66c5589075b",
+    "records/stripe_operation.json": "c59e4bb0215fab6f445a265bbd193484a67815d9d7b921342b6bf2d281a2424a",
+    "records/stripe_retrieval.json": "12b2bcda3f94689729b49f911201a0998b1f80a353d10a88ecaf7a5e5efa83d6",
+    "runtime/safeagent-permits.db": "a6fdaa1f2bd1caad100df4ff9c5c3204cbe27504faefa348f9ee0929f105a4f4",
+    "runtime/safeagent-stripe.db": "0244bd57e50cb1ca2f2ed642699d3110fb2f204253ae272b4041a9f19d8cd0c3",
+    "summary.json": "3466a598b1a582b1f282a45f028ebd7fad72f4e59377c303b801bb54a303d783"
+  },
+  "flowsignal_commit": "471d8af596044d61f86f774f70cd8c6ff2efc31c",
+  "mode": "simulated",
+  "safeagent_commit": "b8a2fa6baa98f0d469e3f3787b420648596295d0",
+  "safeagent_release": "v0.1.25",
+  "schema": "safeagent.flowsignal-ec009-evidence.v1"
+}

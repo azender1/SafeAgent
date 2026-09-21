@@ -1,0 +1,13 @@
+{
+  "boundary_decision": "SETTLED",
+  "created_at": 1790011771,
+  "idempotency_key": "safeagent:524e47ff-c1fb-57bf-b9c5-e3925895a15a",
+  "last_error": null,
+  "last_source": "retrieve",
+  "payment_intent_id": "pi_simulated_06190e195b99de7df5e48d4c",
+  "payment_intent_status": "succeeded",
+  "permit_id": "524e47ff-c1fb-57bf-b9c5-e3925895a15a",
+  "reconciliation_state": "CONFIRMED",
+  "request_json": "{\"amount\":100,\"confirm\":true,\"currency\":\"usd\",\"description\":\"FlowSignal EC-009 via SafeAgent\",\"metadata\":{\"flowsignal_action_binding_hash\":\"816f4aa0c458d82605cafba138330924aad6ea43f72a39076ff9bdbe09910ea7\",\"flowsignal_authority_receipt_id\":\"595bb11a-0be9-4c0c-93a1-8759d7a2d16c\",\"flowsignal_permit_signature_sha256\":\"9a7b78007c202d2b39f6bbd8bc6e8ce03f89b04fecd07c6c50d28123a3b8fb3c\",\"safeagent_permit_id\":\"524e47ff-c1fb-57bf-b9c5-e3925895a15a\",\"safeagent_run_id\":\"flowsignal-ec009-595bb11a-0be9-4c0c-93a1-8759d7a2d16c\"},\"payment_method\":\"pm_card_visa\",\"payment_method_types\":[\"card\"]}",
+  "updated_at": 1790011771
+}

@@ -1,0 +1,8 @@
+{
+  "action_binding_hash": "816f4aa0c458d82605cafba138330924aad6ea43f72a39076ff9bdbe09910ea7",
+  "authority_receipt_id": "595bb11a-0be9-4c0c-93a1-8759d7a2d16c",
+  "authority_state_version": 1,
+  "issued_at": "2026-09-21T17:29:31.232314+00:00",
+  "signature": "9b25763d0887400cf2ac9a921a5c054a067847f49f07dfb62e33579704ac5228",
+  "valid_until": "2026-09-21T17:30:31.231762+00:00"
+}

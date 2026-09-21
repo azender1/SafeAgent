@@ -1,0 +1,151 @@
+{
+  "action_binding_hash": "816f4aa0c458d82605cafba138330924aad6ea43f72a39076ff9bdbe09910ea7",
+  "authority_state_version": 1,
+  "checks": [
+    {
+      "evidence_ref": "authentication",
+      "name": "actor_authenticated",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "kya",
+      "name": "kya_verified",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "mandate_active",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "mandate_not_expired",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "action_permitted",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "amount_within_limit",
+      "outcome_on_failure": "ESCALATE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "currency_permitted",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "MANDATE-TREASURY-001",
+      "name": "source_account_permitted",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "counterparty-status",
+      "name": "counterparty_approved",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "account-status",
+      "name": "account_active",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "risk-state",
+      "name": "risk_state_permits_execution",
+      "outcome_on_failure": "ESCALATE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "SCREENING-SERVICE-01",
+      "name": "screening_clear",
+      "outcome_on_failure": "REFUSE",
+      "passed": true,
+      "reason": null
+    },
+    {
+      "evidence_ref": "SCREENING-SERVICE-01",
+      "name": "screening_fresh",
+      "outcome_on_failure": "ESCALATE",
+      "passed": true,
+      "reason": null
+    }
+  ],
+  "decision": "ALLOW",
+  "evidence_references": [
+    {
+      "age_seconds": 900,
+      "captured_at": "2026-09-21T17:14:31.231762+00:00",
+      "max_age_seconds": 3600,
+      "source": "SCREENING-SERVICE-01",
+      "status": "CLEAR",
+      "type": "sanctions_screening"
+    }
+  ],
+  "id": "595bb11a-0be9-4c0c-93a1-8759d7a2d16c",
+  "reason_code": "AUTHORITY_ESTABLISHED",
+  "receipt_hmac": "21af06d89a4c26b0c781982d90fcd77cee38f8d0a4892bd1be78007e5db3e759",
+  "request_snapshot": {
+    "account_status": "ACTIVE",
+    "action": "payment.release",
+    "actor_authenticated": true,
+    "actor_id": "agent-treasury-01",
+    "actor_role": "treasury_agent",
+    "actor_type": "autonomous_agent",
+    "amount": 1.0,
+    "approval_required": false,
+    "authoritative_mandate_max_amount": 1000000.0,
+    "beneficiary": "SUPPLIER-X",
+    "counterparty_status": "APPROVED",
+    "currency": "GBP",
+    "kya_status": "VERIFIED",
+    "mandate_currency": "GBP",
+    "mandate_id": "MANDATE-TREASURY-001",
+    "mandate_max_amount": 1000000.0,
+    "mandate_status": "ACTIVE",
+    "mandate_valid_until": "2027-02-12T08:14:30.231762+00:00",
+    "permitted_counterparty_class": "APPROVED_SUPPLIERS",
+    "permitted_source_accounts": [
+      "TREASURY-001"
+    ],
+    "presented_mandate_max_amount": 1000000.0,
+    "principal_id": "institution-001",
+    "principal_name": "Example Financial Institution",
+    "purpose": "FlowSignal EC-009 SafeAgent Stripe Test Mode fixture",
+    "requested_execution_time": "2026-09-21T17:29:31.231762+00:00",
+    "risk_state": "NORMAL",
+    "scenario_id": "EC-009-SAFEAGENT-STRIPE-001",
+    "screening_captured_at": "2026-09-21T17:14:31.231762+00:00",
+    "screening_max_age_seconds": 3600,
+    "screening_source": "SCREENING-SERVICE-01",
+    "screening_status": "CLEAR",
+    "source_account": "TREASURY-001",
+    "target": "TREASURY_PAYMENT_GATEWAY"
+  },
+  "scenario_id": "EC-009-SAFEAGENT-STRIPE-001",
+  "sealed_at": "2026-09-21T17:29:31.231762+00:00",
+  "valid_until": "2026-09-21T17:30:31.231762+00:00"
+}

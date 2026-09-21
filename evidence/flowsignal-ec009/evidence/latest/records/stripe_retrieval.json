@@ -1,0 +1,8 @@
+{
+  "last_error": null,
+  "payment_intent_id": "pi_simulated_06190e195b99de7df5e48d4c",
+  "payment_intent_status": "succeeded",
+  "permit_id": "524e47ff-c1fb-57bf-b9c5-e3925895a15a",
+  "source": "retrieve",
+  "state": "CONFIRMED"
+}

@@ -1,0 +1,10 @@
+{
+  "request_comment": "https://github.com/grahamb-ai/flowsignal-agentic-payments/issues/4#issuecomment-5755905982",
+  "flowsignal_repository": "https://github.com/grahamb-ai/flowsignal-agentic-payments",
+  "flowsignal_commit": "471d8af596044d61f86f774f70cd8c6ff2efc31c",
+  "safeagent_repository": "https://github.com/azender1/SafeAgent",
+  "safeagent_release": "v0.1.25",
+  "safeagent_commit": "b8a2fa6baa98f0d469e3f3787b420648596295d0",
+  "stripe_mode_required": "test"
+}
+

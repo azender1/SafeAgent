@@ -1,0 +1,23 @@
+{
+  "flowsignal_decision": "ALLOW",
+  "flowsignal_gateway": "PERMITTED",
+  "flowsignal_permit_valid": true,
+  "limitations": [
+    "gateway-controlled path only",
+    "no production settlement claim",
+    "no alternate-route closure claim",
+    "no deployment-wide non-bypassability claim",
+    "simulated mode is not external Stripe evidence"
+  ],
+  "mode": "simulated",
+  "payment_intent_id": "pi_simulated_06190e195b99de7df5e48d4c",
+  "provider_source": "retrieve",
+  "provider_state": "CONFIRMED",
+  "safeagent_first_dispatch": "SETTLED",
+  "safeagent_replay": {
+    "decision": "BLOCKED",
+    "reason": "permit_already_consumed"
+  },
+  "schema": "safeagent.flowsignal-ec009-summary.v1",
+  "supported_claim": false
+}
