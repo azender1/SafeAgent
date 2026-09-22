@@ -77,6 +77,7 @@ def jcs_parity() -> tuple[dict, dict]:
         check=True,
         capture_output=True,
         text=True,
+        encoding="utf-8",
     )
     node_results = json.loads(completed.stdout)
     python_results = {
@@ -121,7 +122,9 @@ def check(condition: bool, name: str, passed: list[str]) -> None:
 
 def main() -> int:
     passed: list[str] = []
-    with tempfile.TemporaryDirectory(prefix="safeagent-stripe-fixture-") as directory:
+    with tempfile.TemporaryDirectory(
+        prefix="safeagent-stripe-fixture-", ignore_cleanup_errors=True
+    ) as directory:
         root = Path(directory)
 
         permit_store, stripe_store, stripe, gateway, request, token, permit_id = build(root, "first")
