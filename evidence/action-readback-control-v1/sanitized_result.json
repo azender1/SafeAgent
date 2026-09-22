@@ -1,0 +1,26 @@
+{
+  "schema": "safeagent.control.action-readback-comparison.v1",
+  "source": {
+    "repository": "mstevens843/crashpoint",
+    "pinned_commit": "bb9cd47c4b0b02527aab7b369d17b32829cc4e20",
+    "bundle": "action_readback_self_reviewed_v2",
+    "upstream_manifest_receipt_valid": true,
+    "upstream_verifier_problems": []
+  },
+  "trial_count": 18,
+  "result_counts": {
+    "CONFIRMED": 6,
+    "CONTRADICTION": 6,
+    "MISSING_EXTERNALLY": 3,
+    "UNCERTAIN": 3
+  },
+  "provider_or_subject_identifiers_included": false,
+  "logical_action_ids_included": false,
+  "payload_digests_included": false,
+  "credentials_included": false,
+  "interpretation": {
+    "prediction_passed_is_not_confirmation": true,
+    "missing_externally_is_not_replay_permission": true,
+    "claim_sweep_semantics_applied": false
+  }
+}
