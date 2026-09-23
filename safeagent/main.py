@@ -1071,9 +1071,10 @@ def create_app(
                     "test": True,
                     "calls_remaining": calls_remaining,
                 }
-            store.settle(request_id, {"skipped": True, "test": True})
+            # A duplicate cannot establish whether the first caller's external
+            # effect happened. Keep the durable claim unresolved.
             return {
-                "status": "SKIP",
+                "status": "PENDING",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
@@ -1090,7 +1091,7 @@ def create_app(
                     "calls_remaining": calls_remaining,
                 }
             return {
-                "status": "SKIP",
+                "status": "PENDING",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
