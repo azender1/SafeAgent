@@ -14,7 +14,7 @@ import sqlite3
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol
 
 from .boundary import (
     ActionRequest,
@@ -311,10 +311,13 @@ class StripePaymentIntentGateway:
         return params
 
     def dispatch(
-        self, token: str, request: ActionRequest, *, now: int | None = None
+        self, token: str, request: ActionRequest, *, now: int | None = None,
+        pre_dispatch: Callable[[], None] | None = None,
     ) -> DispatchReceipt:
         now = int(time.time()) if now is None else int(now)
         params = self._validate(request)
+        if pre_dispatch is not None:
+            pre_dispatch()
         claims = self.boundary._authorize(token, request, now)
         idempotency_key = f"safeagent:{claims.permit_id}"
         provider_params = dict(params)
@@ -330,6 +333,11 @@ class StripePaymentIntentGateway:
 
         def create(_: ActionRequest) -> dict[str, Any]:
             try:
+                # Recheck after durable consumption, immediately before crossing
+                # the provider boundary. An intervening expiry/revocation stops
+                # the call; the consumed permit remains unresolved, never reusable.
+                if pre_dispatch is not None:
+                    pre_dispatch()
                 payment_intent = _plain_object(
                     self.stripe.create(**provider_params, idempotency_key=idempotency_key)
                 )

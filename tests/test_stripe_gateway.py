@@ -128,6 +128,39 @@ def test_replay_never_reaches_stripe(stripe_system):
     assert len(stripe.create_calls) == 1
 
 
+def test_upstream_check_denies_before_permit_consumption(stripe_system):
+    authority, permit_store, _, stripe, gateway, request, token = stripe_system
+    permit_id = verify_permit(token, authority.public_key_hex()).permit_id
+
+    with pytest.raises(PermitDenied, match="upstream_revoked"):
+        gateway.dispatch(token, request, now=NOW + 1,
+                         pre_dispatch=lambda: (_ for _ in ()).throw(PermitDenied("upstream_revoked")))
+
+    assert permit_store.get(permit_id) is None
+    assert stripe.create_calls == []
+
+
+def test_upstream_expiry_between_check_and_effect_fails_closed(stripe_system):
+    authority, permit_store, stripe_store, stripe, gateway, request, token = stripe_system
+    permit_id = verify_permit(token, authority.public_key_hex()).permit_id
+    checks = 0
+
+    def upstream_check():
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            raise PermitDenied("upstream_expired")
+
+    receipt = gateway.dispatch(token, request, now=NOW + 1, pre_dispatch=upstream_check)
+    assert checks == 2
+    assert receipt.decision == "PENDING_RECONCILIATION"
+    assert permit_store.get(permit_id)["uses"] == 1
+    assert stripe_store.get(permit_id)["reconciliation_state"] == "UNCERTAIN"
+    assert stripe.create_calls == []
+    with pytest.raises(PermitDenied, match="permit_already_consumed"):
+        gateway.dispatch(token, request, now=NOW + 2)
+
+
 def test_lost_create_response_reconciles_with_same_request_and_key(stripe_system):
     authority, permit_store, stripe_store, stripe, gateway, request, token = stripe_system
     permit_id = verify_permit(token, authority.public_key_hex()).permit_id

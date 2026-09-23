@@ -1,0 +1,8 @@
+{
+  "flowsignal_repository": "https://github.com/grahamb-ai/flowsignal-agentic-payments",
+  "flowsignal_commit": "7fe99e13456a492a644a8760f126eee6503fc868",
+  "flowsignal_canonical_sha256": "bb7dbb55025471a21a216f5e08eea74f72a5a6e1bd0513e127d2f84abcc8de93",
+  "safeagent_repository": "https://github.com/azender1/SafeAgent",
+  "safeagent_commit": "see pinned delivery commit and per-run manifest",
+  "provider_mode": "simulated-only; Stripe Test Mode requires Graham review first"
+}
