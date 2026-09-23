@@ -117,7 +117,7 @@ def snapshot_database(source, target):
         out.execute('PRAGMA journal_mode=DELETE')
 
 
-def preserve_uncertain(output, runtime, phase, exc):
+def preserve_uncertain(output, runtime, phase, exc, boundary_receipt=None):
     """Retain durable journals on a possible provider-side success with lost response."""
     stable = output / 'runtime'
     stable.mkdir(exist_ok=True)
@@ -127,6 +127,7 @@ def preserve_uncertain(output, runtime, phase, exc):
     (output / 'uncertain.json').write_text(json.dumps({
         'mode': 'stripe-test', 'phase': phase, 'state': 'UNCERTAIN',
         'error_type': type(exc).__name__, 'next_action': 'manual Stripe reconciliation; never retry create',
+        'boundary_receipt': plain(boundary_receipt) if boundary_receipt is not None else None,
     }, sort_keys=True, indent=2) + '\n')
 
 
@@ -228,7 +229,13 @@ def main():
             first = gateway.dispatch(token, safe_request)
         except Exception as exc:
             if args.mode == 'stripe-test':
+                operation = stripe_store.get(permit_id)
+                if operation is not None and not operation['payment_intent_id']:
+                    stripe_store.record_error(permit_id, type(exc).__name__,
+                                              source='ec009_dispatch',
+                                              now=int(datetime.now(timezone.utc).timestamp()))
                 preserve_uncertain(output, runtime, 'dispatch', exc)
+                print(json.dumps({'bundle': str(output), 'state': 'UNCERTAIN'}), file=sys.stderr)
             raise
         try:
             gateway.dispatch(token, safe_request)
@@ -238,7 +245,14 @@ def main():
         # The Test Mode path retrieves ONLY the known ID. It never retries a
         # create after a lost response, even if Stripe expires the key.
         if args.mode == 'stripe-test' and not stripe_store.get(first.permit_id)['payment_intent_id']:
-            preserve_uncertain(output, runtime, 'unknown_payment_intent_id', ValueError())
+            operation = stripe_store.get(first.permit_id)
+            if operation['reconciliation_state'] != 'UNCERTAIN':
+                stripe_store.record_error(first.permit_id, 'unknown PaymentIntent ID',
+                                          source='ec009_unknown_id',
+                                          now=int(datetime.now(timezone.utc).timestamp()))
+            preserve_uncertain(output, runtime, 'unknown_payment_intent_id',
+                               ValueError('unknown PaymentIntent ID'), first)
+            print(json.dumps({'bundle': str(output), 'state': 'UNCERTAIN'}), file=sys.stderr)
             raise SystemExit('unknown Stripe outcome: no PaymentIntent ID; manual reconciliation required')
         observation = stripe_gateway.reconcile(first.permit_id)
         negatives = {}
