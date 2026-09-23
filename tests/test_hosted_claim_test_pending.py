@@ -9,6 +9,7 @@ from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
 def test_duplicate_pending_stays_pending_until_real_settlement(monkeypatch, tmp_path):
     monkeypatch.delenv('DATABASE_URL', raising=False)
     monkeypatch.setenv('SAFEAGENT_DB_PATH', str(tmp_path / 'import-only.db'))
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
     main = import_module('safeagent.main')
     main._test_ip_counts.clear()
     store = SQLiteExecutionStore(':memory:')
@@ -26,7 +27,9 @@ def test_duplicate_pending_stays_pending_until_real_settlement(monkeypatch, tmp_
 
     actual_result = {'provider_id': 'pi_authoritatively_read_back'}
     store.settle(request_id, actual_result)
-    third = client.post('/claim/test', json=request)
+    third = client.post('/claim/test', json=request, headers={
+        'X-SafeAgent-Settlement-Token': first.json()['settlement_token'],
+    })
     assert third.json()['status'] == 'SKIP'
     assert third.json()['existing'] == actual_result
 
@@ -34,6 +37,7 @@ def test_duplicate_pending_stays_pending_until_real_settlement(monkeypatch, tmp_
 def test_concurrent_claim_loser_reports_pending(monkeypatch, tmp_path):
     monkeypatch.delenv('DATABASE_URL', raising=False)
     monkeypatch.setenv('SAFEAGENT_DB_PATH', str(tmp_path / 'import-only.db'))
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
     main = import_module('safeagent.main')
     main._test_ip_counts.clear()
     store = SQLiteExecutionStore(':memory:')

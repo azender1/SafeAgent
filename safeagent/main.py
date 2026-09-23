@@ -38,6 +38,8 @@ from pydantic import BaseModel
 
 import os
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+from safeagent_exec_guard.hosted_access import (settlement_token, has_settlement_token,
+                                                 require_settlement_token, require_audit_token)
 from safeagent_exec_guard import mycelium_trail
 try:
     import safeagent_governance as _gov
@@ -324,6 +326,12 @@ def create_app(
         @app.middleware("http")
         async def payment_gate(request: Request, call_next):  # type: ignore[misc]
             if request.method == "POST" and request.url.path == "/claim":
+                # A paid claim must have a settlement capability available before
+                # x402 verifies and captures any payment.
+                if len(os.getenv("SAFEAGENT_SETTLEMENT_SECRET", "")) < 32:
+                    return JSONResponse(status_code=503, content={
+                        "detail": "SAFEAGENT_SETTLEMENT_SECRET must be configured (32+ characters)"
+                    })
                 payment_header = request.headers.get(
                     "x-payment"
                 ) or request.headers.get("payment-signature")
@@ -843,6 +851,7 @@ def create_app(
 
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
+        capability = settlement_token(body.request_id)
 
         # ------------------------------------------------------------------
         # Attestation gate — verify AgentGraph safety verdict before
@@ -937,12 +946,14 @@ def create_app(
         existing = store.get(body.request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, body.request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
@@ -952,12 +963,14 @@ def create_app(
         if not store.claim(body.request_id, body.action, agent_id=agent_id):
             existing = store.get(body.request_id)
             if existing and existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, body.request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
@@ -1030,6 +1043,7 @@ def create_app(
             "status": "PROCEED",
             "request_id": body.request_id,
             "agent_id": agent_id,
+            "settlement_token": capability,
             **_gov_fields,
         }
 
@@ -1060,17 +1074,20 @@ def create_app(
 
         store: SQLiteExecutionStore = app.state.store
         request_id = _derive_test_request_id(body)
+        capability = settlement_token(request_id)
 
         existing = store.get(request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": request_id,
-                    "existing": existing.get("result"),
                     "test": True,
                     "calls_remaining": calls_remaining,
                 }
+                if has_settlement_token(request, request_id):
+                    result['existing'] = existing.get('result')
+                return result
             # A duplicate cannot establish whether the first caller's external
             # effect happened. Keep the durable claim unresolved.
             return {
@@ -1083,13 +1100,15 @@ def create_app(
         if not store.claim(request_id, body.action_type):
             existing = store.get(request_id)
             if existing and existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": request_id,
-                    "existing": existing.get("result"),
                     "test": True,
                     "calls_remaining": calls_remaining,
                 }
+                if has_settlement_token(request, request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": request_id,
@@ -1162,14 +1181,17 @@ def create_app(
         return {
             "status": "PROCEED",
             "request_id": request_id,
+            "settlement_token": capability,
             "test": True,
             "calls_remaining": calls_remaining,
             **_gov_fields_t,
         }
 
     @app.post("/settle/{request_id}")
-    async def settle(request_id: str, body: SettleRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    async def settle(request_id: str, body: SettleRequest, background_tasks: BackgroundTasks,
+                     request: Request) -> Dict[str, Any]:
         """Transition PENDING → COMMITTED with the execution result. Not payment-gated."""
+        require_settlement_token(request, request_id)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
         if existing is None:
@@ -1187,6 +1209,7 @@ def create_app(
 
     @app.get("/audit")
     async def audit(
+        request: Request,
         agent_id: Optional[str] = Query(
             default=None, description="Filter by agent EVM wallet address"
         ),
@@ -1207,7 +1230,8 @@ def create_app(
         limit: int = Query(default=100, ge=1, le=1000, description="Page size"),
         offset: int = Query(default=0, ge=0, description="Pagination offset"),
     ) -> Dict[str, Any]:
-        """Claim history, optionally filtered. Results ordered newest-first. Not payment-gated."""
+        """Private claim history, optionally filtered. Not payment-gated."""
+        require_audit_token(request)
         store: SQLiteExecutionStore = app.state.store
         return store.audit_claims(
             agent_id=agent_id,

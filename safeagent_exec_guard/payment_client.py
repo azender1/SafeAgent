@@ -21,7 +21,8 @@ Usage
             if result["status"] == "PROCEED":
                 # execute your action here
                 outcome = {"ok": True, "sent_to": "user@example.com"}
-                await client.settle("req-xyz", outcome)
+                await client.settle("req-xyz", outcome,
+                                    settlement_token=result["settlement_token"])
             elif result["status"] == "SKIP":
                 outcome = result["existing"]   # reuse stored result
 
@@ -99,7 +100,7 @@ class PaymentClient:
     # Public API
     # ------------------------------------------------------------------
 
-    async def claim(self, request_id: str, action: str) -> Dict[str, Any]:
+    async def claim(self, request_id: str, action: str, *, settlement_token: str | None = None) -> Dict[str, Any]:
         """
         Call ``POST /claim`` on the server.
 
@@ -116,11 +117,12 @@ class PaymentClient:
         resp = await self._x402.post(
             f"{self.server_url}/claim",
             json={"request_id": request_id, "action": action},
+            headers=({'X-SafeAgent-Settlement-Token': settlement_token} if settlement_token else {}),
         )
         resp.raise_for_status()
         return resp.json()
 
-    async def settle(self, request_id: str, result: Dict[str, Any]) -> Dict[str, Any]:
+    async def settle(self, request_id: str, result: Dict[str, Any], *, settlement_token: str) -> Dict[str, Any]:
         """
         Call ``POST /settle/{request_id}`` — no payment required.
 
@@ -128,9 +130,12 @@ class PaymentClient:
         """
         if self._x402 is None:
             raise RuntimeError("PaymentClient must be used as an async context manager")
+        if not settlement_token:
+            raise ValueError('settlement_token from the original PROCEED response is required')
         resp = await self._x402.post(
             f"{self.server_url}/settle/{request_id}",
             json={"result": result},
+            headers={'X-SafeAgent-Settlement-Token': settlement_token},
         )
         resp.raise_for_status()
         return resp.json()

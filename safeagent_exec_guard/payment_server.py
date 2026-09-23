@@ -41,6 +41,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse, Response, HTMLRes
 from pydantic import BaseModel
 
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+from safeagent_exec_guard.hosted_access import (settlement_token, has_settlement_token,
+                                                 require_settlement_token, require_audit_token)
 
 # USDC contract address on Base Sepolia (testnet)
 _USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"
@@ -286,6 +288,11 @@ def create_app(
         @app.middleware("http")
         async def payment_gate(request: Request, call_next):  # type: ignore[misc]
             if request.method == "POST" and request.url.path == "/claim":
+                # Reject misconfigured paid claims before x402 charges the caller.
+                if len(os.getenv("SAFEAGENT_SETTLEMENT_SECRET", "")) < 32:
+                    return JSONResponse(status_code=503, content={
+                        "detail": "SAFEAGENT_SETTLEMENT_SECRET must be configured (32+ characters)"
+                    })
                 payment_header = request.headers.get(
                     "x-payment"
                 ) or request.headers.get("payment-signature")
@@ -303,7 +310,7 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
-        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\n"
+        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nDisallow: /audit\nAllow: /\nAllow: /audit-service\n"
 
     @app.get("/favicon.ico")
     async def favicon() -> Response:
@@ -470,15 +477,18 @@ def create_app(
             )
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
+        capability = settlement_token(body.request_id)
         existing = store.get(body.request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, body.request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
@@ -490,12 +500,14 @@ def create_app(
             # Lost the concurrent INSERT race
             existing = store.get(body.request_id)
             if existing and existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, body.request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
@@ -506,15 +518,17 @@ def create_app(
             "status": "PROCEED",
             "request_id": body.request_id,
             "agent_id": agent_id,
+            "settlement_token": capability,
         }
 
     @app.post("/settle/{request_id}")
-    async def settle(request_id: str, body: SettleRequest) -> Dict[str, Any]:
+    async def settle(request_id: str, body: SettleRequest, request: Request) -> Dict[str, Any]:
         """
         Transition PENDING → COMMITTED with the execution result.
 
         Not payment-gated — settling is always free.
         """
+        require_settlement_token(request, request_id)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
         if existing is None:
@@ -526,6 +540,7 @@ def create_app(
 
     @app.get("/audit")
     async def audit(
+        request: Request,
         agent_id: Optional[str] = Query(
             default=None,
             description="Filter by agent EVM wallet address",
@@ -555,6 +570,7 @@ def create_app(
         All parameters are optional and combinable.  Results are ordered
         newest-first by ``claimed_at``.  Not payment-gated.
         """
+        require_audit_token(request)
         store: SQLiteExecutionStore = app.state.store
         return store.audit_claims(
             agent_id=agent_id,

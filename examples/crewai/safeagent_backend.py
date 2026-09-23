@@ -30,9 +30,8 @@ Matches: crewai.agents.cache.cache_backend.CacheBackend (Protocol)
 Revenue path
 ------------
 Every claim_if_absent call hits POST /claim → x402 micropayment.
-get and set hit GET /audit and POST /settle respectively — currently
-free endpoints. When GET /audit is gated (June 10 after Coinbase
-unlock), pass payment_header for those calls too.
+This prototype requires migration to the hosted claim/settle capability
+protocol before use against a hardened deployment. API errors stop execution.
 """
 
 from __future__ import annotations
@@ -111,9 +110,9 @@ class SafeAgentCacheBackend:
             if isinstance(value, dict) and value.get(_SENTINEL_MARKER):
                 return None
             return value
-        except Exception as exc:
-            _log.warning("SafeAgent get(%s) failed: %s", key, exc)
-            return None
+        except Exception:
+            _log.exception("SafeAgent get(%s) failed; cache state unknown", key)
+            raise
 
     def set(self, key: str, value: Any) -> None:
         """Persist a committed result via POST /settle/{request_id}.
@@ -133,8 +132,9 @@ class SafeAgentCacheBackend:
                 json_body={"result": value},
             )
             _log.debug("SafeAgent set(%s): settled as %s", key, request_id)
-        except Exception as exc:
-            _log.warning("SafeAgent set(%s) failed: %s", key, exc)
+        except Exception:
+            _log.exception("SafeAgent set(%s) failed; claim remains unresolved", key)
+            raise
 
     def claim_if_absent(self, key: str, sentinel: Any) -> tuple[bool, Any | None]:
         """Atomically claim a key via POST /claim (x402 gated).
@@ -176,15 +176,11 @@ class SafeAgentCacheBackend:
                 _log.debug("SafeAgent claim_if_absent(%s): PENDING (in-flight)", key)
                 return False, sentinel
 
-            _log.warning("SafeAgent claim_if_absent(%s): unexpected status %s", key, status)
-            return True, None
+            raise RuntimeError(f"SafeAgent claim_if_absent({key}): unexpected status {status!r}")
 
-        except Exception as exc:
-            _log.warning(
-                "SafeAgent claim_if_absent(%s) failed (%s), falling back to PROCEED",
-                key, exc,
-            )
-            return True, None
+        except Exception:
+            _log.exception("SafeAgent claim_if_absent(%s) failed; refusing execution", key)
+            raise
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -201,8 +197,9 @@ class SafeAgentCacheBackend:
             rows = resp.get("rows", [])
             if rows:
                 return rows[0].get("request_id")
-        except Exception as exc:
-            _log.warning("SafeAgent _resolve_request_id(%s) failed: %s", key, exc)
+        except Exception:
+            _log.exception("SafeAgent _resolve_request_id(%s) failed", key)
+            raise
         return None
 
     def _request(
