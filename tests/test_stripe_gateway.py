@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import hmac
 import json
+import time
 
 import pytest
 import stripe
@@ -263,7 +266,9 @@ def test_webhook_verifier_accepts_stripe_signature_and_rejects_forgery(stripe_sy
         },
         separators=(",", ":"),
     )
-    signature = stripe.WebhookSignature.generate_signature_header(payload, secret)
+    timestamp = int(time.time())
+    signed = f"{timestamp}.{payload}".encode()
+    signature = f"t={timestamp},v1={hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()}"
     verifier = StripeWebhookVerifier(secret, stripe_store)
 
     observation = verifier.process(payload.encode(), signature, now=NOW + 2)

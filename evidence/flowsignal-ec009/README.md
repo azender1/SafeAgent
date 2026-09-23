@@ -1,6 +1,6 @@
 # SafeAgent × FlowSignal EC-009: corrected offline fixture
 
-This fixture uses Graham's corrected frozen FlowSignal revision. It runs a **simulated** provider only. No Stripe secret is needed or accepted. Graham should inspect this structure before either side executes Stripe Test Mode.
+This fixture uses Graham's corrected frozen FlowSignal revision. Its default path runs a **simulated** provider. A separate gated Stripe Test Mode path is included for Graham's review; it has not been run against Stripe.
 
 ## Pinned external action
 
@@ -17,7 +17,7 @@ git clone https://github.com/grahamb-ai/flowsignal-agentic-payments.git FlowSign
 git -C FlowSignal checkout 7fe99e13456a492a644a8760f126eee6503fc868
 git clone https://github.com/azender1/SafeAgent.git SafeAgent
 git -C SafeAgent checkout <SafeAgent-commit-from-the-delivery>
-python -m pip install rfc8785 cryptography
+python -m pip install -r SafeAgent/evidence/flowsignal-ec009/requirements.txt
 python SafeAgent/evidence/flowsignal-ec009/run_fixture.py --flowsignal-root FlowSignal
 python SafeAgent/evidence/flowsignal-ec009/verify_bundle.py <bundle-path-printed-by-runner> --flowsignal-root FlowSignal
 ```
@@ -30,10 +30,25 @@ Windows PowerShell uses the same Python commands and `git -C` commands. Substitu
 
 `BoundEC009Gateway` requires an upstream check both before SafeAgent consumes its permit and immediately before the provider call. The check independently recomputes the frozen action, verifies the FlowSignal receipt HMAC and signed permit against the pinned harness, requires ALLOW and the current authority state version, checks expiry, and compares the SafeAgent request to FlowSignal's deterministic Stripe projection. The SafeAgent permit expires no later than FlowSignal's permit. The gateway durably consumes it once; replay is blocked. Retrieval of the simulated PaymentIntent is recorded separately from executor SETTLED.
 
-The bundle contains primary records, durable SQLite snapshots without WAL/SHM sidecars, negative cases, and a SHA-256 manifest. The verifier checks semantic relationships and re-runs representative negative cases, rather than trusting `summary.json`.
+The bundle contains primary records, durable SQLite snapshots without WAL/SHM sidecars, negative cases, and a SHA-256 manifest. The verifier independently recomputes every `summary.json` field and the manifest's mode and claim scope from the primary records. `test_claim_integrity.py` preserves Graham's coordinated manifest and summary mutation: the original bundle passes and the false Stripe execution claim fails.
 
 **This is a local reference harness.** FlowSignal's reference HMAC key and SafeAgent's offline private key are visible in code. The simulated account identity is declared by the fake provider and is not independently proven by Stripe. This does not establish production secret isolation, alternate-route closure, distributed atomicity, actual Stripe execution, or commercial adoption. The generic Stripe gateway also permits clients to omit the optional pre-dispatch hook; the bounded claim applies to the `BoundEC009Gateway` route only. Never give the agent a direct Stripe key.
 
-## Next review gate
+## Proposed Stripe Test Mode execution path: review gate
 
-Please inspect and attack the fixture and offline verifier first. Only after Graham explicitly accepts the structural fixture should a separately operated Stripe Test Mode path be added and run, with independent Stripe account readback and retrieval evidence. This deliverable intentionally contains no live Stripe runner.
+**Do not run this path until Graham has reviewed and cleared the exact candidate. No Stripe request has been made for this candidate.** The operator supplies `STRIPE_SECRET_KEY` to the process environment, never to the agent or CLI arguments. The runner refuses anything except `sk_test_` and requires `--review-cleared`.
+
+After clearance, from the parent directory of the pinned checkouts:
+
+```bash
+export STRIPE_SECRET_KEY='sk_test_<operator-supplied-secret>'
+python SafeAgent/evidence/flowsignal-ec009/run_fixture.py \
+  --flowsignal-root FlowSignal --mode stripe-test --review-cleared
+python SafeAgent/evidence/flowsignal-ec009/verify_bundle.py \
+  <new-bundle-path> --flowsignal-root FlowSignal
+unset STRIPE_SECRET_KEY
+```
+
+The runner verifies the frozen FlowSignal action and SHA before touching Stripe. A key-bound `StripeClient` with automatic network retries disabled calls `GET /v1/account` to read the **authenticated** account ID; it refuses a mismatch with `acct_1U06JYL6P3JlguFB` before creating anything. The same client submits the unchanged FlowSignal Stripe projection with the SafeAgent permit ID as the idempotency key, under the mandatory upstream and one-use boundary checks. It calls `GET /v1/payment_intents/{id}` only after an ID is durably known; a lost create response remains uncertain and never causes a second create. On dispatch failure, it preserves the SQLite journals and an `uncertain.json` record for manual reconciliation, not a passing bundle. On success, both response and retrieval are recorded with selected non-secret fields, alongside the account readback, operation journal, first dispatch, replay denial, and distinct `stripe-test` manifest and summary. The verifier checks amount, amount received, currency, payment method, metadata, status, ID, and `livemode: false`. The provider response is local evidence; an offline verifier cannot cryptographically prove that the recorded Stripe API responses originated at Stripe. Independent reviewer readback in the Stripe Dashboard or API is still needed to establish that external fact.
+
+Before clearance, review can run `python SafeAgent/evidence/flowsignal-ec009/test_stripe_test_path.py` to exercise the key/account gate and request shape with an in-memory fake. This test makes no network calls. `python SafeAgent/evidence/flowsignal-ec009/test_claim_integrity.py <simulated-bundle> --flowsignal-root FlowSignal` repeats Graham's hostile mutation.

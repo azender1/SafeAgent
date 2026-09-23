@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline EC-009 operator fixture. No Stripe credentials or network calls."""
+"""EC-009 operator fixture; Stripe Test Mode requires an explicit review gate."""
 from __future__ import annotations
 
 import argparse
@@ -64,6 +64,48 @@ class SimulatedStripe:
         return next(dict(v) for v in self.created.values() if v['id'] == payment_intent_id)
 
 
+def payment_fields(value):
+    """Keep reviewable Stripe fields, excluding client_secret and customer data."""
+    raw = plain(value)
+    return {key: raw.get(key) for key in (
+        'id', 'object', 'status', 'amount', 'amount_received', 'currency',
+        'payment_method', 'metadata', 'livemode',
+    )}
+
+
+class StripeTestProvider:
+    """One key-bound client, self-account readback, create, then GET by id."""
+
+    def __init__(self, key):
+        if not key.startswith('sk_test_'):
+            raise ValueError('EC-009 only accepts sk_test_ secret keys; live/restricted keys refused')
+        import stripe
+        self.client = stripe.StripeClient(key, max_network_retries=0)
+        # /v1/account identifies the account authenticated by THIS key. A
+        # GET /v1/accounts/{expected} may merely identify a connected account.
+        self.account = self.client.raw_request('get', '/v1/account').data
+        self.account_id = self.account.get('id')
+        if self.account.get('object') != 'account' or self.account_id != ACCOUNT:
+            raise ValueError('authenticated Stripe account differs from frozen EC-009 account')
+        self.created = None
+        self.retrieved = None
+
+    def create(self, **params):
+        key = params.pop('idempotency_key')
+        value = self.client.v1.payment_intents.create(params, options={'idempotency_key': key})
+        self.created = payment_fields(value)
+        if self.created['livemode'] is not False:
+            raise ValueError('provider returned a live-mode PaymentIntent')
+        return self.created
+
+    def retrieve(self, payment_intent_id):
+        value = self.client.v1.payment_intents.retrieve(payment_intent_id)
+        self.retrieved = payment_fields(value)
+        if self.retrieved['livemode'] is not False:
+            raise ValueError('provider retrieval returned a live-mode PaymentIntent')
+        return self.retrieved
+
+
 def revision(root):
     return subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
 
@@ -75,21 +117,47 @@ def snapshot_database(source, target):
         out.execute('PRAGMA journal_mode=DELETE')
 
 
-def manifest(root, safe_commit):
+def preserve_uncertain(output, runtime, phase, exc):
+    """Retain durable journals on a possible provider-side success with lost response."""
+    stable = output / 'runtime'
+    stable.mkdir(exist_ok=True)
+    for name in ('safeagent-permits.db', 'safeagent-stripe.db'):
+        if (runtime / name).is_file():
+            snapshot_database(runtime / name, stable / name)
+    (output / 'uncertain.json').write_text(json.dumps({
+        'mode': 'stripe-test', 'phase': phase, 'state': 'UNCERTAIN',
+        'error_type': type(exc).__name__, 'next_action': 'manual Stripe reconciliation; never retry create',
+    }, sort_keys=True, indent=2) + '\n')
+
+
+def manifest(root, safe_commit, mode='simulated'):
     files = {}
     for path in sorted(root.rglob('*')):
         if path.is_file() and path.name != 'manifest.json':
             files[path.relative_to(root).as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {'schema': 'safeagent.flowsignal-ec009-offline.v2', 'mode': 'simulated',
+    return {'schema': 'safeagent.flowsignal-ec009-offline.v2' if mode == 'simulated'
+            else 'safeagent.flowsignal-ec009-stripe-test.v1', 'mode': mode,
             'flowsignal_commit': FLOW_COMMIT, 'safeagent_commit': safe_commit,
-            'files_sha256': files, 'claim_scope': 'simulated gateway-controlled path only'}
+            'files_sha256': files,
+            'claim_scope': 'simulated gateway-controlled path only' if mode == 'simulated'
+            else 'Stripe Test Mode account readback and PaymentIntent retrieval recorded'}
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--flowsignal-root', type=Path, required=True)
     parser.add_argument('--output-root', type=Path, default=HERE / 'evidence' / 'runs')
+    parser.add_argument('--mode', choices=('simulated', 'stripe-test'), default='simulated')
+    parser.add_argument('--review-cleared', action='store_true',
+                        help='operator asserts Graham has cleared this exact live path')
     args = parser.parse_args()
+    key = None
+    if args.mode == 'stripe-test':
+        if not args.review_cleared:
+            raise SystemExit('Stripe Test Mode requires Graham review clearance and --review-cleared')
+        key = os.environ.get('STRIPE_SECRET_KEY', '')
+        if not key.startswith('sk_test_'):
+            raise SystemExit('Stripe Test Mode requires STRIPE_SECRET_KEY beginning sk_test_; live keys refused')
     flow_root = args.flowsignal_root.resolve()
     if revision(flow_root) != FLOW_COMMIT:
         raise SystemExit('FlowSignal checkout must be pinned to ' + FLOW_COMMIT)
@@ -138,7 +206,7 @@ def main():
         })
         safe_request = ActionRequest(req.principal_id, 'flowsignal-ec009-' + receipt.id,
                                      'stripe.payment_intent.create', TARGET, payload)
-        simulated = SimulatedStripe()
+        provider = SimulatedStripe() if args.mode == 'simulated' else StripeTestProvider(key)
         verify_authority(flow_root, req, response, receipt, permit, safe_request)
         expires = int(receipt.valid_until.timestamp())
         now = int(datetime.now(timezone.utc).timestamp())
@@ -153,15 +221,25 @@ def main():
         permit_store = SQLitePermitStore(runtime / 'safeagent-permits.db')
         stripe_store = SQLiteStripeStore(runtime / 'safeagent-stripe.db')
         stripe_gateway = StripePaymentIntentGateway(BoundaryGateway(authority.public_key_hex(), permit_store),
-                                                    simulated, stripe_store)
+                                                    provider, stripe_store)
         gateway = BoundEC009Gateway(stripe_gateway, flow_root, req, response, receipt, permit,
-                                   simulated.account_id)
-        first = gateway.dispatch(token, safe_request)
+                                   provider.account_id)
+        try:
+            first = gateway.dispatch(token, safe_request)
+        except Exception as exc:
+            if args.mode == 'stripe-test':
+                preserve_uncertain(output, runtime, 'dispatch', exc)
+            raise
         try:
             gateway.dispatch(token, safe_request)
             replay = {'decision': 'ERROR', 'reason': 'replay dispatched'}
         except PermitDenied as exc:
             replay = {'decision': 'BLOCKED', 'reason': exc.reason}
+        # The Test Mode path retrieves ONLY the known ID. It never retries a
+        # create after a lost response, even if Stripe expires the key.
+        if args.mode == 'stripe-test' and not stripe_store.get(first.permit_id)['payment_intent_id']:
+            preserve_uncertain(output, runtime, 'unknown_payment_intent_id', ValueError())
+            raise SystemExit('unknown Stripe outcome: no PaymentIntent ID; manual reconciliation required')
         observation = stripe_gateway.reconcile(first.permit_id)
         negatives = {}
         mutations = {
@@ -223,25 +301,34 @@ def main():
         write(output, 'safeagent_boundary_events', permit_store.events(first.permit_id))
         write(output, 'stripe_operation', stripe_store.get(first.permit_id))
         write(output, 'stripe_retrieval', observation)
-        write(output, 'provider_account', {'account_id': simulated.account_id, 'source': 'SIMULATED'})
-        write(output, 'simulated_provider_calls', {
-            'label': 'SIMULATED_NOT_STRIPE_EVIDENCE', 'create_calls': simulated.create_calls,
-            'retrieve_calls': simulated.retrieve_calls, 'objects': list(simulated.created.values()),
-        })
+        if args.mode == 'simulated':
+            write(output, 'provider_account', {'account_id': provider.account_id, 'source': 'SIMULATED'})
+            write(output, 'simulated_provider_calls', {
+                'label': 'SIMULATED_NOT_STRIPE_EVIDENCE', 'create_calls': provider.create_calls,
+                'retrieve_calls': provider.retrieve_calls, 'objects': list(provider.created.values()),
+            })
+        else:
+            write(output, 'provider_account', {'account_id': provider.account_id,
+                                               'source': 'STRIPE_TEST_API_READBACK',
+                                               'endpoint': 'GET /v1/account'})
+            write(output, 'stripe_provider_create', provider.created)
+            write(output, 'stripe_provider_retrieval', provider.retrieved)
         write(output, 'negative_cases', negatives)
         stable = output / 'runtime'
         stable.mkdir()
         for name in ('safeagent-permits.db', 'safeagent-stripe.db'):
             snapshot_database(runtime / name, stable / name)
-    summary = {'mode': 'simulated', 'action_hash': ACTION_HASH, 'flow_commit': FLOW_COMMIT,
+    summary = {'mode': args.mode, 'action_hash': ACTION_HASH, 'flow_commit': FLOW_COMMIT,
                'safeagent_commit': safe_commit, 'first': first.decision,
                'replay': replay, 'provider': observation.state,
-               'limitations': ['No external Stripe execution', 'No production authority isolation',
-                               'No alternate-route closure', 'No commercial validation']}
+               'limitations': (['No external Stripe execution'] if args.mode == 'simulated' else
+                               ['Provider records are locally recorded, not independently signed']) +
+               ['No production authority isolation', 'No alternate-route closure', 'No commercial validation']}
     (output / 'summary.json').write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n')
-    (output / 'manifest.json').write_text(json.dumps(manifest(output, safe_commit), sort_keys=True, indent=2) + '\n')
+    (output / 'manifest.json').write_text(json.dumps(manifest(output, safe_commit, args.mode), sort_keys=True, indent=2) + '\n')
     print(json.dumps({'bundle': str(output), **summary}, indent=2))
-    return 0 if first.decision == 'SETTLED' and replay['decision'] == 'BLOCKED' else 1
+    return 0 if first.decision == 'SETTLED' and replay['decision'] == 'BLOCKED' and (
+        args.mode == 'simulated' or observation.state == 'CONFIRMED') else 1
 
 
 if __name__ == '__main__':

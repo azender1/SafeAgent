@@ -1,2 +1,3 @@
 rfc8785==0.1.4
 cryptography>=42.0
+stripe==14.4.1  # only needed for the gated Stripe Test Mode path
