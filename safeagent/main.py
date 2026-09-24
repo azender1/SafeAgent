@@ -38,6 +38,10 @@ from pydantic import BaseModel
 
 import os
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
+from safeagent_exec_guard.hosted_access import (settlement_token, has_settlement_token,
+                                                 require_settlement_token, require_audit_token,
+                                                 require_tenant, tenant_request_id, tenant_prefix,
+                                                 require_claim_read)
 from safeagent_exec_guard import mycelium_trail
 try:
     import safeagent_governance as _gov
@@ -119,7 +123,7 @@ def _derive_test_request_id(body: TestClaimRequest) -> str:
         "action_type": body.action_type,
         "scope": body.scope,
     }
-    return mycelium_trail.sha256hex(mycelium_trail.jcs(preimage))
+    return 'test:' + mycelium_trail.sha256hex(mycelium_trail.jcs(preimage))
 
 
 def create_app(
@@ -159,19 +163,9 @@ def create_app(
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
         _log = logging.getLogger(__name__)
-        try:
-            raw = await request.body()
-            _log.warning(
-                "FAILED_ATTEMPT %s %s — errors: %s | raw_body: %s | content_type: %s | user_agent: %s",
-                request.method,
-                request.url.path,
-                exc.errors(),
-                raw.decode(errors="replace"),
-                request.headers.get("content-type", ""),
-                request.headers.get("user-agent", ""),
-            )
-        except Exception as _e:
-            _log.warning("FAILED_ATTEMPT — could not read body: %s", _e)
+        # Request bodies may contain payment credentials or personal data.
+        _log.warning("FAILED_ATTEMPT %s %s — validation error",
+                     request.method, request.url.path)
         return JSONResponse(
             status_code=422,
             content={"detail": exc.errors()},
@@ -179,7 +173,8 @@ def create_app(
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[origin.strip() for origin in os.getenv("SAFEAGENT_CORS_ORIGINS", "").split(",")
+                       if origin.strip()],
         allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
         allow_headers=["*"],
     )
@@ -324,6 +319,16 @@ def create_app(
         @app.middleware("http")
         async def payment_gate(request: Request, call_next):  # type: ignore[misc]
             if request.method == "POST" and request.url.path == "/claim":
+                # A paid claim must have a settlement capability available before
+                # x402 verifies and captures any payment.
+                if len(os.getenv("SAFEAGENT_SETTLEMENT_SECRET", "")) < 32:
+                    return JSONResponse(status_code=503, content={
+                        "detail": "SAFEAGENT_SETTLEMENT_SECRET must be configured (32+ characters)"
+                    })
+                try:
+                    require_tenant(request)
+                except HTTPException as exc:
+                    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
                 payment_header = request.headers.get(
                     "x-payment"
                 ) or request.headers.get("payment-signature")
@@ -418,7 +423,7 @@ def create_app(
 
     @app.get("/robots.txt", response_class=PlainTextResponse)
     async def robots_txt() -> str:
-        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nAllow: /\nAllow: /audit\nAllow: /audit-service\nSitemap: https://safeagent-production.up.railway.app/sitemap.xml\n"
+        return "User-agent: *\nDisallow: /claim\nDisallow: /settle\nDisallow: /sweep\nDisallow: /audit\nAllow: /\nAllow: /audit-service\nSitemap: https://safeagent-production.up.railway.app/sitemap.xml\n"
 
     @app.get("/sitemap.xml")
     async def sitemap_xml():
@@ -656,7 +661,7 @@ def create_app(
         return doc
 
     @app.get("/claim/{request_id}/proof")
-    async def claim_proof(request_id: str) -> Dict[str, Any]:
+    async def claim_proof(request_id: str, request: Request) -> Dict[str, Any]:
         """
         Return the signed governance receipt for a claim — offline verifiable.
 
@@ -671,6 +676,7 @@ def create_app(
             # pure stdlib: safeagent_governance._bip340_verify(pubkey, msg32, sig64)
             # bitcoin-lib: secp256k1.PublicKey(pubkey).schnorr_verify(msg32, sig64)
         """
+        require_claim_read(request, request_id)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
         if existing is None:
@@ -717,7 +723,7 @@ def create_app(
         )
 
     @app.get("/claim/{request_id}/anchor")
-    async def claim_anchor(request_id: str) -> Dict[str, Any]:
+    async def claim_anchor(request_id: str, request: Request) -> Dict[str, Any]:
         """
         Return the OpenTimestamps proof for a claim's governance envelope.
 
@@ -728,6 +734,7 @@ def create_app(
             pip install opentimestamps-client
             ots verify <downloaded .ots file>
         """
+        require_claim_read(request, request_id)
         store: SQLiteExecutionStore = app.state.store
         existing = store.get(request_id)
         if existing is None:
@@ -825,17 +832,7 @@ def create_app(
         Requires x402 payment when SAFEAGENT_PAYMENT_ADDRESS is set.
         """
         if body is None:
-            _log = logging.getLogger(__name__)
-            try:
-                raw = await request.body()
-                _log.warning(
-                    "FAILED_ATTEMPT POST /claim — body is None | raw_body: %s | content_type: %s | user_agent: %s",
-                    raw.decode(errors="replace"),
-                    request.headers.get("content-type", ""),
-                    request.headers.get("user-agent", ""),
-                )
-            except Exception as _e:
-                _log.warning("FAILED_ATTEMPT POST /claim — could not read body: %s", _e)
+            logging.getLogger(__name__).warning("FAILED_ATTEMPT POST /claim — missing required fields")
             raise HTTPException(
                 status_code=422,
                 detail="request_id and action are required",
@@ -843,6 +840,12 @@ def create_app(
 
         agent_id = _extract_agent_id(request)
         store: SQLiteExecutionStore = app.state.store
+        if body.request_id.startswith('test:'):
+            raise HTTPException(status_code=422, detail='test: prefix is reserved')
+        tenant = (require_tenant(request) if _payment_address or os.getenv('SAFEAGENT_TENANT_KEYS')
+                  else None)
+        stored_id = tenant_request_id(tenant, body.request_id) if tenant else body.request_id
+        capability = settlement_token(stored_id)
 
         # ------------------------------------------------------------------
         # Attestation gate — verify AgentGraph safety verdict before
@@ -934,30 +937,34 @@ def create_app(
                 )
             _safety_meta = {"safety_decision": "skipped", "safety_reason": str(_gate_err)}
 
-        existing = store.get(body.request_id)
+        existing = store.get(stored_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, stored_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
                 "agent_id": existing.get("agent_id"),
             }
 
-        if not store.claim(body.request_id, body.action, agent_id=agent_id):
-            existing = store.get(body.request_id)
+        if not store.claim(stored_id, body.action, agent_id=agent_id):
+            existing = store.get(stored_id)
             if existing and existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": body.request_id,
                     "agent_id": existing.get("agent_id"),
-                    "existing": existing.get("result"),
                 }
+                if has_settlement_token(request, stored_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
                 "status": "PENDING",
                 "request_id": body.request_id,
@@ -971,7 +978,7 @@ def create_app(
         if _GOV_ENABLED:
             try:
                 _built = _gov.build_envelope(
-                    request_id=body.request_id,
+                    request_id=stored_id,
                     action=body.action,
                     agent_id=agent_id,
                     claimed_at_ms=_claimed_at_ms,
@@ -987,17 +994,17 @@ def create_app(
                             "sig_scheme": _sig["sig_scheme"],
                             "anchor_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
-                                f"/claim/{body.request_id}/anchor"
+                                f"/claim/{stored_id}/anchor"
                             ),
                             "proof_endpoint": (
                                 f"https://safeagent-production.up.railway.app"
-                                f"/claim/{body.request_id}/proof"
+                                f"/claim/{stored_id}/proof"
                             ),
                         }
                     }
                     background_tasks.add_task(
                         _gov.attach_governance_async,
-                        request_id=body.request_id,
+                        request_id=stored_id,
                         action=body.action,
                         agent_id=agent_id,
                         claimed_at_ms=_claimed_at_ms,
@@ -1009,7 +1016,7 @@ def create_app(
         if mycelium_trail.enabled():
             async def _submit_trail_claim():
                 trail_id = await mycelium_trail.submit_trail_async(
-                    request_id=body.request_id,
+                    request_id=stored_id,
                     action=body.action,
                     agent_id=agent_id,
                     claimed_at=_claimed_at_ms / 1000,
@@ -1017,7 +1024,7 @@ def create_app(
                 )
                 if trail_id and hasattr(store, "update_anchor_mycelium"):
                     store.update_anchor_mycelium(
-                        request_id=body.request_id,
+                        request_id=stored_id,
                         trail_id=trail_id,
                         precedence=False,
                     )
@@ -1030,6 +1037,7 @@ def create_app(
             "status": "PROCEED",
             "request_id": body.request_id,
             "agent_id": agent_id,
+            "settlement_token": capability,
             **_gov_fields,
         }
 
@@ -1060,20 +1068,24 @@ def create_app(
 
         store: SQLiteExecutionStore = app.state.store
         request_id = _derive_test_request_id(body)
+        capability = settlement_token(request_id)
 
         existing = store.get(request_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": request_id,
-                    "existing": existing.get("result"),
                     "test": True,
                     "calls_remaining": calls_remaining,
                 }
-            store.settle(request_id, {"skipped": True, "test": True})
+                if has_settlement_token(request, request_id):
+                    result['existing'] = existing.get('result')
+                return result
+            # A duplicate cannot establish whether the first caller's external
+            # effect happened. Keep the durable claim unresolved.
             return {
-                "status": "SKIP",
+                "status": "PENDING",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
@@ -1082,15 +1094,17 @@ def create_app(
         if not store.claim(request_id, body.action_type):
             existing = store.get(request_id)
             if existing and existing["status"] == "COMMITTED":
-                return {
+                result = {
                     "status": "SKIP",
                     "request_id": request_id,
-                    "existing": existing.get("result"),
                     "test": True,
                     "calls_remaining": calls_remaining,
                 }
+                if has_settlement_token(request, request_id):
+                    result['existing'] = existing.get('result')
+                return result
             return {
-                "status": "SKIP",
+                "status": "PENDING",
                 "request_id": request_id,
                 "test": True,
                 "calls_remaining": calls_remaining,
@@ -1161,16 +1175,25 @@ def create_app(
         return {
             "status": "PROCEED",
             "request_id": request_id,
+            "settlement_token": capability,
             "test": True,
             "calls_remaining": calls_remaining,
             **_gov_fields_t,
         }
 
     @app.post("/settle/{request_id}")
-    async def settle(request_id: str, body: SettleRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    async def settle(request_id: str, body: SettleRequest, background_tasks: BackgroundTasks,
+                     request: Request) -> Dict[str, Any]:
         """Transition PENDING → COMMITTED with the execution result. Not payment-gated."""
+        if request_id.startswith('test:'):
+            stored_id = request_id
+        else:
+            tenant = (require_tenant(request) if _payment_address or os.getenv('SAFEAGENT_TENANT_KEYS')
+                      else None)
+            stored_id = tenant_request_id(tenant, request_id) if tenant else request_id
+        require_settlement_token(request, stored_id)
         store: SQLiteExecutionStore = app.state.store
-        existing = store.get(request_id)
+        existing = store.get(stored_id)
         if existing is None:
             raise HTTPException(status_code=404, detail="request_id not found")
         if existing["status"] == "COMMITTED":
@@ -1180,12 +1203,13 @@ def create_app(
         import time as _time_settle
         outcome_ts_ms = int(_time_settle.time() * 1000)
 
-        store.settle(request_id, body.result)
+        store.settle(stored_id, body.result)
 
         return {"status": "committed", "request_id": request_id}
 
     @app.get("/audit")
     async def audit(
+        request: Request,
         agent_id: Optional[str] = Query(
             default=None, description="Filter by agent EVM wallet address"
         ),
@@ -1206,7 +1230,15 @@ def create_app(
         limit: int = Query(default=100, ge=1, le=1000, description="Page size"),
         offset: int = Query(default=0, ge=0, description="Pagination offset"),
     ) -> Dict[str, Any]:
-        """Claim history, optionally filtered. Results ordered newest-first. Not payment-gated."""
+        """Private claim history, optionally filtered. Not payment-gated."""
+        if request.headers.get('x-safeagent-audit-token'):
+            require_audit_token(request)
+            prefix = None
+        elif not os.getenv('SAFEAGENT_TENANT_KEYS'):
+            require_audit_token(request)
+            prefix = None
+        else:
+            prefix = tenant_prefix(require_tenant(request))
         store: SQLiteExecutionStore = app.state.store
         return store.audit_claims(
             agent_id=agent_id,
@@ -1216,11 +1248,13 @@ def create_app(
             to_ts=to_ts,
             limit=limit,
             offset=offset,
+            request_id_prefix=prefix,
         )
 
     @app.post("/sweep")
-    async def sweep() -> Dict[str, Any]:
+    async def sweep(request: Request) -> Dict[str, Any]:
         """Detect stale PENDING rows without making them claimable."""
+        require_audit_token(request)
         store: SQLiteExecutionStore = app.state.store
         stale_pending = store.count_stale_pending()
         swept = store.sweep_stale_pending()
@@ -1232,13 +1266,14 @@ def create_app(
         }
 
     @app.post("/sweep/anchor/upgrade")
-    async def sweep_anchor_upgrade() -> Dict[str, Any]:
+    async def sweep_anchor_upgrade(request: Request) -> Dict[str, Any]:
         """
         Check OTS calendar for Bitcoin confirmation on all submitted-but-unconfirmed claims.
         Upgrades incomplete OTS timestamps and flips ots_confirmed=True + block_time when confirmed.
         Call on a schedule (every 15-30 min) — Bitcoin blocks confirm every ~10 min.
         Safe to call repeatedly — skips already-confirmed claims.
         """
+        require_audit_token(request)
         if not _GOV_ENABLED:
             return {"status": "governance_not_configured", "confirmed": 0, "pending": 0}
 
@@ -1298,7 +1333,7 @@ def create_app(
         }
 
     @app.post("/sweep/anchor")
-    async def sweep_anchor() -> Dict[str, Any]:
+    async def sweep_anchor(request: Request) -> Dict[str, Any]:
         """
         Cron job endpoint — submits OTS anchoring for any PROCEED claims
         that have a governance signature but no OTS proof yet.
@@ -1306,6 +1341,7 @@ def create_app(
         Wire this as a Railway cron: POST /sweep/anchor every 5 minutes.
         Safe to call repeatedly — skips claims that already have a proof.
         """
+        require_audit_token(request)
         if not _GOV_ENABLED:
             return {"status": "governance_not_configured", "submitted": 0}
 
@@ -1393,7 +1429,7 @@ def create_app(
         }
 
     @app.post("/sweep/anchor/mycelium")
-    async def sweep_anchor_mycelium() -> Dict[str, Any]:
+    async def sweep_anchor_mycelium(request: Request) -> Dict[str, Any]:
         """
         Cron job endpoint — re-polls Mycelium trails that are stored in the DB
         but missing gov_mycelium_block_time (polling gave up at claim time).
@@ -1401,6 +1437,7 @@ def create_app(
         Wire as a Railway cron: POST /sweep/anchor/mycelium every 5 minutes.
         Safe to call repeatedly — skips claims that already have a block_time.
         """
+        require_audit_token(request)
         if not mycelium_trail.enabled():
             return {"status": "mycelium_not_configured", "updated": 0}
 
