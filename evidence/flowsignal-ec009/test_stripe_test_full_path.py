@@ -144,7 +144,10 @@ def main():
     parser.add_argument('--flowsignal-root', type=Path, required=True)
     args = parser.parse_args()
     flow = args.flowsignal_root.resolve()
-    with tempfile.TemporaryDirectory(prefix='ec009-full-path-fake-') as directory:
+    # A Windows SQLite handle may outlive its transaction context manager;
+    # retain any locked temp file rather than failing after all assertions.
+    with tempfile.TemporaryDirectory(prefix='ec009-full-path-fake-',
+                                     ignore_cleanup_errors=os.name == 'nt') as directory:
         tmp = Path(directory)
         fake = tmp / 'fake_sdk'
         fake.mkdir()
