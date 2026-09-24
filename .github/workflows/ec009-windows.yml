@@ -1,0 +1,34 @@
+name: EC-009 offline Windows fixture
+
+on:
+  push:
+    branches:
+      - work/graham-ec009-windows-cleanup
+  workflow_dispatch:
+
+jobs:
+  full-path-fake:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout SafeAgent candidate
+        uses: actions/checkout@v4
+        with:
+          path: SafeAgent
+
+      - name: Checkout frozen FlowSignal
+        uses: actions/checkout@v4
+        with:
+          repository: grahamb-ai/flowsignal-agentic-payments
+          ref: 7fe99e13456a492a644a8760f126eee6503fc868
+          path: FlowSignal
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install fixture requirements
+        run: python -m pip install -r SafeAgent/evidence/flowsignal-ec009/requirements.txt
+
+      - name: Run socket-blocked full-path regression
+        run: python SafeAgent/evidence/flowsignal-ec009/test_stripe_test_full_path.py --flowsignal-root FlowSignal
