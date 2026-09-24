@@ -209,7 +209,12 @@ def main():
         for scenario in ('lost', 'missing_id'):
             failure, failure_bundle, failure_calls = run_case(tmp, flow, scenario)
             assert failure.returncode != 0, failure.stdout
-            assert str(failure_bundle) in failure.stderr
+            # JSON escapes Windows path separators, so compare the decoded
+            # emitted bundle path rather than its textual representation.
+            uncertain = next(json.loads(line) for line in failure.stderr.splitlines()
+                             if line.startswith('{"bundle":'))
+            assert uncertain['state'] == 'UNCERTAIN'
+            assert Path(uncertain['bundle']) == failure_bundle
             check_uncertain(failure_bundle, failure_calls, scenario)
 
         print(json.dumps({
