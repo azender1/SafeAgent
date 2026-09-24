@@ -214,7 +214,9 @@ def main():
             uncertain = next(json.loads(line) for line in failure.stderr.splitlines()
                              if line.startswith('{"bundle":'))
             assert uncertain['state'] == 'UNCERTAIN'
-            assert Path(uncertain['bundle']) == failure_bundle
+            assert Path(uncertain['bundle']).resolve() == failure_bundle.resolve(), (
+                uncertain['bundle'], str(failure_bundle), scenario
+            )
             check_uncertain(failure_bundle, failure_calls, scenario)
 
         print(json.dumps({
