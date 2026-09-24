@@ -110,11 +110,13 @@ def run_case(tmp, flow, scenario, account=ACCOUNT):
     return process, bundles[0], events(log)
 
 
-def verify(bundle, flow):
+def verify(bundle, flow, fake_sdk):
     process = subprocess.run([
         sys.executable, str(HERE / 'verify_bundle.py'), str(bundle),
         '--flowsignal-root', str(flow),
-    ], text=True, capture_output=True, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+    ], text=True, capture_output=True, env={**os.environ,
+                                           'PYTHONPATH': str(fake_sdk),
+                                           'PYTHONDONTWRITEBYTECODE': '1'})
     assert process.stdout, process.stderr
     return process.returncode, json.loads(process.stdout)
 
@@ -136,7 +138,7 @@ def check_uncertain(bundle, calls, scenario):
             assert rows[0][3] == 'unknown PaymentIntent ID'
     with sqlite3.connect(bundle / 'runtime/safeagent-permits.db') as db:
         rows = db.execute('SELECT uses, status FROM boundary_permits').fetchall()
-        assert len(rows) == 1 and rows[0][0] == 1, rows
+        assert rows == [(1, 'PENDING_RECONCILIATION')], rows
 
 
 def main():
@@ -169,6 +171,7 @@ def main():
         assert read(records / 'safeagent_replay_attempt.json') == {
             'decision': 'BLOCKED', 'reason': 'permit_already_consumed',
         }
+        assert read(records / 'safeagent_boundary_record.json')['status'] == 'SETTLED'
         assert len(read(records / 'safeagent_verification_checks.json')) >= 2
         assert 'client_secret' not in created and 'client_secret' not in retrieved
         assert read(bundle / 'summary.json')['limitations'][0] == (
@@ -179,7 +182,7 @@ def main():
             assert db.execute('SELECT payment_intent_id, reconciliation_state FROM stripe_operations').fetchall() == [
                 (created['id'], 'CONFIRMED'),
             ]
-        code, result = verify(bundle, flow)
+        code, result = verify(bundle, flow, fake)
         assert code == 0 and result == {'mode': 'stripe-test', 'passed': True, 'problems': []}, result
 
         # Edit BOTH provider responses, update the manifest checksums, and
@@ -197,7 +200,7 @@ def main():
             relative = 'records/' + name + '.json'
             manifest['files_sha256'][relative] = hashlib.sha256((tampered / relative).read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
-        code, result = verify(tampered, flow)
+        code, result = verify(tampered, flow, fake)
         assert code != 0 and not result['passed'] and any(
             'Stripe retrieval differs from authorized projection' in problem
             for problem in result['problems']
