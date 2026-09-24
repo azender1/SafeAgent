@@ -181,7 +181,11 @@ def main():
     run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + '-' + uuid.uuid4().hex[:12]
     output = output_root / run_id
     output.mkdir()  # never reuse or overwrite an evidence directory
-    with tempfile.TemporaryDirectory(prefix='safeagent-ec009-') as temp:
+    # SQLite context managers commit/rollback but may keep file handles open
+    # until process exit on Windows. Do not let temp cleanup erase the primary
+    # outcome or prevent a completed run from writing its evidence manifest.
+    with tempfile.TemporaryDirectory(prefix='safeagent-ec009-',
+                                     ignore_cleanup_errors=os.name == 'nt') as temp:
         runtime = Path(temp)
         os.environ['FLOWSIGNAL_PERMIT_CONSUMPTION_STORE'] = str(runtime / 'flowsignal-permits.db')
         os.environ['FLOWSIGNAL_CONSEQUENCE_OUTCOME_STORE'] = str(runtime / 'flowsignal-outcomes.db')
