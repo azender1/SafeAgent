@@ -65,6 +65,8 @@ class PaymentClient:
     network:
         CAIP-2 chain ID the server accepts.  Must match the server's
         ``SAFEAGENT_NETWORK`` setting.  Default: ``eip155:84532`` (Base Sepolia).
+    tenant_api_key:
+        Per-tenant hosted key; falls back to ``SAFEAGENT_TENANT_API_KEY``.
     """
 
     def __init__(
@@ -73,10 +75,12 @@ class PaymentClient:
         server_url: str,
         wallet_key: Optional[str] = None,
         network: str = "eip155:84532",
+        tenant_api_key: Optional[str] = None,
     ) -> None:
         self.server_url = server_url.rstrip("/")
         self._wallet_key = wallet_key or os.environ["SAFEAGENT_WALLET_KEY"]
         self._network = network
+        self._tenant_api_key = tenant_api_key or os.getenv("SAFEAGENT_TENANT_API_KEY")
         self._x402: Optional[x402HttpxClient] = None
 
     # ------------------------------------------------------------------
@@ -117,7 +121,8 @@ class PaymentClient:
         resp = await self._x402.post(
             f"{self.server_url}/claim",
             json={"request_id": request_id, "action": action},
-            headers=({'X-SafeAgent-Settlement-Token': settlement_token} if settlement_token else {}),
+            headers={**({'X-SafeAgent-Settlement-Token': settlement_token} if settlement_token else {}),
+                     **({'X-SafeAgent-Api-Key': self._tenant_api_key} if self._tenant_api_key else {})},
         )
         resp.raise_for_status()
         return resp.json()
@@ -135,7 +140,8 @@ class PaymentClient:
         resp = await self._x402.post(
             f"{self.server_url}/settle/{request_id}",
             json={"result": result},
-            headers={'X-SafeAgent-Settlement-Token': settlement_token},
+            headers={**{'X-SafeAgent-Settlement-Token': settlement_token},
+                     **({'X-SafeAgent-Api-Key': self._tenant_api_key} if self._tenant_api_key else {})},
         )
         resp.raise_for_status()
         return resp.json()

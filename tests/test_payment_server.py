@@ -14,12 +14,13 @@ Two groups:
 from __future__ import annotations
 
 import time
+import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from safeagent_exec_guard.payment_server import create_app
-from safeagent_exec_guard.hosted_access import settlement_token
+from safeagent_exec_guard.hosted_access import settlement_token, tenant_request_id
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
 
 # ---------------------------------------------------------------------------
@@ -63,6 +64,31 @@ class TestHealth:
 
 
 class TestClaimRoute:
+    def test_tenant_keys_isolate_identical_ids_and_scoped_audit(
+        self, monkeypatch, store: SQLiteExecutionStore
+    ) -> None:
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({
+            'alice': 'a' * 48, 'bob': 'b' * 48,
+        }))
+        client = TestClient(create_app(store=store))
+        body = {'request_id': 'predictable-invoice-1', 'action': 'charge'}
+        assert client.post('/claim', json=body).status_code == 403
+        alice = {'X-SafeAgent-Api-Key': 'a' * 48}
+        bob = {'X-SafeAgent-Api-Key': 'b' * 48}
+        a = client.post('/claim', json=body, headers=alice).json()
+        b = client.post('/claim', json=body, headers=bob).json()
+        assert a['status'] == b['status'] == 'PROCEED'
+        assert a['settlement_token'] != b['settlement_token']
+        assert store.get(tenant_request_id('alice', body['request_id']))['status'] == 'PENDING'
+        assert store.get(tenant_request_id('bob', body['request_id']))['status'] == 'PENDING'
+        assert client.get('/audit', headers=alice).json()['total'] == 1
+        assert client.get('/audit', headers=bob).json()['total'] == 1
+        assert client.post('/settle/predictable-invoice-1',
+                           json={'result': {'forged': True}},
+                           headers={**bob, 'X-SafeAgent-Settlement-Token': a['settlement_token']}
+                           ).status_code == 403
+        assert store.get(tenant_request_id('bob', body['request_id']))['status'] == 'PENDING'
+
     def test_capability_is_required_for_settle_and_cached_result(
         self, client: TestClient, store: SQLiteExecutionStore
     ) -> None:
@@ -165,17 +191,20 @@ class TestSettleRoute:
         assert store.get("s3")["result"] == {"ok": True}
 
     def test_settle_not_payment_gated(
-        self, client: TestClient, store: SQLiteExecutionStore
+        self, client: TestClient, store: SQLiteExecutionStore, monkeypatch
     ) -> None:
         """settle/ must always be 200 even on a payment-enabled server."""
+        # The tenant key and settlement capability replace payment for settle.
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
         payment_app = create_app(
             store=store,
             payment_address="0x1234567890abcdef1234567890abcdef12345678",
         )
-        store.claim("s4", "action")
+        stored_id = tenant_request_id('operator', 's4')
+        store.claim(stored_id, "action")
         with TestClient(payment_app, raise_server_exceptions=False) as c:
             resp = c.post("/settle/s4", json={"result": {"ok": True}},
-                          headers=settlement_header('s4'))
+                          headers={**settlement_header(stored_id), 'X-SafeAgent-Api-Key': 'k' * 48})
             assert resp.status_code == 200
 
 
@@ -218,7 +247,7 @@ class TestSweepRoute:
             payment_address="0x1234567890abcdef1234567890abcdef12345678",
         )
         with TestClient(payment_app, raise_server_exceptions=False) as c:
-            resp = c.post("/sweep")
+            resp = c.post("/sweep", headers={'X-SafeAgent-Audit-Token': 'a' * 48})
             assert resp.status_code == 200
 
 
@@ -431,13 +460,24 @@ _DUMMY_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 
 
 @pytest.fixture()
-def payment_client(store: SQLiteExecutionStore, auth_env) -> TestClient:
+def payment_client(store: SQLiteExecutionStore, auth_env, monkeypatch) -> TestClient:
     """TestClient with x402 middleware active on POST /claim."""
+    monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
     app = create_app(store=store, payment_address=_DUMMY_ADDRESS)
-    return TestClient(app, raise_server_exceptions=False)
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers['X-SafeAgent-Api-Key'] = 'k' * 48
+    return client
 
 
 class TestX402Gate:
+    def test_missing_tenant_key_blocks_before_payment_verification(
+        self, payment_client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        response = payment_client.post('/claim', json={'request_id': 'unowned', 'action': 'charge'},
+                                       headers={'X-SafeAgent-Api-Key': 'bad', 'x-payment': 'invalid'})
+        assert response.status_code == 403
+        assert store.get('unowned') is None
+
     def test_missing_secret_rejects_paid_claim_before_payment_gate(
         self, monkeypatch, store: SQLiteExecutionStore
     ) -> None:
@@ -473,9 +513,10 @@ class TestX402Gate:
     def test_settle_not_gated_when_payment_enabled(
         self, store: SQLiteExecutionStore, payment_client: TestClient
     ) -> None:
-        store.claim("pay-3", "action")
+        stored_id = tenant_request_id('operator', 'pay-3')
+        store.claim(stored_id, "action")
         resp = payment_client.post("/settle/pay-3", json={"result": {"ok": True}},
-                                   headers=settlement_header('pay-3'))
+                                   headers=settlement_header(stored_id))
         assert resp.status_code == 200
 
     def test_402_payment_required_header_contains_network(
@@ -496,8 +537,9 @@ class TestX402Gate:
         assert any("84532" in n or "eip155" in n for n in networks)
 
     def test_custom_price_appears_in_requirement(
-        self, store: SQLiteExecutionStore
+        self, store: SQLiteExecutionStore, monkeypatch
     ) -> None:
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
         app = create_app(
             store=store,
             payment_address=_DUMMY_ADDRESS,
@@ -505,6 +547,7 @@ class TestX402Gate:
         )
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.post(
-                "/claim", json={"request_id": "pay-5", "action": "action"}
+                "/claim", json={"request_id": "pay-5", "action": "action"},
+                headers={'X-SafeAgent-Api-Key': 'k' * 48},
             )
             assert resp.status_code == 402

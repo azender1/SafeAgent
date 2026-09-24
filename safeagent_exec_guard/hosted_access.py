@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import os
 
 from fastapi import HTTPException, Request
@@ -37,3 +38,42 @@ def require_audit_token(request: Request) -> None:
     supplied = request.headers.get('x-safeagent-audit-token', '')
     if not supplied or not hmac.compare_digest(supplied, expected):
         raise HTTPException(status_code=403, detail='audit access required')
+
+
+def require_tenant(request: Request) -> str:
+    """Resolve a paid caller to a stable tenant, independent of x402 payer."""
+    try:
+        keys = json.loads(os.getenv('SAFEAGENT_TENANT_KEYS', ''))
+        if not isinstance(keys, dict) or not keys or len(set(keys.values())) != len(keys) or any(
+            not isinstance(tenant, str) or not tenant or
+            not isinstance(key, str) or len(key) < 32
+            for tenant, key in keys.items()
+        ):
+            raise ValueError('invalid tenant key map')
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=503, detail='SAFEAGENT_TENANT_KEYS must be configured')
+    supplied = request.headers.get('x-safeagent-api-key', '')
+    for tenant, key in keys.items():
+        if supplied and hmac.compare_digest(supplied, key):
+            return tenant
+    raise HTTPException(status_code=403, detail='tenant API key required')
+
+
+def tenant_prefix(tenant: str) -> str:
+    return 'tenant:' + hashlib.sha256(tenant.encode()).hexdigest() + ':'
+
+
+def tenant_request_id(tenant: str, request_id: str) -> str:
+    return tenant_prefix(tenant) + request_id
+
+
+def require_claim_read(request: Request, stored_id: str) -> None:
+    """Keep governance envelopes private unless the claim owner authorizes access."""
+    if stored_id.startswith('tenant:'):
+        tenant = require_tenant(request)
+        if not stored_id.startswith(tenant_prefix(tenant)):
+            raise HTTPException(status_code=403, detail='tenant access required')
+    elif stored_id.startswith('test:'):
+        require_settlement_token(request, stored_id)
+    else:
+        require_audit_token(request)  # historical unscoped records
