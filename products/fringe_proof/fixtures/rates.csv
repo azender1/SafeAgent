@@ -1,0 +1,4 @@
+local,classification,fund,effective_from,effective_to,rate_per_hour
+LOCAL-24,journeyworker,HEALTH,2026-01-01,2026-09-01,10.00
+LOCAL-24,journeyworker,HEALTH,2026-09-02,,11.00
+LOCAL-24,apprentice,HEALTH,2026-01-01,,5.00

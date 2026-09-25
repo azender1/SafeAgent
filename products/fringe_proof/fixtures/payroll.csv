@@ -1,0 +1,4 @@
+employee_id,work_date,local,classification,covered_hours
+WORKER-001,2026-09-01,LOCAL-24,journeyworker,8
+WORKER-001,2026-09-02,LOCAL-24,journeyworker,8
+WORKER-002,2026-09-02,LOCAL-24,apprentice,8

@@ -1,0 +1,3 @@
+employee_id,local,classification,fund,reported_hours,reported_amount
+WORKER-001,LOCAL-24,journeyworker,HEALTH,16,160.00
+WORKER-002,LOCAL-24,apprentice,HEALTH,6,30.00
