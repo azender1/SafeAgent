@@ -1,0 +1,80 @@
+name: live-hardening-postdeploy
+
+on:
+  push:
+    branches:
+      - verify/live-hardening-postdeploy
+
+jobs:
+  verify-live:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify live SafeAgent hardening
+        env:
+          BASE: https://safeagent-production.up.railway.app
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          health_code=$(curl -sS -o /tmp/health.json -w "%{http_code}" "$BASE/health")
+          test "$health_code" = "200"
+
+          audit_code=$(curl -sS -o /tmp/audit.json -w "%{http_code}" "$BASE/audit")
+          test "$audit_code" = "403"
+
+          cat >/tmp/claim.json <<EOF
+          {"agent_id":"github-postdeploy-$RUN_ID","action_type":"synthetic_verify","scope":"postdeploy-$RUN_ID"}
+          EOF
+
+          claim_code=$(curl -sS -o /tmp/claim_resp.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -X POST "$BASE/claim/test" \
+            --data-binary @/tmp/claim.json)
+          test "$claim_code" = "200"
+
+          read request_id token status <<EOF
+          $(python - <<'PY'
+          import json
+          d=json.load(open('/tmp/claim_resp.json'))
+          print(d.get('request_id',''), d.get('settlement_token',''), d.get('status',''))
+          PY
+          )
+          EOF
+
+          test "$status" = "PROCEED"
+          test -n "$request_id"
+          test -n "$token"
+
+          stranger_code=$(curl -sS -o /tmp/stranger.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -X POST "$BASE/settle/$request_id" \
+            -d '{"result":{"synthetic":true,"actor":"stranger"}}')
+          test "$stranger_code" = "403"
+
+          owner_code=$(curl -sS -o /tmp/owner.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -H "x-safeagent-settlement-token: $token" \
+            -X POST "$BASE/settle/$request_id" \
+            -d '{"result":{"synthetic":true,"verified":true}}')
+          test "$owner_code" = "200"
+
+          retry_code=$(curl -sS -o /tmp/retry.json -w "%{http_code}" \
+            -H "Content-Type: application/json" \
+            -H "x-safeagent-settlement-token: $token" \
+            -X POST "$BASE/claim/test" \
+            --data-binary @/tmp/claim.json)
+          test "$retry_code" = "200"
+
+          retry_status=$(python - <<'PY'
+          import json
+          print(json.load(open('/tmp/retry.json')).get('status',''))
+          PY
+          )
+          test "$retry_status" = "SKIP"
+
+          echo "health=200"
+          echo "audit_unauth=403"
+          echo "claim=PROCEED"
+          echo "stranger_settle=403"
+          echo "owner_settle=200"
+          echo "retry=SKIP"
