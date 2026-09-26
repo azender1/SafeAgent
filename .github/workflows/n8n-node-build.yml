@@ -1,0 +1,26 @@
+name: n8n-node-build
+
+on:
+  push:
+    paths:
+      - "n8n-nodes-safeagent/**"
+      - ".github/workflows/n8n-node-build.yml"
+  pull_request:
+    paths:
+      - "n8n-nodes-safeagent/**"
+      - ".github/workflows/n8n-node-build.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install
+        working-directory: n8n-nodes-safeagent
+        run: npm install --ignore-scripts
+      - name: TypeScript build
+        working-directory: n8n-nodes-safeagent
+        run: npm run build
