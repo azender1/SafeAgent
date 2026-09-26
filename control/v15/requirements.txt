@@ -1,0 +1,11 @@
+# Verified against these versions on Python 3.12.
+pytest>=8.0
+hypothesis>=6.100
+# alpaca-py: only needed for --alpaca-api (control_cli.py / alpaca_api_adapter.py).
+# File-mode-only usage never imports it. Verified directly against 0.43.2
+# (the version already installed on the machine this adapter targets) and
+# 0.44.0 (current at time of writing) -- both expose the exact
+# TradingClient/GetOrdersRequest/QueryOrderStatus/Sort/APIError surface
+# this adapter uses. Pinned below 1.0 since alpaca-py hasn't reached a
+# major version yet and this constraint should not silently span one.
+alpaca-py>=0.43,<1.0

@@ -1,0 +1,45 @@
+{
+  "orders": [
+    {
+      "id": "8f3b6b2e-alpaca-001", "client_order_id": "SAMPLE_STRATEGY-base-0908-1",
+      "symbol": "SQQQ", "side": "buy", "qty": "13", "status": "filled",
+      "submitted_at": "2026-09-08T13:34:08.512394Z",
+      "filled_at": "2026-09-08T13:34:09.001Z",
+      "source_account": "ACC1"
+    },
+    {
+      "id": "alpaca-order-CONFLICT", "client_order_id": "SAMPLE_STRATEGY-base-WRONG",
+      "symbol": "SQQQ", "side": "buy", "qty": 20, "status": "filled",
+      "submitted_at": "2026-09-08T15:00:05Z",
+      "filled_at": "2026-09-08T15:00:06Z",
+      "source_account": "ACC1"
+    },
+    {
+      "id": "alpaca-order-006", "client_order_id": "SAMPLE_STRATEGY-base-006",
+      "symbol": "SQQQ", "side": "buy", "qty": 8, "status": "pending_new",
+      "submitted_at": "2026-09-08T15:20:05Z",
+      "filled_at": null,
+      "source_account": "ACC1"
+    },
+    {
+      "id": "alpaca-order-006", "client_order_id": "SAMPLE_STRATEGY-base-006",
+      "symbol": "SQQQ", "side": "buy", "qty": 8, "status": "filled",
+      "submitted_at": "2026-09-08T15:20:05Z",
+      "filled_at": "2026-09-08T15:20:07Z",
+      "source_account": "ACC1"
+    },
+    {
+      "id": "alpaca-manual-005",
+      "symbol": "SQQQ", "side": "sell", "qty": 5, "status": "filled",
+      "submitted_at": "2026-09-08T16:05:00Z",
+      "filled_at": "2026-09-08T16:05:01Z",
+      "source_account": "ACC1"
+    },
+    {
+      "id": "alpaca-order-notional-007",
+      "symbol": "SQQQ", "side": "buy", "notional": "500.00", "status": "new",
+      "submitted_at": "2026-09-08T16:10:00Z",
+      "source_account": "ACC1"
+    }
+  ]
+}

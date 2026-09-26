@@ -1,0 +1,35 @@
+name: control-v15
+
+on:
+  push:
+    paths:
+      - "control/v15/**"
+      - ".github/workflows/control-v15.yml"
+  pull_request:
+    paths:
+      - "control/v15/**"
+      - ".github/workflows/control-v15.yml"
+
+jobs:
+  test-control-v15:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Control v15 test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r control/v15/requirements.txt
+      - name: Materialize synthetic SQLite fixture
+        working-directory: control/v15
+        run: |
+          python build_synthetic_db.py
+      - name: Run Control v15 tests
+        working-directory: control/v15
+        run: |
+          pytest -q
