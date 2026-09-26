@@ -143,3 +143,8 @@ Remember: this node's free tier is limited to 10 total calls per IP address. For
 ## License
 
 Apache-2.0
+
+
+## Settlement capability
+
+A successful Claim returns both `request_id` and `settlement_token`. The Settle operation must send both values back. The node's Settle fields default to the previous item's `request_id` and `settlement_token`; if another node runs between Claim and Settle, preserve both values and map them into the Settle step. This prevents a different caller from settling someone else's PENDING claim.
