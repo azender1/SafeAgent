@@ -180,6 +180,7 @@ class SQLiteExecutionStore:
         to_ts: Optional[float] = None,
         limit: int = 100,
         offset: int = 0,
+        request_id_prefix: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Return paginated claim history with optional filters.
@@ -210,6 +211,10 @@ class SQLiteExecutionStore:
         if agent_id is not None:
             conditions.append("agent_id = ?")
             params.append(agent_id)
+        if request_id_prefix is not None:
+            # substr avoids LIKE wildcard interpretation in caller-provided IDs.
+            conditions.append("substr(request_id, 1, ?) = ?")
+            params.extend([len(request_id_prefix), request_id_prefix])
         if action is not None:
             conditions.append("action = ?")
             params.append(action)

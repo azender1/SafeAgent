@@ -47,8 +47,12 @@ async def list_tools() -> list[Tool]:
                         "type": "string",
                         "description": "Human-readable action name (e.g. 'send_payment').",
                     },
+                    "agent_id": {
+                        "type": "string",
+                        "description": "Stable identity of the caller for the test claim.",
+                    },
                 },
-                "required": ["request_id", "action"],
+                "required": ["request_id", "action", "agent_id"],
             },
         ),
         Tool(
@@ -62,14 +66,18 @@ async def list_tools() -> list[Tool]:
                 "properties": {
                     "request_id": {
                         "type": "string",
-                        "description": "The same request_id used in safeagent_claim.",
+                        "description": "The derived request_id returned by safeagent_claim on PROCEED.",
                     },
                     "result": {
                         "type": "object",
                         "description": "Arbitrary JSON object containing the action outcome.",
                     },
+                    "settlement_token": {
+                        "type": "string",
+                        "description": "Capability returned by the successful safeagent_claim call.",
+                    },
                 },
-                "required": ["request_id", "result"],
+                "required": ["request_id", "result", "settlement_token"],
             },
         ),
     ]
@@ -83,7 +91,8 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             action = arguments["action"]
             response = await client.post(
                 f"{SAFEAGENT_BASE_URL}/claim/test",
-                json={"request_id": request_id, "action": action},
+                json={"agent_id": arguments["agent_id"], "action_type": action,
+                      "scope": request_id},
             )
             response.raise_for_status()
             return [TextContent(type="text", text=response.text)]
@@ -91,9 +100,11 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
         if name == "safeagent_settle":
             request_id = arguments["request_id"]
             result = arguments["result"]
+            settlement_token = arguments["settlement_token"]
             response = await client.post(
                 f"{SAFEAGENT_BASE_URL}/settle/{request_id}",
-                json=result,
+                json={"result": result},
+                headers={"X-SafeAgent-Settlement-Token": settlement_token},
             )
             response.raise_for_status()
             return [TextContent(type="text", text=response.text)]

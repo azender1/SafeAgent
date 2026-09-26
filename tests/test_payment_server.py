@@ -14,16 +14,28 @@ Two groups:
 from __future__ import annotations
 
 import time
+import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from safeagent_exec_guard.payment_server import create_app
+from safeagent_exec_guard.hosted_access import settlement_token, tenant_request_id
 from safeagent_exec_guard.sqlite_store import SQLiteExecutionStore
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
 # ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def auth_env(monkeypatch):
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
+    monkeypatch.setenv('SAFEAGENT_AUDIT_TOKEN', 'a' * 48)
+
+
+def settlement_header(request_id):
+    return {'X-SafeAgent-Settlement-Token': settlement_token(request_id)}
 
 
 @pytest.fixture()
@@ -32,9 +44,11 @@ def store() -> SQLiteExecutionStore:
 
 
 @pytest.fixture()
-def client(store: SQLiteExecutionStore) -> TestClient:
+def client(store: SQLiteExecutionStore, auth_env) -> TestClient:
     """TestClient with no payment gating (no payment_address)."""
-    return TestClient(create_app(store=store))
+    c = TestClient(create_app(store=store))
+    c.headers['X-SafeAgent-Audit-Token'] = 'a' * 48
+    return c
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +64,48 @@ class TestHealth:
 
 
 class TestClaimRoute:
+    def test_tenant_keys_isolate_identical_ids_and_scoped_audit(
+        self, monkeypatch, store: SQLiteExecutionStore
+    ) -> None:
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({
+            'alice': 'a' * 48, 'bob': 'b' * 48,
+        }))
+        client = TestClient(create_app(store=store))
+        body = {'request_id': 'predictable-invoice-1', 'action': 'charge'}
+        assert client.post('/claim', json=body).status_code == 403
+        alice = {'X-SafeAgent-Api-Key': 'a' * 48}
+        bob = {'X-SafeAgent-Api-Key': 'b' * 48}
+        a = client.post('/claim', json=body, headers=alice).json()
+        b = client.post('/claim', json=body, headers=bob).json()
+        assert a['status'] == b['status'] == 'PROCEED'
+        assert a['settlement_token'] != b['settlement_token']
+        assert store.get(tenant_request_id('alice', body['request_id']))['status'] == 'PENDING'
+        assert store.get(tenant_request_id('bob', body['request_id']))['status'] == 'PENDING'
+        assert client.get('/audit', headers=alice).json()['total'] == 1
+        assert client.get('/audit', headers=bob).json()['total'] == 1
+        assert client.post('/settle/predictable-invoice-1',
+                           json={'result': {'forged': True}},
+                           headers={**bob, 'X-SafeAgent-Settlement-Token': a['settlement_token']}
+                           ).status_code == 403
+        assert store.get(tenant_request_id('bob', body['request_id']))['status'] == 'PENDING'
+
+    def test_capability_is_required_for_settle_and_cached_result(
+        self, client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        body = {"request_id": "private-1", "action": "email.send"}
+        first = client.post("/claim", json=body).json()
+        token = first["settlement_token"]
+        assert first["status"] == "PROCEED"
+        assert client.post("/settle/private-1", json={"result": {"secret": 1}}).status_code == 403
+        assert store.get("private-1")["status"] == "PENDING"
+        assert client.post("/settle/private-1", json={"result": {"secret": 1}},
+                           headers={"X-SafeAgent-Settlement-Token": token}).status_code == 200
+        duplicate = client.post("/claim", json=body).json()
+        assert duplicate["status"] == "SKIP" and "existing" not in duplicate
+        authorized = client.post("/claim", json=body,
+                                 headers={"X-SafeAgent-Settlement-Token": token}).json()
+        assert authorized["existing"] == {"secret": 1}
+
     def test_new_request_id_returns_proceed(self, client: TestClient) -> None:
         resp = client.post("/claim", json={"request_id": "r1", "action": "email.send"})
         assert resp.status_code == 200
@@ -76,7 +132,8 @@ class TestClaimRoute:
     ) -> None:
         store.claim("r4", "action")
         store.settle("r4", {"ok": True, "sent": "alice@example.com"})
-        resp = client.post("/claim", json={"request_id": "r4", "action": "action"})
+        resp = client.post("/claim", json={"request_id": "r4", "action": "action"},
+                           headers=settlement_header('r4'))
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "SKIP"
@@ -88,7 +145,8 @@ class TestClaimRoute:
         stored_result = {"ok": True, "execution_id": "abc-123", "data": [1, 2, 3]}
         store.claim("r5", "webhook")
         store.settle("r5", stored_result)
-        resp = client.post("/claim", json={"request_id": "r5", "action": "webhook"})
+        resp = client.post("/claim", json={"request_id": "r5", "action": "webhook"},
+                           headers=settlement_header('r5'))
         assert resp.json()["existing"] == stored_result
 
     def test_different_request_ids_are_independent(self, client: TestClient) -> None:
@@ -103,7 +161,7 @@ class TestSettleRoute:
         self, client: TestClient, store: SQLiteExecutionStore
     ) -> None:
         store.claim("s1", "action")
-        resp = client.post("/settle/s1", json={"result": {"ok": True}})
+        resp = client.post("/settle/s1", json={"result": {"ok": True}}, headers=settlement_header('s1'))
         assert resp.status_code == 200
         assert resp.json()["status"] == "committed"
         assert store.get("s1")["status"] == "COMMITTED"
@@ -113,11 +171,12 @@ class TestSettleRoute:
     ) -> None:
         store.claim("s2", "action")
         result = {"ok": True, "execution_id": "xyz", "data": {"key": "val"}}
-        client.post("/settle/s2", json={"result": result})
+        client.post("/settle/s2", json={"result": result}, headers=settlement_header('s2'))
         assert store.get("s2")["result"] == result
 
     def test_settle_unknown_request_id_returns_404(self, client: TestClient) -> None:
-        resp = client.post("/settle/no-such-id", json={"result": {}})
+        resp = client.post("/settle/no-such-id", json={"result": {}},
+                           headers=settlement_header('no-such-id'))
         assert resp.status_code == 404
 
     def test_settle_already_committed_is_idempotent(
@@ -125,22 +184,27 @@ class TestSettleRoute:
     ) -> None:
         store.claim("s3", "action")
         store.settle("s3", {"ok": True})
-        resp = client.post("/settle/s3", json={"result": {"ok": False}})
+        resp = client.post("/settle/s3", json={"result": {"ok": False}},
+                           headers=settlement_header('s3'))
         assert resp.json()["status"] == "already_committed"
         # original result unchanged
         assert store.get("s3")["result"] == {"ok": True}
 
     def test_settle_not_payment_gated(
-        self, client: TestClient, store: SQLiteExecutionStore
+        self, client: TestClient, store: SQLiteExecutionStore, monkeypatch
     ) -> None:
         """settle/ must always be 200 even on a payment-enabled server."""
+        # The tenant key and settlement capability replace payment for settle.
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
         payment_app = create_app(
             store=store,
             payment_address="0x1234567890abcdef1234567890abcdef12345678",
         )
-        store.claim("s4", "action")
+        stored_id = tenant_request_id('operator', 's4')
+        store.claim(stored_id, "action")
         with TestClient(payment_app, raise_server_exceptions=False) as c:
-            resp = c.post("/settle/s4", json={"result": {"ok": True}})
+            resp = c.post("/settle/s4", json={"result": {"ok": True}},
+                          headers={**settlement_header(stored_id), 'X-SafeAgent-Api-Key': 'k' * 48})
             assert resp.status_code == 200
 
 
@@ -183,7 +247,7 @@ class TestSweepRoute:
             payment_address="0x1234567890abcdef1234567890abcdef12345678",
         )
         with TestClient(payment_app, raise_server_exceptions=False) as c:
-            resp = c.post("/sweep")
+            resp = c.post("/sweep", headers={'X-SafeAgent-Audit-Token': 'a' * 48})
             assert resp.status_code == 200
 
 
@@ -365,7 +429,7 @@ class TestAuditRoute:
             payment_address="0x1234567890abcdef1234567890abcdef12345678",
         )
         with TestClient(app, raise_server_exceptions=False) as c:
-            resp = c.get("/audit")
+            resp = c.get("/audit", headers={'X-SafeAgent-Audit-Token': 'a' * 48})
             assert resp.status_code == 200
 
     def test_audit_items_include_agent_id_field(
@@ -396,13 +460,35 @@ _DUMMY_ADDRESS = "0x1234567890abcdef1234567890abcdef12345678"
 
 
 @pytest.fixture()
-def payment_client(store: SQLiteExecutionStore) -> TestClient:
+def payment_client(store: SQLiteExecutionStore, auth_env, monkeypatch) -> TestClient:
     """TestClient with x402 middleware active on POST /claim."""
+    monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
     app = create_app(store=store, payment_address=_DUMMY_ADDRESS)
-    return TestClient(app, raise_server_exceptions=False)
+    client = TestClient(app, raise_server_exceptions=False)
+    client.headers['X-SafeAgent-Api-Key'] = 'k' * 48
+    return client
 
 
 class TestX402Gate:
+    def test_missing_tenant_key_blocks_before_payment_verification(
+        self, payment_client: TestClient, store: SQLiteExecutionStore
+    ) -> None:
+        response = payment_client.post('/claim', json={'request_id': 'unowned', 'action': 'charge'},
+                                       headers={'X-SafeAgent-Api-Key': 'bad', 'x-payment': 'invalid'})
+        assert response.status_code == 403
+        assert store.get('unowned') is None
+
+    def test_missing_secret_rejects_paid_claim_before_payment_gate(
+        self, monkeypatch, store: SQLiteExecutionStore
+    ) -> None:
+        monkeypatch.delenv('SAFEAGENT_SETTLEMENT_SECRET')
+        app = create_app(store=store, payment_address=_DUMMY_ADDRESS)
+        client = TestClient(app, raise_server_exceptions=False)
+        response = client.post('/claim', json={'request_id': 'bad-config', 'action': 'charge'},
+                               headers={'x-payment': 'invalid'})
+        assert response.status_code == 503
+        assert store.get('bad-config') is None
+
     def test_claim_without_payment_returns_402(
         self, payment_client: TestClient
     ) -> None:
@@ -427,8 +513,10 @@ class TestX402Gate:
     def test_settle_not_gated_when_payment_enabled(
         self, store: SQLiteExecutionStore, payment_client: TestClient
     ) -> None:
-        store.claim("pay-3", "action")
-        resp = payment_client.post("/settle/pay-3", json={"result": {"ok": True}})
+        stored_id = tenant_request_id('operator', 'pay-3')
+        store.claim(stored_id, "action")
+        resp = payment_client.post("/settle/pay-3", json={"result": {"ok": True}},
+                                   headers=settlement_header(stored_id))
         assert resp.status_code == 200
 
     def test_402_payment_required_header_contains_network(
@@ -449,8 +537,9 @@ class TestX402Gate:
         assert any("84532" in n or "eip155" in n for n in networks)
 
     def test_custom_price_appears_in_requirement(
-        self, store: SQLiteExecutionStore
+        self, store: SQLiteExecutionStore, monkeypatch
     ) -> None:
+        monkeypatch.setenv('SAFEAGENT_TENANT_KEYS', json.dumps({'operator': 'k' * 48}))
         app = create_app(
             store=store,
             payment_address=_DUMMY_ADDRESS,
@@ -458,6 +547,7 @@ class TestX402Gate:
         )
         with TestClient(app, raise_server_exceptions=False) as c:
             resp = c.post(
-                "/claim", json={"request_id": "pay-5", "action": "action"}
+                "/claim", json={"request_id": "pay-5", "action": "action"},
+                headers={'X-SafeAgent-Api-Key': 'k' * 48},
             )
             assert resp.status_code == 402
