@@ -30,6 +30,7 @@ interface ClaimTestResponse {
   request_id: string;
   test: boolean;
   calls_remaining: number;
+  settlement_token?: string;
   existing?: IDataObject;
 }
 
@@ -143,6 +144,16 @@ export class SafeAgent implements INodeType {
         displayOptions: { show: { operation: ['settle'] } },
       },
       {
+        displayName: 'Settlement Token',
+        name: 'settlementToken',
+        type: 'string',
+        default: '={{ $json["settlement_token"] }}',
+        required: true,
+        description:
+          'Capability returned by the Claim step. Preserve it across any side-effect node and pass it here when settling.',
+        displayOptions: { show: { operation: ['settle'] } },
+      },
+      {
         displayName: 'Result',
         name: 'result',
         type: 'json',
@@ -204,10 +215,17 @@ export class SafeAgent implements INodeType {
           }
         } else {
           const requestId = (this.getNodeParameter('requestId', i) as string).trim();
+          const settlementToken = (this.getNodeParameter('settlementToken', i) as string).trim();
           const resultRaw = this.getNodeParameter('result', i) as string | object;
 
           if (!requestId) {
             throw new NodeOperationError(this.getNode(), 'Request ID must not be empty.', {
+              itemIndex: i,
+            });
+          }
+
+          if (!settlementToken) {
+            throw new NodeOperationError(this.getNode(), 'Settlement Token must not be empty.', {
               itemIndex: i,
             });
           }
@@ -228,6 +246,7 @@ export class SafeAgent implements INodeType {
           const response = (await this.helpers.httpRequest({
             method: 'POST',
             url: baseUrl + '/settle/' + encodeURIComponent(requestId),
+            headers: { 'x-safeagent-settlement-token': settlementToken },
             body: { result },
             json: true,
           })) as SettleResponse;
