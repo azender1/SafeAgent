@@ -147,6 +147,7 @@ export class SafeAgent implements INodeType {
         displayName: 'Settlement Token',
         name: 'settlementToken',
         type: 'string',
+        typeOptions: { password: true },
         default: '={{ $json["settlement_token"] }}',
         required: true,
         description:
