@@ -33,8 +33,13 @@ name: Publish n8n-nodes-safeagent
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'n8n-nodes-safeagent-v*.*.*'
+    paths:
+      - 'n8n-nodes-safeagent/**'
+      - '.github/workflows/publish.yml'
   workflow_dispatch:
 
 jobs:
@@ -91,6 +96,11 @@ jobs:
 
       - name: Publish with provenance
         run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$PKG_VERSION" != "0.2.6" ]; then
+            echo "Automatic main-branch release is one-time scoped to 0.2.6; skipping $PKG_VERSION"
+            exit 0
+          fi
           [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           npm publish --provenance --access public
         env:
