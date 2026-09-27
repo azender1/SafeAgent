@@ -25,7 +25,7 @@ runtime reasons. That is a real limitation, stated plainly, not hidden:
 they are run by `python3 test_v12_full_suite.py`, which reports
 deterministic and property results separately.
 
-SCOPE, stated accurately: eleven hand-written mutants targeting eleven
+SCOPE, stated accurately: fourteen hand-written mutants targeting fourteen
 named behaviors is a TARGETED mutation suite. It is not a mutation score.
 A real score would require systematically mutating every operator and
 branch with a tool such as mutmut or cosmic-ray, which has not been done.
@@ -110,7 +110,7 @@ def main() -> int:
     total_discovered = len(discover_deterministic_tests(suite))
 
     report = {
-        "scope": "Targeted mutation suite: 11 hand-written mutants of 11 named behaviors. "
+        "scope": "Targeted mutation suite: 14 hand-written mutants of 14 named behaviors. "
                  "NOT a mutation score -- no systematic operator/branch mutation was performed.",
         "test_selection": "Deterministic + fixture + ingestion tests, discovered from the suite "
                           "at runtime (no hardcoded list). Hypothesis property tests are excluded "
