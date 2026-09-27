@@ -94,6 +94,7 @@ Scope - everything that makes this execution unique (e.g. customer ID, order ID,
 
 Settle:
 Request ID - the request_id returned by a previous Claim call
+Settlement Token - the settlement_token returned by that Claim; required by the hardened hosted API
 Result - arbitrary JSON to store against this claim once settled
 
 ---
@@ -101,10 +102,10 @@ Result - arbitrary JSON to store against this claim once settled
 ## Output fields
 
 Claim -> PROCEED:
-{ "status": "PROCEED", "request_id": "...", "test": true, "calls_remaining": 9 }
+{ "status": "PROCEED", "request_id": "...", "settlement_token": "...", "test": true, "calls_remaining": 9 }
 
 Claim -> SKIP:
-{ "status": "SKIP", "request_id": "...", "test": true, "calls_remaining": 8, "existing": {} }
+{ "status": "SKIP", "request_id": "...", "settlement_token": "...", "test": true, "calls_remaining": 8, "existing": {} }
 
 Settle:
 { "status": "committed", "request_id": "..." }
