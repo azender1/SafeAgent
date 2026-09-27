@@ -39,13 +39,20 @@ def github_summary():
     if GH_TOKEN:
         headers["Authorization"]=f"Bearer {GH_TOKEN}"
     _,prs=get_json(f"https://api.github.com/repos/{GH_REPO}/pulls?state=open&per_page=100",headers)
-    _,runs=get_json(f"https://api.github.com/repos/{GH_REPO}/actions/runs?branch=main&per_page=30",headers)
-    relevant=[r for r in runs.get("workflow_runs",[]) if r.get("name") in {"ci","control-v15","n8n-node-build"}]
+    _,runs=get_json(f"https://api.github.com/repos/{GH_REPO}/actions/runs?branch=main&per_page=50",headers)
+    watched={"ci","control-v15","n8n-node-build","Publish n8n-nodes-safeagent","Publish safeagent-exec-guard"}
     latest={}
-    for r in relevant:
-        latest.setdefault(r["name"],{"status":r["status"],"conclusion":r.get("conclusion"),"url":r["html_url"]})
-    green=all(v["status"]=="completed" and v["conclusion"]=="success" for v in latest.values()) if latest else False
-    return len(prs),green,latest
+    for r in runs.get("workflow_runs",[]):
+        name=r.get("name")
+        if name in watched and name not in latest:
+            latest[name]={"status":r["status"],"conclusion":r.get("conclusion"),"url":r["html_url"]}
+    core={k:latest.get(k) for k in ("ci","control-v15","n8n-node-build")}
+    green=all(v and v["status"]=="completed" and v["conclusion"]=="success" for v in core.values())
+    releases={
+        "n8n": latest.get("Publish n8n-nodes-safeagent"),
+        "pypi": latest.get("Publish safeagent-exec-guard"),
+    }
+    return len(prs),green,core,releases
 
 def main():
     old={}
@@ -56,7 +63,7 @@ def main():
     audit=get_status(BASE+"/audit")
     repo_npm,repo_pypi=repo_versions()
     npm,pypi=latest_registry_versions()
-    open_prs,ci_green,ci=github_summary()
+    open_prs,ci_green,ci,release_checks=github_summary()
     manual=old.get("commercial",{})
     active_evaluator=manual.get("active_evaluator",False)
     pilot=manual.get("pilot",False)
@@ -75,8 +82,10 @@ def main():
         "status":"PASS" if health==200 and audit==403 else "FAIL"
       },
       "releases":{
-        "n8n":{"repo":repo_npm,"registry":npm,"match":repo_npm==npm},
-        "pypi":{"repo":repo_pypi,"registry":pypi,"match":repo_pypi==pypi}
+        "n8n":{"repo":repo_npm,"registry":npm,"match":repo_npm==npm,
+               "publish_workflow":release_checks.get("n8n")},
+        "pypi":{"repo":repo_pypi,"registry":pypi,"match":repo_pypi==pypi,
+                "publish_workflow":release_checks.get("pypi")}
       },
       "github":{"open_pull_requests":open_prs,"main_ci_green":ci_green,"latest_checks":ci},
       "external_review":{"status":old.get("external_review",{}).get("status","awaiting Graham final EC-009 wording")},
