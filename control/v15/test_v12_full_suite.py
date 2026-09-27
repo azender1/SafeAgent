@@ -998,3 +998,8 @@ def test_ing12_unmapped_status_history_is_not_silently_ordered():
     """
     raw = [_mk_order(bid="B12", status="filled"), _mk_order(bid="B12", status="pending_broker_migration")]
     clean, findings = normalize_ingested_orders(raw)
+    assert clean == [], "Unmapped status history must not be silently consolidated"
+    assert len(findings) == 1, "Unmapped status history must produce exactly one ingestion finding"
+    assert findings[0].code == UNMAPPED_STATUS_UNRESOLVED
+    assert "pending_broker_migration" in findings[0].detail
+    print("ING12 unmapped status history is unresolved rather than silently ordered: PASS")
