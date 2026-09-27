@@ -44,7 +44,7 @@ def github_summary():
     latest={}
     for r in runs.get("workflow_runs",[]):
         name=r.get("name")
-        if name in watched and name not in latest:
+        if name in watched and name not in latest and r.get("status") == "completed":
             latest[name]={"status":r["status"],"conclusion":r.get("conclusion"),"url":r["html_url"]}
     core={k:latest.get(k) for k in ("ci","control-v15","n8n-node-build")}
     green=all(v and v["status"]=="completed" and v["conclusion"]=="success" for v in core.values())
