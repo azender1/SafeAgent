@@ -157,13 +157,34 @@ def main():
                   'recorded Stripe Test Mode object invalid')
             check(created['id'] == provider['id'] and provider['status'] == 'succeeded',
                   'Stripe retrieval did not confirm the created PaymentIntent')
+            # Stripe Test Mode aliases such as pm_card_visa are request-time
+            # shorthands. Stripe may resolve them to a concrete pm_... ID in
+            # both the create response and subsequent retrieval. Preserve the
+            # authorised request alias in stripe_operation.request_json, but
+            # accept a concrete resolved ID only when the create response,
+            # retrieval, and SafeAgent's recorded first-dispatch result all
+            # agree on that same ID.
+            expected_pm = expected_provider_request['payment_method']
+            created_pm = created.get('payment_method')
+            retrieved_pm = provider.get('payment_method')
+            alias_resolved = (
+                isinstance(expected_pm, str) and expected_pm.startswith('pm_card_') and
+                isinstance(created_pm, str) and created_pm.startswith('pm_') and
+                created_pm != expected_pm and
+                created_pm == retrieved_pm and
+                first.get('result', {}).get('payment_method') == created_pm
+            )
+            payment_method_ok = (
+                created_pm == retrieved_pm == expected_pm or alias_resolved
+            )
             check(provider['amount'] == expected_provider_request['amount'] and
                   provider['amount_received'] == expected_provider_request['amount'] and
                   provider['currency'] == expected_provider_request['currency'] and
-                  provider['payment_method'] == expected_provider_request['payment_method'] and
+                  payment_method_ok and
                   provider['metadata'] == expected_provider_request['metadata'],
                   'Stripe retrieval differs from authorized projection')
             check(created['amount'] == provider['amount'] and created['currency'] == provider['currency'] and
+                  created['payment_method'] == provider['payment_method'] and
                   created['metadata'] == provider['metadata'], 'Stripe create/retrieval conflict')
         else:
             provider = {}

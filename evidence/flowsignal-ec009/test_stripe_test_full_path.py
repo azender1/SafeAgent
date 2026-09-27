@@ -38,8 +38,14 @@ class FakePaymentIntents:
 
     def create(self, params, options):
         log('create', params=params, idempotency_key=options['idempotency_key'])
+        resolved_payment_method = (
+            'pm_FAKE_RESOLVED_VISA_001'
+            if params.get('payment_method') == 'pm_card_visa'
+            else params.get('payment_method')
+        )
         self.obj = {
-            **params, 'id': 'pi_FAKE_OFFLINE_' + options['idempotency_key'][-12:],
+            **params, 'payment_method': resolved_payment_method,
+            'id': 'pi_FAKE_OFFLINE_' + options['idempotency_key'][-12:],
             'object': 'payment_intent', 'status': 'succeeded',
             'amount_received': params['amount'], 'livemode': False,
             'client_secret': 'never_record_this_secret',
@@ -201,6 +207,53 @@ def main():
             manifest['files_sha256'][relative] = hashlib.sha256((tampered / relative).read_bytes()).hexdigest()
         manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
         code, result = verify(tampered, flow)
+        assert code != 0 and not result['passed'] and any(
+            'Stripe retrieval differs from authorized projection' in problem
+            for problem in result['problems']
+        ), result
+
+        # Legitimate request-time alias resolution is accepted only when the
+        # create response, retrieval, and first-dispatch result agree on the
+        # same resolved PaymentMethod ID.
+        code, result = verify(bundle, flow)
+        assert code == 0 and result == {'mode': 'stripe-test', 'passed': True, 'problems': []}, result
+
+        # Conflicting create/retrieval PaymentMethod IDs must fail closed.
+        pm_conflict = tmp / 'payment-method-conflict'
+        shutil.copytree(bundle, pm_conflict)
+        retrieval_path = pm_conflict / 'records/stripe_provider_retrieval.json'
+        retrieval = read(retrieval_path)
+        retrieval['payment_method'] = 'pm_FAKE_CONFLICT_002'
+        retrieval_path.write_text(json.dumps(retrieval, sort_keys=True, indent=2) + '\n')
+        manifest_path = pm_conflict / 'manifest.json'
+        manifest = read(manifest_path)
+        relative = 'records/stripe_provider_retrieval.json'
+        manifest['files_sha256'][relative] = hashlib.sha256((pm_conflict / relative).read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        code, result = verify(pm_conflict, flow)
+        assert code != 0 and not result['passed'] and any(
+            'Stripe create/retrieval conflict' in problem or
+            'Stripe retrieval differs from authorized projection' in problem
+            for problem in result['problems']
+        ), result
+
+        # Coordinated substitution of both provider-record PaymentMethod IDs
+        # must still fail because SafeAgent's first-dispatch result retains the
+        # actually returned resolved ID.
+        pm_substitution = tmp / 'payment-method-coordinated-substitution'
+        shutil.copytree(bundle, pm_substitution)
+        for name in ('stripe_provider_create', 'stripe_provider_retrieval'):
+            path = pm_substitution / 'records' / (name + '.json')
+            record = read(path)
+            record['payment_method'] = 'pm_FAKE_SUBSTITUTED_003'
+            path.write_text(json.dumps(record, sort_keys=True, indent=2) + '\n')
+        manifest_path = pm_substitution / 'manifest.json'
+        manifest = read(manifest_path)
+        for name in ('stripe_provider_create', 'stripe_provider_retrieval'):
+            relative = 'records/' + name + '.json'
+            manifest['files_sha256'][relative] = hashlib.sha256((pm_substitution / relative).read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        code, result = verify(pm_substitution, flow)
         assert code != 0 and not result['passed'] and any(
             'Stripe retrieval differs from authorized projection' in problem
             for problem in result['problems']

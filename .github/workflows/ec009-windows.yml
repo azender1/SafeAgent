@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - work/graham-ec009-windows-cleanup
+      - work/ec009-stripe-alias-verifier-fix
   workflow_dispatch:
 
 jobs:
