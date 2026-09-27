@@ -1,0 +1,68 @@
+[
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:13:base:2026-09-08T09:33:00",
+    "symbol": "SQQQ", "side": "buy", "qty": 13, "stage": "base",
+    "claimed_at": "2026-09-08T09:34:08-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "broker_order_id": "8f3b6b2e-alpaca-001", "client_order_id": "SAMPLE_STRATEGY-base-0908-1",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "Normal confirmed execution: entry, matched cleanly to a filled Alpaca order."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:13:base:2026-09-08T09:33:00",
+    "symbol": "SQQQ", "side": "buy", "qty": 13, "stage": "base",
+    "claimed_at": "2026-09-08T09:34:09-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "broker_order_id": "8f3b6b2e-alpaca-999", "client_order_id": "SAMPLE_STRATEGY-base-0908-1b",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "Shares the EXACT SAME request_id as the record above but is a genuinely distinct claim (different broker_order_id) -- must not be collapsed. Its order does not exist in this file, so it should come back MISSING_EXTERNALLY."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:sell:37:exit:2026-09-08T09:50:00",
+    "symbol": "SQQQ", "side": "sell", "qty": 37, "stage": "exit",
+    "claimed_at": "2026-09-08T09:50:12-04:00",
+    "outcome": "SKIP", "caller_interpretation": "SKIPPED",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "A correctly-handled SafeAgent SKIP: the guard blocked a duplicate exit retry and the caller correctly logged it as skipped. Must be DUPLICATE_BLOCKED, never treated as an executed order."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:12:add2:2026-09-08T09:39:00",
+    "symbol": "SQQQ", "side": "buy", "qty": 12, "stage": "add2",
+    "claimed_at": "2026-09-08T09:41:11-04:00",
+    "outcome": "SKIP", "caller_interpretation": "SUCCESS",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "THE SEPTEMBER INCIDENT PATTERN: SafeAgent's guard returned SKIP (this add2 deduped against an earlier claim's key), but the caller's own log treated it as a successful fill -- caller_interpretation=SUCCESS despite outcome=SKIP. No broker_order_id was ever assigned because no order was actually placed. Must surface as MISSING_EXTERNALLY with CALLER_IGNORED_SKIP, not as a confirmed fill."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:20:base:2026-09-08T11:00:00",
+    "symbol": "SQQQ", "side": "buy", "qty": 20, "stage": "base",
+    "claimed_at": "2026-09-08T11:00:05-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "broker_order_id": "alpaca-order-CONFLICT", "client_order_id": "SAMPLE_STRATEGY-base-CORRECT",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "Identifier conflict case: the matching Alpaca order agrees on broker_order_id but disagrees on client_order_id -- a genuine anomaly, not a clean match."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:8:base:2026-09-08T11:20:00",
+    "symbol": "SQQQ", "side": "buy", "qty": 8, "stage": "base",
+    "claimed_at": "2026-09-08T11:20:05-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "broker_order_id": "alpaca-order-006", "client_order_id": "SAMPLE_STRATEGY-base-006",
+    "source_system": "SAMPLE_STRATEGY", "source_account": "ACC1",
+    "_comment": "Matches an Alpaca order that arrives as two raw rows at different lifecycle stages (pending_new then filled) -- exercises the ingestion-normalization consolidation path end to end."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:sideways:5:base:2026-09-08T11:40:00",
+    "symbol": "SQQQ", "side": "sideways", "qty": 5, "stage": "base",
+    "claimed_at": "2026-09-08T11:40:00-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "_comment": "Deliberately malformed: side is not buy/sell. Must be rejected with an explicit reason, not coerced."
+  },
+  {
+    "request_id": "order:SAMPLE_STRATEGY:SQQQ:buy:0:base:2026-09-08T11:45:00",
+    "symbol": "SQQQ", "stage": "base",
+    "claimed_at": "2026-09-08T11:45:00-04:00",
+    "outcome": "COMMITTED", "caller_interpretation": "SUCCESS",
+    "_comment": "Deliberately malformed: missing side and qty entirely. Must be rejected with the specific missing fields named."
+  }
+]

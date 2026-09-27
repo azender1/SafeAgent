@@ -1,0 +1,5 @@
+[2026-03-05 10:10:03-040:00 Waiting for market open. Next open: 2026-03-05T09:30:00-04:00
+[2026-03-05 10:10:04-040:00 SAFEAGENT SKIP: duplicate order blocked buy DDM qty=6 bar=2026-03-05T10:10:00-04:00 — returning cached result
+[2026-03-05 10:20:19-040:00 ENTER BEAR stage=base symbol=DDM qty=5 est_price=42.10 stop=41.00 target=44.00 score=-6 bar=2026-03-05T10:20:00-04:00
+[2026-03-05 11:00:00-040:00 STAY BEAR score=-4 bull=1 bear=5
+[2026-03-05 11:15:00-040:00 NO ENTRY: flat/no-trade-zone | score=1 bull_score=3 bear_score=2 bar=2026-03-05T11:15:00-04:00
