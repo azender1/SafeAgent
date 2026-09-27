@@ -35,6 +35,7 @@ on:
   push:
     tags:
       - 'n8n-nodes-safeagent-v*.*.*'
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -73,12 +74,18 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify tag matches package.json version
+      - name: Verify release version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#n8n-nodes-safeagent-v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#n8n-nodes-safeagent-v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+              exit 1
+            fi
+          fi
+          if npm view "n8n-nodes-safeagent@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "n8n-nodes-safeagent@$PKG_VERSION is already published"
             exit 1
           fi
 
