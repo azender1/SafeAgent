@@ -7,6 +7,9 @@ on:
       - "company_agent/**"
       - "COMPANY_AGENT.md"
       - ".github/workflows/company-agent.yml"
+      - "n8n-nodes-safeagent/**"
+      - "pyproject.toml"
+      - "safeagent_exec_guard/**"
   schedule:
     - cron: "15 12 * * 1-5"
 
@@ -28,6 +31,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python company_agent/check_state.py
       - name: Record company state
+        if: github.ref == 'refs/heads/main'
         run: |
           if git diff --quiet -- COMPANY_STATE.json; then
             echo "No company-state change."
