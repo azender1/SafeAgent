@@ -1,0 +1,35 @@
+name: SafeAgent Company Agent
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "15 12 * * 1-5"
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: read
+
+jobs:
+  daily-ops:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run company ops checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python company_agent/check_state.py
+      - name: Record company state
+        run: |
+          if git diff --quiet -- COMPANY_STATE.json; then
+            echo "No company-state change."
+            exit 0
+          fi
+          git config user.name "safeagent-company-agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add COMPANY_STATE.json
+          git commit -m "company-agent: refresh operating state"
+          git push
