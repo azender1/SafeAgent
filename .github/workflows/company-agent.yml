@@ -2,6 +2,11 @@ name: SafeAgent Company Agent
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - "company_agent/**"
+      - "COMPANY_AGENT.md"
+      - ".github/workflows/company-agent.yml"
   schedule:
     - cron: "15 12 * * 1-5"
 
