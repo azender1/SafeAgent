@@ -1,14 +1,14 @@
 {
   "program": "SafeAgent Strategic Acquirer Program",
   "status": "ACTIVE",
-  "updated_at": null,
+  "updated_at": "2026-09-27T22:13:00Z",
   "readiness": {
     "G0_product_ip_story": "COMPLETE",
     "G1_hardened_production_release_sync": "COMPLETE",
     "G2_control_v15_evidence": "COMPLETE",
     "G3_flowsignal_final_wording": "WAITING",
     "G4_outside_evaluator_or_pilot": "NOT_YET",
-    "G5_diligence_room": "BUILDING",
+    "G5_diligence_room": "EXPANDED",
     "G6_professional_outreach": "NOT_STARTED"
   },
   "signals": {
@@ -37,5 +37,15 @@
     "Microsoft / GitHub",
     "Temporal"
   ],
-  "next_action": "Build acquisition diligence room and prepare the first three account-specific strategic briefs; do not contact until each professional route and message is approved."
+  "next_action": "Complete architecture/IP/license/cost diligence artifacts, then choose the first three accounts for approved professional outreach. No contact has been sent.",
+  "first_wave_candidates": [
+    "Dynatrace",
+    "ServiceNow",
+    "Palo Alto Networks"
+  ],
+  "notes": [
+    "Priority A account briefs now exist for Dynatrace, Datadog, Cisco/Splunk, CrowdStrike, ServiceNow, Palo Alto Networks, n8n, Workato, and Stripe.",
+    "Buy-vs-build matrix and acquisition-readiness checklist added.",
+    "No strategic acquisition signal exists yet."
+  ]
 }
