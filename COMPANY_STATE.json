@@ -1,0 +1,13 @@
+{
+  "updated_at": null,
+  "production": {"health_http": null, "unauthenticated_audit_http": null, "status": "UNKNOWN"},
+  "releases": {
+    "n8n": {"repo": "0.2.6", "registry": null, "match": false},
+    "pypi": {"repo": "0.1.25", "registry": null, "match": false}
+  },
+  "github": {"open_pull_requests": null, "main_ci_green": null, "latest_checks": {}},
+  "external_review": {"status": "awaiting Graham final EC-009 wording"},
+  "commercial": {"active_evaluator": false, "pilot": false, "revenue": 0},
+  "next_bottleneck": "publish package versions and obtain first active evaluator",
+  "drift": []
+}
