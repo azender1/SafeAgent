@@ -5,51 +5,60 @@
     "revenue": 0
   },
   "drift": [
-    "npm repo=0.2.6 registry=0.2.5",
-    "pypi repo=0.1.25 registry=0.1.24",
-    "main CI not fully green"
+    "pypi repo=0.1.25 registry=0.1.24"
   ],
   "external_review": {
     "status": "awaiting Graham final EC-009 wording"
   },
   "github": {
+    "open_pull_requests": 2,
+    "main_ci_green": true,
     "latest_checks": {
       "ci": {
-        "conclusion": null,
-        "status": "in_progress",
+        "status": "completed",
+        "conclusion": "success",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36341428576"
       },
       "control-v15": {
-        "conclusion": "success",
         "status": "completed",
+        "conclusion": "success",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125595"
       },
       "n8n-node-build": {
-        "conclusion": null,
-        "status": "in_progress",
+        "status": "completed",
+        "conclusion": "success",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36341428476"
+      },
+      "npm-publish": {
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341428533"
+      },
+      "pypi-publish": {
+        "status": "completed",
+        "conclusion": "failure",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125620",
+        "reason": "PyPI trusted publisher not configured and no PYPI_API_TOKEN secret present"
       }
-    },
-    "main_ci_green": false,
-    "open_pull_requests": 2
+    }
   },
-  "next_bottleneck": "npm repo=0.2.6 registry=0.2.5",
+  "next_bottleneck": "configure PyPI trusted publisher (or PYPI_API_TOKEN) and publish 0.1.25",
   "production": {
     "health_http": 200,
-    "status": "PASS",
-    "unauthenticated_audit_http": 403
+    "unauthenticated_audit_http": 403,
+    "status": "PASS"
   },
   "releases": {
     "n8n": {
-      "match": false,
-      "registry": "0.2.5",
-      "repo": "0.2.6"
+      "repo": "0.2.6",
+      "registry": "0.2.6",
+      "match": true
     },
     "pypi": {
-      "match": false,
+      "repo": "0.1.25",
       "registry": "0.1.24",
-      "repo": "0.1.25"
+      "match": false
     }
   },
-  "updated_at": "2026-09-27T18:39:11.641532+00:00"
+  "updated_at": "2026-09-27T18:40:20+00:00"
 }
