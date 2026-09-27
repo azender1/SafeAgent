@@ -1,0 +1,41 @@
+{
+  "program": "SafeAgent Strategic Acquirer Program",
+  "status": "ACTIVE",
+  "updated_at": null,
+  "readiness": {
+    "G0_product_ip_story": "COMPLETE",
+    "G1_hardened_production_release_sync": "COMPLETE",
+    "G2_control_v15_evidence": "COMPLETE",
+    "G3_flowsignal_final_wording": "WAITING",
+    "G4_outside_evaluator_or_pilot": "NOT_YET",
+    "G5_diligence_room": "BUILDING",
+    "G6_professional_outreach": "NOT_STARTED"
+  },
+  "signals": {
+    "strategic_fit_confirmed": 0,
+    "diligence_requested": 0,
+    "strategic_discussions": 0,
+    "processes_opened": 0,
+    "transactions": 0
+  },
+  "priority_a": [
+    "Dynatrace",
+    "Datadog",
+    "Cisco / Splunk",
+    "CrowdStrike",
+    "ServiceNow",
+    "Palo Alto Networks",
+    "n8n",
+    "Workato",
+    "Stripe"
+  ],
+  "priority_b": [
+    "IBM",
+    "Elastic",
+    "Cloudflare",
+    "Salesforce",
+    "Microsoft / GitHub",
+    "Temporal"
+  ],
+  "next_action": "Build acquisition diligence room and prepare the first three account-specific strategic briefs; do not contact until each professional route and message is approved."
+}
