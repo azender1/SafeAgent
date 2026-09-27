@@ -6,7 +6,8 @@
   },
   "drift": [
     "npm repo=0.2.6 registry=0.2.5",
-    "pypi repo=0.1.25 registry=0.1.24"
+    "pypi repo=0.1.25 registry=0.1.24",
+    "main CI not fully green"
   ],
   "external_review": {
     "status": "awaiting Graham final EC-009 wording"
@@ -14,22 +15,22 @@
   "github": {
     "latest_checks": {
       "ci": {
-        "conclusion": "success",
-        "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36340636707"
+        "conclusion": null,
+        "status": "queued",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125629"
       },
       "control-v15": {
-        "conclusion": "success",
-        "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36340636701"
+        "conclusion": null,
+        "status": "in_progress",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125595"
       },
       "n8n-node-build": {
-        "conclusion": "success",
-        "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36278604594"
+        "conclusion": null,
+        "status": "in_progress",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125624"
       }
     },
-    "main_ci_green": true,
+    "main_ci_green": false,
     "open_pull_requests": 2
   },
   "next_bottleneck": "npm repo=0.2.6 registry=0.2.5",
@@ -50,5 +51,5 @@
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-09-27T18:30:22.285489+00:00"
+  "updated_at": "2026-09-27T18:34:11.531245+00:00"
 }
