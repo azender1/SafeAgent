@@ -33,8 +33,14 @@ name: Publish n8n-nodes-safeagent
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'n8n-nodes-safeagent-v*.*.*'
+    paths:
+      - 'n8n-nodes-safeagent/**'
+      - '.github/workflows/publish.yml'
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -73,17 +79,28 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Verify tag matches package.json version
+      - name: Verify release version
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME#n8n-nodes-safeagent-v}"
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG_VERSION="${GITHUB_REF_NAME#n8n-nodes-safeagent-v}"
+            if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+              echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+              exit 1
+            fi
+          fi
+          if npm view "n8n-nodes-safeagent@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "n8n-nodes-safeagent@$PKG_VERSION is already published"
             exit 1
           fi
 
       - name: Publish with provenance
         run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ] && [ "$PKG_VERSION" != "0.2.6" ]; then
+            echo "Automatic main-branch release is one-time scoped to 0.2.6; skipping $PKG_VERSION"
+            exit 0
+          fi
           [ -n "$NPM_TOKEN" ] && npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           npm publish --provenance --access public
         env:

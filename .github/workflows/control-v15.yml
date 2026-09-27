@@ -33,3 +33,7 @@ jobs:
         working-directory: control/v15
         run: |
           pytest -q
+      - name: Run targeted mutation harness
+        working-directory: control/v15
+        run: |
+          python mutants/mutation_runner.py
