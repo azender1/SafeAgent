@@ -4,9 +4,7 @@
     "pilot": false,
     "revenue": 0
   },
-  "drift": [
-    "pypi repo=0.1.25 registry=0.1.24"
-  ],
+  "drift": [],
   "external_review": {
     "status": "awaiting Graham final EC-009 wording"
   },
@@ -15,7 +13,7 @@
       "ci": {
         "conclusion": "success",
         "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341715794"
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36369911372"
       },
       "control-v15": {
         "conclusion": "success",
@@ -31,7 +29,7 @@
     "main_ci_green": true,
     "open_pull_requests": 2
   },
-  "next_bottleneck": "pypi repo=0.1.25 registry=0.1.24",
+  "next_bottleneck": "obtain first active evaluator",
   "production": {
     "health_http": 200,
     "status": "PASS",
@@ -49,15 +47,15 @@
       "repo": "0.2.6"
     },
     "pypi": {
-      "match": false,
+      "match": true,
       "publish_workflow": {
-        "conclusion": "failure",
+        "conclusion": "success",
         "status": "completed",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125620"
       },
-      "registry": "0.1.24",
+      "registry": "0.1.25",
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-09-27T18:45:39.742792+00:00"
+  "updated_at": "2026-09-28T19:41:27.011122+00:00"
 }
