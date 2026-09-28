@@ -13,11 +13,16 @@ from pathlib import Path
 
 from contract import ACTION, ACTION_HASH, ACCOUNT, FLOW_COMMIT, TARGET, canonical_bytes, frozen_action, verify_authority
 
+EXECUTION_COMMIT = '745fe9d7613c6af84a2ff34beeaaa10d6a9ec90b'
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('bundle', type=Path)
     parser.add_argument('--flowsignal-root', type=Path, required=True)
+    parser.add_argument('--expected-execution-revision', default=EXECUTION_COMMIT,
+                        help='expected SafeAgent execution revision recorded by the evidence bundle; '
+                             'defaults to the frozen EC-009 execution commit')
     args = parser.parse_args()
     root = args.bundle.resolve()
     flow = args.flowsignal_root.resolve()
@@ -46,7 +51,10 @@ def main():
         check(manifest['schema'] in ('safeagent.flowsignal-ec009-offline.v2',
                                     'safeagent.flowsignal-ec009-stripe-test.v1'), 'wrong schema')
         check(manifest['flowsignal_commit'] == FLOW_COMMIT, 'wrong FlowSignal revision')
-        check(revision(safe_root) == manifest['safeagent_commit'], 'wrong SafeAgent checkout')
+        execution_revision = manifest['safeagent_commit']
+        verifier_revision = revision(safe_root)
+        check(execution_revision == args.expected_execution_revision,
+              'wrong SafeAgent execution revision')
         actual_files = {p.relative_to(root).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
                         for p in root.rglob('*') if p.is_file() and p.name != 'manifest.json'}
         check(actual_files == manifest['files_sha256'], 'file manifest differs from bundle')
@@ -244,8 +252,15 @@ def main():
             check(row == [(claims['permit_id'], provider.get('id'), 'CONFIRMED')], 'durable Stripe DB mismatch')
     except Exception as exc:
         problems.append(f'verification error: {type(exc).__name__}: {exc}')
-    print(json.dumps({'mode': locals().get('mode', 'unknown'), 'passed': not problems,
-                      'problems': problems}, indent=2))
+    print(json.dumps({
+        'mode': locals().get('mode', 'unknown'),
+        'passed': not problems,
+        'problems': problems,
+        'provenance': {
+            'safeagent_execution_revision': locals().get('execution_revision'),
+            'verifier_revision': locals().get('verifier_revision'),
+        },
+    }, indent=2))
     return 1 if problems else 0
 
 

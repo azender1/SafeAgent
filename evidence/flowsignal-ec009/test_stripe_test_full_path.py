@@ -19,6 +19,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ACCOUNT = 'acct_1U06JYL6P3JlguFB'
+EXECUTION_COMMIT = '745fe9d7613c6af84a2ff34beeaaa10d6a9ec90b'
 FAKE_STRIPE = '''\
 """Fake Stripe SDK for the offline full-path regression. No network access."""
 import json
@@ -116,11 +117,25 @@ def run_case(tmp, flow, scenario, account=ACCOUNT):
     return process, bundles[0], events(log)
 
 
-def verify(bundle, flow):
-    process = subprocess.run([
+def repo_revision():
+    return subprocess.check_output(
+        ['git', '-C', str(HERE.parents[1]), 'rev-parse', 'HEAD'], text=True
+    ).strip()
+
+
+def verify(bundle, flow, expected_execution_revision='current'):
+    command = [
         sys.executable, str(HERE / 'verify_bundle.py'), str(bundle),
         '--flowsignal-root', str(flow),
-    ], text=True, capture_output=True, env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'})
+    ]
+    if expected_execution_revision == 'current':
+        command.extend(['--expected-execution-revision', repo_revision()])
+    elif expected_execution_revision is not None:
+        command.extend(['--expected-execution-revision', expected_execution_revision])
+    process = subprocess.run(
+        command, text=True, capture_output=True,
+        env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1'},
+    )
     assert process.stdout, process.stderr
     return process.returncode, json.loads(process.stdout)
 
@@ -189,7 +204,32 @@ def main():
                 (created['id'], 'CONFIRMED'),
             ]
         code, result = verify(bundle, flow)
-        assert code == 0 and result == {'mode': 'stripe-test', 'passed': True, 'problems': []}, result
+        assert code == 0 and result['mode'] == 'stripe-test' and result['passed'] is True, result
+        assert result['problems'] == [], result
+        assert result['provenance'] == {
+            'safeagent_execution_revision': repo_revision(),
+            'verifier_revision': repo_revision(),
+        }, result
+
+        # The original review case has two distinct provenance facts:
+        # the evidence execution revision remains frozen at 745fe9d..., while
+        # this later verifier reports its own checkout independently.
+        provenance_split = tmp / 'provenance-split'
+        shutil.copytree(bundle, provenance_split)
+        manifest_path = provenance_split / 'manifest.json'
+        manifest = read(manifest_path)
+        manifest['safeagent_commit'] = EXECUTION_COMMIT
+        summary_path = provenance_split / 'summary.json'
+        summary = read(summary_path)
+        summary['safeagent_commit'] = EXECUTION_COMMIT
+        summary_path.write_text(json.dumps(summary, sort_keys=True, indent=2) + '\n')
+        manifest['files_sha256']['summary.json'] = hashlib.sha256(summary_path.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2) + '\n')
+        code, provenance_result = verify(provenance_split, flow, expected_execution_revision=None)
+        assert code == 0 and provenance_result['passed'] is True, provenance_result
+        assert provenance_result['provenance']['safeagent_execution_revision'] == EXECUTION_COMMIT
+        assert provenance_result['provenance']['verifier_revision'] == repo_revision()
+        assert provenance_result['provenance']['verifier_revision'] != EXECUTION_COMMIT
 
         # Edit BOTH provider responses, update the manifest checksums, and
         # keep their IDs/status consistent. The projection still rejects it.
@@ -216,7 +256,10 @@ def main():
         # create response, retrieval, and first-dispatch result agree on the
         # same resolved PaymentMethod ID.
         code, result = verify(bundle, flow)
-        assert code == 0 and result == {'mode': 'stripe-test', 'passed': True, 'problems': []}, result
+        assert code == 0 and result['mode'] == 'stripe-test' and result['passed'] is True, result
+        assert result['problems'] == [], result
+        assert result['provenance']['safeagent_execution_revision'] == repo_revision(), result
+        assert result['provenance']['verifier_revision'] == repo_revision(), result
 
         # Conflicting create/retrieval PaymentMethod IDs must fail closed.
         pm_conflict = tmp / 'payment-method-conflict'
