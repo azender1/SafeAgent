@@ -54,11 +54,6 @@ def _secret_bytes(value: str) -> bytes:
         raise ValueError("VISA_SANDBOX_SHARED_SECRET is not valid base64") from exc
 
 
-def _parse_public_cert(blob: bytes) -> x509.Certificate:
-    if b"BEGIN CERTIFICATE" in blob:
-        return x509.load_pem_x509_certificate(blob)
-    return x509.load_der_x509_certificate(blob)
-
 
 def build_test_jwt(
     *,
@@ -133,25 +128,29 @@ def main() -> int:
         raise ValueError("response MLE P12 secret is not valid base64") from exc
 
     password = os.environ["VISA_SANDBOX_RESPONSE_MLE_PASSWORD"].encode("utf-8")
-    private_key, certificate, _ = pkcs12.load_key_and_certificates(p12_bytes, password)
+    private_key, certificate, additional_certificates = pkcs12.load_key_and_certificates(
+        p12_bytes, password
+    )
     if private_key is None or certificate is None:
         raise ValueError("response MLE P12 did not contain both private key and certificate")
 
-    # Validate the public certificate used for request MLE.
-    try:
-        request_cert_bytes = base64.b64decode(
-            os.environ["VISA_SANDBOX_REQUEST_MLE_CERT_B64"], validate=True
+    # Cybersource's current MLE setup says the downloaded Response MLE P12 also
+    # contains the CyberSource_SJC_US public certificate used for request MLE.
+    # Validate that the bundle includes at least one additional certificate
+    # rather than requiring a separately downloaded PEM.
+    additional_certificates = list(additional_certificates or [])
+    if not additional_certificates:
+        raise ValueError(
+            "response MLE P12 did not contain the Cybersource SJC request-encryption certificate"
         )
-    except Exception as exc:
-        raise ValueError("request MLE certificate secret is not valid base64") from exc
-    request_cert = _parse_public_cert(request_cert_bytes)
+    request_cert = additional_certificates[0]
     if request_cert.public_key() is None:
-        raise ValueError("request MLE certificate contains no public key")
+        raise ValueError("Cybersource SJC certificate contains no public key")
 
     print("Visa sandbox readiness: READY")
     print("JWT shared-secret material: valid")
     print("Response MLE P12: valid")
-    print("Request MLE public certificate: valid")
+    print("Request MLE SJC certificate from Response MLE P12: valid")
     print("Network calls made: 0")
     return 0
 
