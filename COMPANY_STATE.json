@@ -4,7 +4,9 @@
     "pilot": false,
     "revenue": 0
   },
-  "drift": [],
+  "drift": [
+    "main CI not fully green"
+  ],
   "external_review": {
     "status": "awaiting Graham final EC-009 wording"
   },
@@ -15,21 +17,17 @@
         "status": "completed",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36369911372"
       },
-      "control-v15": {
-        "conclusion": "success",
-        "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36341125595"
-      },
+      "control-v15": null,
       "n8n-node-build": {
         "conclusion": "success",
         "status": "completed",
         "url": "https://github.com/azender1/SafeAgent/actions/runs/36341428476"
       }
     },
-    "main_ci_green": true,
+    "main_ci_green": false,
     "open_pull_requests": 2
   },
-  "next_bottleneck": "obtain first active evaluator",
+  "next_bottleneck": "main CI not fully green",
   "production": {
     "health_http": 200,
     "status": "PASS",
@@ -57,5 +55,5 @@
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-09-28T19:41:27.011122+00:00"
+  "updated_at": "2026-09-29T02:05:32.770004+00:00"
 }
