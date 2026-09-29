@@ -10,7 +10,7 @@ from safeagent_exec_guard.cybersource_transport import CybersourceSandboxTranspo
 
 def main() -> int:
     required = [
-        "VISA_SANDBOX_ORG_ID", "VISA_SANDBOX_KEY_ID",
+        "VISA_SANDBOX_ISSUER_MERCHANT_ID", "VISA_SANDBOX_TRANSACTING_ID", "VISA_SANDBOX_KEY_ID",
         "VISA_SANDBOX_SHARED_SECRET", "VISA_SANDBOX_RESPONSE_MLE_P12_B64",
         "VISA_SANDBOX_RESPONSE_MLE_PASSWORD", "VISA_SANDBOX_RESPONSE_MLE_KEY_ID",
     ]
@@ -21,7 +21,8 @@ def main() -> int:
         return 2
 
     transport = CybersourceSandboxTransport(
-        merchant_id=os.environ["VISA_SANDBOX_ORG_ID"],
+        issuer_merchant_id=os.environ["VISA_SANDBOX_ISSUER_MERCHANT_ID"],
+        transacting_merchant_id=os.environ["VISA_SANDBOX_TRANSACTING_ID"],
         key_id=os.environ["VISA_SANDBOX_KEY_ID"],
         shared_secret_b64=os.environ["VISA_SANDBOX_SHARED_SECRET"],
         response_mle_kid=os.environ["VISA_SANDBOX_RESPONSE_MLE_KEY_ID"],
