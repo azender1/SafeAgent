@@ -42,6 +42,25 @@ npm install n8n-nodes-safeagent
 
 ---
 
+## Ready-to-import workflow template
+
+A complete demonstration workflow is included at:
+
+`templates/stop-duplicate-webhook-side-effects.json`
+
+It shows the exact failure pattern SafeAgent is designed to stop:
+
+`Webhook -> SafeAgent Claim -> PROCEED -> side effect -> Settle`
+
+while duplicate deliveries are routed:
+
+`Webhook -> SafeAgent Claim -> SKIP`
+
+Send the same `event_id` twice. The first run reaches the side-effect branch; the second is blocked before that branch executes.
+
+The accompanying n8n template-library submission copy is in `templates/TEMPLATE_SUBMISSION.md`.
+
+
 ## How it works
 
 State machine: PENDING -> COMMITTED | SKIP
