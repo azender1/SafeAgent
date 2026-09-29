@@ -1,0 +1,28 @@
+name: Visa sandbox non-consequential probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Probe Cybersource test host with synthetic instruction
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install local package
+        run: python -m pip install -e .
+      - name: Run synthetic-instruction probe
+        env:
+          VISA_SANDBOX_ORG_ID: ${{ secrets.VISA_SANDBOX_ORG_ID }}
+          VISA_SANDBOX_KEY_ID: ${{ secrets.VISA_SANDBOX_KEY_ID }}
+          VISA_SANDBOX_SHARED_SECRET: ${{ secrets.VISA_SANDBOX_SHARED_SECRET }}
+          VISA_SANDBOX_RESPONSE_MLE_P12_B64: ${{ secrets.VISA_SANDBOX_RESPONSE_MLE_P12_B64 }}
+          VISA_SANDBOX_RESPONSE_MLE_PASSWORD: ${{ secrets.VISA_SANDBOX_RESPONSE_MLE_PASSWORD }}
+          VISA_SANDBOX_RESPONSE_MLE_KEY_ID: ${{ secrets.VISA_SANDBOX_RESPONSE_MLE_KEY_ID }}
+        run: python scripts/visa_sandbox_probe.py
