@@ -44,11 +44,27 @@ def main() -> int:
             "orderInformation": {"amountDetail": {"currency": "USD"}},
         }],
     }
-    status, _ = transport.post(
+    status, response = transport.post(
         f"/acp/v1/instructions/{instruction_id}/confirmations", payload
     )
     if status in (401, 403):
         print(f"Visa sandbox probe: AUTHENTICATION REJECTED (HTTP {status})")
+        # Print only non-sensitive provider diagnostics. Never emit request,
+        # credentials, JWT, encrypted payload, or certificate material.
+        if isinstance(response, dict):
+            safe = {}
+            inner = response.get("response")
+            if isinstance(inner, dict):
+                for key in ("rmsg", "reason", "message", "status"):
+                    value = inner.get(key)
+                    if isinstance(value, (str, int, float, bool)):
+                        safe[key] = value
+            for key in ("reason", "message", "status"):
+                value = response.get(key)
+                if isinstance(value, (str, int, float, bool)):
+                    safe.setdefault(key, value)
+            if safe:
+                print("Provider diagnostic: " + repr(safe))
         return 3
     if status >= 500:
         print(f"Visa sandbox probe: PROVIDER ERROR (HTTP {status})")
