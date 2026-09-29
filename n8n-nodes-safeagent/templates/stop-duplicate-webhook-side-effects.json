@@ -1,0 +1,192 @@
+{
+  "name": "Stop duplicate webhook side effects with SafeAgent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "safeagent-duplicate-demo",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -720,
+        0
+      ],
+      "id": "788c47c2-8cb1-4fb3-83e5-1036df4b709f",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "operation": "claim",
+        "baseUrl": "https://safeagent-production.up.railway.app",
+        "agentId": "n8n-webhook-demo",
+        "actionType": "external_side_effect",
+        "scope": "={{ $json.body?.event_id || $json.event_id || $json.body?.id || $json.id }}"
+      },
+      "type": "n8n-nodes-safeagent.safeAgent",
+      "typeVersion": 2,
+      "position": [
+        -440,
+        0
+      ],
+      "id": "584ff01a-a512-4644-b93c-e21ad90e4f54",
+      "name": "SafeAgent Claim"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "effect-1",
+              "name": "side_effect",
+              "value": "EXECUTED_ONCE",
+              "type": "string"
+            },
+            {
+              "id": "effect-2",
+              "name": "instruction",
+              "value": "Replace this Edit Fields node with Stripe, Gmail, Postgres, HTTP Request, or another irreversible action.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -120,
+        -120
+      ],
+      "id": "dbe3463a-9719-4d30-865e-d193f0b65567",
+      "name": "Your Side Effect"
+    },
+    {
+      "parameters": {
+        "operation": "settle",
+        "baseUrl": "https://safeagent-production.up.railway.app",
+        "requestId": "={{ $('SafeAgent Claim').item.json.request_id }}",
+        "settlementToken": "={{ $('SafeAgent Claim').item.json.settlement_token }}",
+        "result": "={\"status\":\"completed\",\"effect\":\"EXECUTED_ONCE\"}"
+      },
+      "type": "n8n-nodes-safeagent.safeAgent",
+      "typeVersion": 2,
+      "position": [
+        160,
+        -120
+      ],
+      "id": "492f7619-e147-4488-a8bd-c2572a3505e0",
+      "name": "SafeAgent Settle"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, decision: 'PROCEED', message: 'Side effect executed once and settled.', request_id: $('SafeAgent Claim').item.json.request_id } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        440,
+        -120
+      ],
+      "id": "84d2cd39-dc82-4db2-9d89-b8f9a412264e",
+      "name": "PROCEED Response"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { ok: true, decision: 'SKIP', message: 'Duplicate blocked before the side effect.', request_id: $json.request_id } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -120,
+        160
+      ],
+      "id": "327bf3f8-0eb2-4d38-af0c-2fb32bc49541",
+      "name": "SKIP Response"
+    },
+    {
+      "parameters": {
+        "content": "## One webhook. One side effect.\\nSend the same `event_id` twice.\\n\\n**First delivery:** SafeAgent → PROCEED → action runs → SETTLED\\n\\n**Second delivery:** SafeAgent → SKIP → action never runs\\n\\nUse a stable provider/event/order ID as the Scope.\\n\\nThe SafeAgent community node uses the free test endpoint and is limited to 10 claim calls per IP. This template is a demonstration, not a production-volume configuration.",
+        "height": 300,
+        "width": 520
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -760,
+        -360
+      ],
+      "id": "c3b17790-0d5b-4e47-8a0b-c76907b3ded0",
+      "name": "How this works"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "SafeAgent Claim",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SafeAgent Claim": {
+      "main": [
+        [
+          {
+            "node": "Your Side Effect",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SKIP Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Your Side Effect": {
+      "main": [
+        [
+          {
+            "node": "SafeAgent Settle",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SafeAgent Settle": {
+      "main": [
+        [
+          {
+            "node": "PROCEED Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d866e668-1581-42b8-ac2e-fcc28741c69c",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
