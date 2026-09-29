@@ -46,3 +46,31 @@ A lost provider response is therefore preserved as `PENDING_RECONCILIATION`. A s
 6. Do not enable `api.cybersource.com` production traffic.
 
 This work is intentionally separate from the n8n package under review.
+
+
+## GitHub Actions credential bridge
+
+The repository now includes a manual-only workflow:
+
+`.github/workflows/visa-sandbox-readiness.yml`
+
+It performs **offline credential validation only**. It does not contact Visa or
+Cybersource and does not submit a sandbox transaction.
+
+Required GitHub Actions repository secrets:
+
+- `VISA_SANDBOX_ORG_ID`
+- `VISA_SANDBOX_KEY_ID`
+- `VISA_SANDBOX_SHARED_SECRET`
+- `VISA_SANDBOX_RESPONSE_MLE_P12_B64`
+- `VISA_SANDBOX_RESPONSE_MLE_PASSWORD`
+- `VISA_SANDBOX_RESPONSE_MLE_KEY_ID`
+- `VISA_SANDBOX_REQUEST_MLE_CERT_B64`
+
+The workflow validates:
+
+1. shared-secret base64 encoding and local Visa JWT-v2 construction;
+2. that the Response MLE P12 decrypts with the supplied password;
+3. that the request-MLE public certificate parses and contains a public key.
+
+It never prints any credential value.
