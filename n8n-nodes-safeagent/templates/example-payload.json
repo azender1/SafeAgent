@@ -1,0 +1,5 @@
+{
+  "event_id": "order-12345",
+  "amount": 100,
+  "customer_id": "customer-42"
+}
