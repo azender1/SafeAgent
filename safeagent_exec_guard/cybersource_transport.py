@@ -142,7 +142,8 @@ def build_jwt_v2(
     *,
     key_id: str,
     shared_secret_b64: str,
-    merchant_id: str,
+    issuer_merchant_id: str,
+    transacting_merchant_id: str,
     response_mle_kid: str,
     method: str,
     resource_path: str,
@@ -156,13 +157,13 @@ def build_jwt_v2(
         "digest": base64.b64encode(hashlib.sha256(http_body).digest()).decode("ascii"),
         "exp": now + 120,
         "iat": now,
-        "iss": merchant_id,
+        "iss": issuer_merchant_id,
         "jti": str(uuid.uuid4()),
         "request-host": CYBERSOURCE_TEST_HOST,
         "request-method": method.lower(),
         "request-resource-path": resource_path.lower(),
         "v-c-jwt-version": "2",
-        "v-c-merchant-id": merchant_id,
+        "v-c-merchant-id": transacting_merchant_id,
         "v-c-response-mle-kid": response_mle_kid,
     }
     encoded_header = _b64url(json.dumps(header, separators=(",", ":")).encode("utf-8"))
@@ -179,7 +180,8 @@ class CybersourceSandboxTransport:
     def __init__(
         self,
         *,
-        merchant_id: str,
+        issuer_merchant_id: str,
+        transacting_merchant_id: str,
         key_id: str,
         shared_secret_b64: str,
         response_mle_kid: str,
@@ -187,7 +189,8 @@ class CybersourceSandboxTransport:
         response_mle_password: str,
         timeout_seconds: float = 20.0,
     ):
-        self.merchant_id = merchant_id
+        self.issuer_merchant_id = issuer_merchant_id
+        self.transacting_merchant_id = transacting_merchant_id
         self.key_id = key_id
         self.shared_secret_b64 = shared_secret_b64
         self.response_mle_kid = response_mle_kid
@@ -204,7 +207,8 @@ class CybersourceSandboxTransport:
         token = build_jwt_v2(
             key_id=self.key_id,
             shared_secret_b64=self.shared_secret_b64,
-            merchant_id=self.merchant_id,
+            issuer_merchant_id=self.issuer_merchant_id,
+            transacting_merchant_id=self.transacting_merchant_id,
             response_mle_kid=self.response_mle_kid,
             method="post",
             resource_path=resource_path,
