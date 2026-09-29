@@ -15,17 +15,17 @@
       "ci": {
         "conclusion": "success",
         "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36510956950"
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36560673176"
       },
       "control-v15": null,
       "n8n-node-build": {
         "conclusion": "success",
         "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36510956951"
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36512125103"
       }
     },
     "main_ci_green": false,
-    "open_pull_requests": 2
+    "open_pull_requests": 3
   },
   "next_bottleneck": "main CI not fully green",
   "production": {
@@ -39,7 +39,7 @@
       "publish_workflow": {
         "conclusion": "failure",
         "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36510956985"
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36512124994"
       },
       "registry": "0.2.6",
       "repo": "0.2.6"
@@ -51,5 +51,5 @@
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-09-29T02:20:32.396198+00:00"
+  "updated_at": "2026-09-29T17:07:22.054781+00:00"
 }
