@@ -19,6 +19,7 @@ jobs:
         run: python -m pip install -e .
       - name: Run synthetic-instruction probe
         env:
+          VISA_SANDBOX_ORG_ID: ${{ secrets.VISA_SANDBOX_ORG_ID }}
           VISA_SANDBOX_ISSUER_MERCHANT_ID: ${{ secrets.VISA_SANDBOX_ISSUER_MERCHANT_ID }}
           VISA_SANDBOX_TRANSACTING_ID: ${{ secrets.VISA_SANDBOX_TRANSACTING_ID }}
           VISA_SANDBOX_KEY_ID: ${{ secrets.VISA_SANDBOX_KEY_ID }}
