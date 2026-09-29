@@ -157,7 +157,7 @@ def build_jwt_v2(
         "digest": base64.b64encode(hashlib.sha256(http_body).digest()).decode("ascii"),
         "exp": now + 120,
         "iat": now,
-        "iss": issuer_merchant_id,
+        "iss": transacting_merchant_id,
         "jti": str(uuid.uuid4()),
         "request-host": CYBERSOURCE_TEST_HOST,
         "request-method": method.lower(),
