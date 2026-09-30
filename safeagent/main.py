@@ -787,31 +787,33 @@ def create_app(
             }
         else:
             try:
-                    from safeagent_exec_guard.attestation_gate import gate as _attestation_gate
+                from safeagent_exec_guard.attestation_gate import gate as _attestation_gate
                 import httpx as _httpx
+
                 _agentgraph_jwks_url = os.getenv(
                     "AGENTGRAPH_JWKS_URL",
-                    "https://agentgraph.co/.well-known/jwks.json"
+                    "https://agentgraph.co/.well-known/jwks.json",
                 )
                 _agentgraph_attestation_url = os.getenv(
                     "AGENTGRAPH_ATTESTATION_URL",
-                    "https://agentgraph.co/x402/attestation"
+                    "https://agentgraph.co/x402/attestation",
                 )
-                # Fetch live attestation by tool/endpoint identity (body.action)
+
+                # Only when explicitly enabled: send the action/tool identity to
+                # the configured attestation service and fetch its verification keys.
                 _attestation = None
                 _attestation_error = None
                 try:
                     async with _httpx.AsyncClient(timeout=5.0) as _http:
                         _resp = await _http.get(
                             _agentgraph_attestation_url,
-                            params={"endpoint": body.action}
+                            params={"endpoint": body.action},
                         )
                         if _resp.status_code == 200:
                             _attestation = _resp.json()
                 except Exception as _fetch_err:
                     _attestation_error = str(_fetch_err)
-    
-                # Fetch JWKS for offline signature verification
+
                 _jwks = None
                 try:
                     async with _httpx.AsyncClient(timeout=5.0) as _http:
@@ -820,8 +822,7 @@ def create_app(
                             _jwks = _jwks_resp.json()
                 except Exception:
                     pass
-    
-                # Build preimage for binding_digest (amount/charge fields optional here)
+
                 _preimage = {
                     "agent_id": agent_id or "",
                     "action_type": body.action,
@@ -843,7 +844,6 @@ def create_app(
                             "action": body.action,
                         },
                     )
-                # Record attestation outcome in store metadata for audit trail
                 _safety_meta = {
                     "safety_decision": _gate_result.get("decision"),
                     "safety_reason": _gate_result.get("reason"),
@@ -855,19 +855,29 @@ def create_app(
                 logging.getLogger(__name__).warning(
                     "attestation_gate not importable — safety check skipped"
                 )
-                _safety_meta = {"safety_decision": "skipped", "safety_reason": "import_error"}
+                _safety_meta = {
+                    "safety_decision": "skipped",
+                    "safety_reason": "import_error",
+                }
             except Exception as _gate_err:
                 logging.getLogger(__name__).warning(
-                    "attestation_gate error (%s) — applying require_attestation policy", _gate_err
+                    "attestation_gate error (%s) — applying require_attestation policy",
+                    _gate_err,
                 )
                 if _require_attestation:
                     raise HTTPException(
                         status_code=403,
-                        detail={"error": "safety_denied", "reason": "attestation_gate_error"},
+                        detail={
+                            "error": "safety_denied",
+                            "reason": "attestation_gate_error",
+                        },
                     )
-                _safety_meta = {"safety_decision": "skipped", "safety_reason": str(_gate_err)}
-    
-            existing = store.get(stored_id)
+                _safety_meta = {
+                    "safety_decision": "skipped",
+                    "safety_reason": str(_gate_err),
+                }
+
+        existing = store.get(stored_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
                 result = {
