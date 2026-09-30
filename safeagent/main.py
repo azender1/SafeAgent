@@ -355,7 +355,6 @@ def create_app(
                 "url": "https://safeagent-production.up.railway.app/openapi.json",
             },
             "logo_url": "https://safeagent-production.up.railway.app/favicon.ico",
-            "contact_email": "azender1@yahoo.com",
             "legal_info_url": "https://github.com/azender1/SafeAgent",
         }
 
@@ -366,7 +365,6 @@ def create_app(
             "version": "0.1.21",
             "description": "Durable execution-claim guard for AI agents. Suppresses repeated logical actions and preserves unresolved outcomes for reconciliation.",
             "spec_ref": "a2aproject/A2A#1920 — cited as normative requirement in v0.4 RFC",
-            "soma_listing": "https://soma-api.rgiskard.xyz/catalog",
             "endpoints": {
                 "health": {
                     "method": "GET",
@@ -409,15 +407,10 @@ def create_app(
             "use_case": "Call /claim/test before any irreversible action. If PROCEED, execute and call /settle. If SKIP, return the cached result. Prevents duplicate charges, emails, trades on agent retry.",
             "github": "https://github.com/azender1/SafeAgent",
             "pypi": "pip install safeagent-exec-guard",
-            "audit_service": {
-                "url": "https://safeagent-production.up.railway.app/audit-service",
-                "description": "Paid duplicate execution audit — $499 flat fee. Written report identifying every place your agent system can fire twice.",
-                "contact": "azender1@yahoo.com"
-            },
             "conformance": {
                 "fixture": "https://github.com/azender1/SafeAgent/tree/main/docs/conformance",
                 "spec": "argentum-core action-ref-v1 + A2A v0.4 RFC #1920",
-                "verified_by": "kenneives (agentgraph-co), evidai (LemonCake)"
+                "verification": "Reproducible conformance fixtures are published in the repository."
             }
         }
 
@@ -526,8 +519,6 @@ def create_app(
 <body>
 <h1>SafeAgent</h1>
 <div class="tagline">Durable execution-claim guard for AI agents and SaaS applications.</div>
-<span class="badge">&#10003; Verified on Soma &mdash; First Integrator</span>
-<p style="font-size: 0.9rem; color: #555; margin: 8px 0 24px;">496 installs this month &middot; 520 GitHub clones &middot; Cited in Stripe, CrewAI, A2A, AutoGen threads &middot; Live audit trail on Postgres</p>
 <p>Suppresses repeated logical actions and keeps uncertain outcomes visibly PENDING. Claim before execution, settle after a receipt, and reconcile unresolved attempts with the external provider.</p>
 <h2>State machine</h2>
 <p><code>CLAIMABLE &rarr; PENDING &rarr; COMMITTED</code>; later claims observe <code>PENDING</code> or <code>SKIP</code>.</p>
@@ -547,14 +538,9 @@ def create_app(
 # First call: {"status":"PROCEED","test":true,"calls_remaining":9}
 # Retry:      {"status":"SKIP","test":true}</pre>
 <hr>
-<h2>On-chain audit trail</h2>
-<p>Every production execution is anchored on <a href="https://soma-api.rgiskard.xyz/catalog" target="_blank">Soma</a> via Mycelium Trails on Arbitrum.</p>
-<p><a href="https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod" target="_blank">View live trails &rarr;</a></p>
-<hr>
 <p>
   <a href="https://github.com/azender1/SafeAgent" target="_blank">GitHub</a> &middot;
   <a href="/docs">API Docs</a> &middot;
-  <a href="/audit-service">Audit Service</a> &middot;
   <a href="https://pypi.org/project/safeagent-exec-guard/" target="_blank">PyPI</a>
 </p>
 </body>
@@ -567,83 +553,17 @@ def create_app(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SafeAgent — Duplicate Execution Audit Service | EU AI Act Compliance</title>
-<meta name="description" content="AI agent duplicate execution audit. Written report identifying every place your agent can fire twice. EU AI Act Art. 12 readiness. $499 flat fee, 5 business days.">
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "ProfessionalService",
-  "name": "SafeAgent Duplicate Execution Audit",
-  "description": "AI agent duplicate execution audit service. Identifies every place your agent system can fire twice on crash, timeout, or duplicate signal. Includes EU AI Act Art. 12 audit readiness assessment.",
-  "provider": {
-    "@type": "Person",
-    "name": "Anthony Zender",
-    "jobTitle": "AI Systems Auditor",
-    "address": {
-      "@type": "PostalAddress",
-      "addressLocality": "Dayton",
-      "addressRegion": "OH",
-      "addressCountry": "US"
-    }
-  },
-  "offers": {
-    "@type": "Offer",
-    "price": "499",
-    "priceCurrency": "USD",
-    "description": "Flat fee. Written report. 5 business days."
-  },
-  "serviceType": "AI Compliance Audit",
-  "areaServed": "Worldwide",
-  "url": "https://safeagent-production.up.railway.app/audit-service",
-  "email": "azender1@yahoo.com",
-  "keywords": "EU AI Act compliance, AI agent audit, duplicate execution, Art. 12, agentic AI governance"
-}
-</script>
+<title>SafeAgent</title>
+<meta name="robots" content="noindex">
 <style>
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 720px; margin: 60px auto; padding: 0 24px; color: #1a1a1a; line-height: 1.6; }
-  h1 { font-size: 1.8rem; font-weight: 700; margin-bottom: 4px; }
-  .tagline { color: #555; margin-bottom: 32px; font-size: 1.05rem; }
-  h2 { font-size: 1.1rem; font-weight: 600; margin-top: 32px; margin-bottom: 8px; }
-  ul { padding-left: 20px; }
-  li { margin-bottom: 8px; }
-  .price { font-size: 2rem; font-weight: 700; color: #1a73e8; margin: 16px 0; }
-  .price span { font-size: 1rem; font-weight: 400; color: #555; }
-  .proof { background: #f4f4f4; border-radius: 6px; padding: 16px; margin: 16px 0; font-size: 0.9rem; }
   a { color: #1a73e8; text-decoration: none; }
-  .cta { background: #1a73e8; color: white; display: inline-block; padding: 12px 24px; border-radius: 6px; margin-top: 16px; font-weight: 600; font-size: 1rem; }
-  hr { border: none; border-top: 1px solid #eee; margin: 32px 0; }
 </style>
 </head>
 <body>
-<h1>Duplicate Execution Audit</h1>
-<div class="tagline">Find every place your AI agent can fire twice before it costs you money.</div>
-<div class="price">$499 <span>flat fee &middot; written report &middot; 5 business days</span></div>
-<h2>What you get</h2>
-<ul>
-  <li>Full review of your agent's retry paths and side-effect boundaries</li>
-  <li>Every action that can execute twice on crash, timeout, or duplicate signal &mdash; identified and documented</li>
-  <li>Risk classification by severity and dollar exposure</li>
-  <li>SafeAgent integration recommendations with code examples</li>
-  <li>EU AI Act Art. 12 audit readiness assessment (deadline: August 2026)</li>
-  <li>Written report delivered via email</li>
-</ul>
-<h2>Who this is for</h2>
-<ul>
-  <li>Companies running AI agents that touch payments, orders, emails, or webhooks</li>
-  <li>Teams preparing for EU AI Act compliance (August 2026)</li>
-  <li>Anyone who has seen a duplicate charge or phantom position and doesn't know why</li>
-</ul>
-<h2>Production proof</h2>
-<div class="proof">
-  Six duplicate execution attempts blocked in a single live trading session on May 21, 2026. Total exposure: <strong>$3,653</strong>. Every block is on-chain and independently verifiable.<br><br>
-  <a href="https://gist.github.com/azender1/b9112b6519c935df4a75cb05cd250e26" target="_blank">View session data &rarr;</a> &middot;
-  <a href="https://argentum-api.rgiskard.xyz/dashboard/trails?client=safeagent-prod" target="_blank">View live trails &rarr;</a>
-</div>
-<h2>About</h2>
-<p>Built by Anthony Zender &mdash; tax accountant, Dayton OH. I found this problem running a live trading bot and a patented wagering system. Both hit the same failure mode. I audit agent systems the same way I audit financials: every entry, every retry path, every place something can post twice.</p>
-<hr>
-<a href="mailto:azender1@yahoo.com" class="cta">Request an audit &rarr; azender1@yahoo.com</a>
-<p style="margin-top: 32px; font-size: 0.85rem; color: #888;"><a href="/">&#8592; Back to SafeAgent</a></p>
+<h1>SafeAgent</h1>
+<p>The legacy fixed-price audit offer is no longer active. SafeAgent is focused on execution control for consequential AI-agent and workflow side effects.</p>
+<p><a href="/">Execution Guard API</a> &middot; <a href="https://github.com/azender1/SafeAgent">GitHub</a> &middot; <a href="/docs">API Docs</a></p>
 </body>
 </html>"""
 
@@ -856,88 +776,98 @@ def create_app(
         # require_attestation=True: DENY before COMMITTED write.
         # ------------------------------------------------------------------
         _require_attestation = os.getenv("SAFEAGENT_REQUIRE_ATTESTATION", "false").lower() == "true"
-        try:
-            from safeagent_exec_guard.attestation_gate import gate as _attestation_gate
-            import httpx as _httpx
-            _agentgraph_jwks_url = os.getenv(
-                "AGENTGRAPH_JWKS_URL",
-                "https://agentgraph.co/.well-known/jwks.json"
-            )
-            _agentgraph_attestation_url = os.getenv(
-                "AGENTGRAPH_ATTESTATION_URL",
-                "https://agentgraph.co/x402/attestation"
-            )
-            # Fetch live attestation by tool/endpoint identity (body.action)
-            _attestation = None
-            _attestation_error = None
-            try:
-                async with _httpx.AsyncClient(timeout=5.0) as _http:
-                    _resp = await _http.get(
-                        _agentgraph_attestation_url,
-                        params={"endpoint": body.action}
-                    )
-                    if _resp.status_code == 200:
-                        _attestation = _resp.json()
-            except Exception as _fetch_err:
-                _attestation_error = str(_fetch_err)
-
-            # Fetch JWKS for offline signature verification
-            _jwks = None
-            try:
-                async with _httpx.AsyncClient(timeout=5.0) as _http:
-                    _jwks_resp = await _http.get(_agentgraph_jwks_url)
-                    if _jwks_resp.status_code == 200:
-                        _jwks = _jwks_resp.json()
-            except Exception:
-                pass
-
-            # Build preimage for binding_digest (amount/charge fields optional here)
-            _preimage = {
-                "agent_id": agent_id or "",
-                "action_type": body.action,
-                "scope": body.request_id,
-                "timestamp": "",
-            }
-            _gate_result = _attestation_gate(
-                _preimage,
-                _attestation,
-                jwks=_jwks,
-                require_attestation=_require_attestation,
-            )
-            if _gate_result.get("decision") == "DENY":
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "error": "safety_denied",
-                        "reason": _gate_result.get("reason", "safety verdict denied"),
-                        "action": body.action,
-                    },
-                )
-            # Record attestation outcome in store metadata for audit trail
+        _enable_attestation = (
+            _require_attestation
+            or os.getenv("SAFEAGENT_ENABLE_ATTESTATION", "false").lower() == "true"
+        )
+        if not _enable_attestation:
             _safety_meta = {
-                "safety_decision": _gate_result.get("decision"),
-                "safety_reason": _gate_result.get("reason"),
-                "attestation_error": _attestation_error,
+                "safety_decision": "skipped",
+                "safety_reason": "attestation_disabled",
             }
-        except HTTPException:
-            raise
-        except ImportError:
-            logging.getLogger(__name__).warning(
-                "attestation_gate not importable — safety check skipped"
-            )
-            _safety_meta = {"safety_decision": "skipped", "safety_reason": "import_error"}
-        except Exception as _gate_err:
-            logging.getLogger(__name__).warning(
-                "attestation_gate error (%s) — applying require_attestation policy", _gate_err
-            )
-            if _require_attestation:
-                raise HTTPException(
-                    status_code=403,
-                    detail={"error": "safety_denied", "reason": "attestation_gate_error"},
+        else:
+            try:
+                    from safeagent_exec_guard.attestation_gate import gate as _attestation_gate
+                import httpx as _httpx
+                _agentgraph_jwks_url = os.getenv(
+                    "AGENTGRAPH_JWKS_URL",
+                    "https://agentgraph.co/.well-known/jwks.json"
                 )
-            _safety_meta = {"safety_decision": "skipped", "safety_reason": str(_gate_err)}
-
-        existing = store.get(stored_id)
+                _agentgraph_attestation_url = os.getenv(
+                    "AGENTGRAPH_ATTESTATION_URL",
+                    "https://agentgraph.co/x402/attestation"
+                )
+                # Fetch live attestation by tool/endpoint identity (body.action)
+                _attestation = None
+                _attestation_error = None
+                try:
+                    async with _httpx.AsyncClient(timeout=5.0) as _http:
+                        _resp = await _http.get(
+                            _agentgraph_attestation_url,
+                            params={"endpoint": body.action}
+                        )
+                        if _resp.status_code == 200:
+                            _attestation = _resp.json()
+                except Exception as _fetch_err:
+                    _attestation_error = str(_fetch_err)
+    
+                # Fetch JWKS for offline signature verification
+                _jwks = None
+                try:
+                    async with _httpx.AsyncClient(timeout=5.0) as _http:
+                        _jwks_resp = await _http.get(_agentgraph_jwks_url)
+                        if _jwks_resp.status_code == 200:
+                            _jwks = _jwks_resp.json()
+                except Exception:
+                    pass
+    
+                # Build preimage for binding_digest (amount/charge fields optional here)
+                _preimage = {
+                    "agent_id": agent_id or "",
+                    "action_type": body.action,
+                    "scope": body.request_id,
+                    "timestamp": "",
+                }
+                _gate_result = _attestation_gate(
+                    _preimage,
+                    _attestation,
+                    jwks=_jwks,
+                    require_attestation=_require_attestation,
+                )
+                if _gate_result.get("decision") == "DENY":
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "error": "safety_denied",
+                            "reason": _gate_result.get("reason", "safety verdict denied"),
+                            "action": body.action,
+                        },
+                    )
+                # Record attestation outcome in store metadata for audit trail
+                _safety_meta = {
+                    "safety_decision": _gate_result.get("decision"),
+                    "safety_reason": _gate_result.get("reason"),
+                    "attestation_error": _attestation_error,
+                }
+            except HTTPException:
+                raise
+            except ImportError:
+                logging.getLogger(__name__).warning(
+                    "attestation_gate not importable — safety check skipped"
+                )
+                _safety_meta = {"safety_decision": "skipped", "safety_reason": "import_error"}
+            except Exception as _gate_err:
+                logging.getLogger(__name__).warning(
+                    "attestation_gate error (%s) — applying require_attestation policy", _gate_err
+                )
+                if _require_attestation:
+                    raise HTTPException(
+                        status_code=403,
+                        detail={"error": "safety_denied", "reason": "attestation_gate_error"},
+                    )
+                _safety_meta = {"safety_decision": "skipped", "safety_reason": str(_gate_err)}
+    
+            existing = store.get(stored_id)
         if existing is not None:
             if existing["status"] == "COMMITTED":
                 result = {
