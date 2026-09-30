@@ -49,8 +49,11 @@ PENDING -> COMMITTED | SKIP
    never resets them to claimable. Free.
 
 ## Attestation gate (AgentGraph)
-- Config: SAFEAGENT_REQUIRE_ATTESTATION env var on the deployment (not a
-  per-call parameter you set). Default false.
+- Disabled by default. When disabled, SafeAgent makes no AgentGraph network
+  requests and does not disclose action/tool names to the attestation service.
+- Set SAFEAGENT_ENABLE_ATTESTATION=true to enable optional attestation checks.
+- Set SAFEAGENT_REQUIRE_ATTESTATION=true to enable the gate in fail-closed mode;
+  this also implies attestation is enabled.
 - Verifies an Ed25519/JWS-signed AgentGraph safety attestation against the
   issuer JWKS, binds it to this specific claim (action_ref + binding_digest,
   JCS/RFC 8785 + SHA-256 — replay against a different charge is rejected),
