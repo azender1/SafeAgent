@@ -152,3 +152,91 @@ def test_invalid_body_is_not_logged_and_cors_is_opt_in(monkeypatch, tmp_path, ca
     assert response.status_code == 422
     assert 'DO_NOT_LOG_123' not in caplog.text
     assert 'access-control-allow-origin' not in response.headers
+
+
+
+def test_optional_attestation_skips_when_claim_binding_missing(monkeypatch, tmp_path):
+    import httpx
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.setenv('SAFEAGENT_DB_PATH', str(tmp_path / 'import-only.db'))
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
+    monkeypatch.setenv('SAFEAGENT_ENABLE_ATTESTATION', 'true')
+    monkeypatch.delenv('SAFEAGENT_REQUIRE_ATTESTATION', raising=False)
+
+    async def fake_get(self, url, *args, **kwargs):
+        if 'jwks' in url:
+            return httpx.Response(200, json={'keys': []})
+        return httpx.Response(200, json={'admission': {'verdict': 'admit'}})
+
+    monkeypatch.setattr(httpx.AsyncClient, 'get', fake_get)
+    main = import_module('safeagent.main')
+    store = SQLiteExecutionStore(':memory:')
+    client = TestClient(main.create_app(store=store))
+    response = client.post('/claim', json={'request_id': 'r-binding-optional', 'action': 'charge'})
+    assert response.status_code == 200
+    assert response.json()['status'] == 'PROCEED'
+    assert store.get('r-binding-optional')['status'] == 'PENDING'
+
+
+def test_required_attestation_denies_when_claim_binding_missing(monkeypatch, tmp_path):
+    import httpx
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.setenv('SAFEAGENT_DB_PATH', str(tmp_path / 'import-only.db'))
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
+    monkeypatch.setenv('SAFEAGENT_REQUIRE_ATTESTATION', 'true')
+
+    async def fake_get(self, url, *args, **kwargs):
+        if 'jwks' in url:
+            return httpx.Response(200, json={'keys': []})
+        return httpx.Response(200, json={'admission': {'verdict': 'admit'}})
+
+    monkeypatch.setattr(httpx.AsyncClient, 'get', fake_get)
+    main = import_module('safeagent.main')
+    store = SQLiteExecutionStore(':memory:')
+    client = TestClient(main.create_app(store=store))
+    response = client.post('/claim', json={'request_id': 'r-binding-required', 'action': 'charge'})
+    assert response.status_code == 403
+    assert response.json()['detail']['reason'] == 'claim_binding_missing'
+    assert store.get('r-binding-required') is None
+
+
+def test_paid_claim_passes_declared_binding_to_attestation_gate(monkeypatch, tmp_path):
+    import httpx
+    import safeagent_exec_guard.attestation_gate as gate_module
+
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    monkeypatch.setenv('SAFEAGENT_DB_PATH', str(tmp_path / 'import-only.db'))
+    monkeypatch.setenv('SAFEAGENT_SETTLEMENT_SECRET', 's' * 48)
+    monkeypatch.setenv('SAFEAGENT_ENABLE_ATTESTATION', 'true')
+    monkeypatch.delenv('SAFEAGENT_REQUIRE_ATTESTATION', raising=False)
+
+    async def fake_get(self, url, *args, **kwargs):
+        if 'jwks' in url:
+            return httpx.Response(200, json={'keys': []})
+        return httpx.Response(200, json={'admission': {'verdict': 'admit'}})
+
+    seen = {}
+    def fake_gate(binding, attestation, **kwargs):
+        seen['binding'] = binding
+        return {'decision': 'ALLOW', 'reason': 'admit'}
+
+    monkeypatch.setattr(httpx.AsyncClient, 'get', fake_get)
+    monkeypatch.setattr(gate_module, 'gate', fake_gate)
+
+    main = import_module('safeagent.main')
+    store = SQLiteExecutionStore(':memory:')
+    client = TestClient(main.create_app(store=store))
+    binding = {
+        'amount_usd': 50,
+        'charge_ref': 'charge_ref_abc123',
+        'nonce': 'nonce_xyz789',
+        'subject_did': 'did:web:safeagent-prod',
+    }
+    response = client.post('/claim', json={
+        'request_id': 'r-binding-good',
+        'action': 'charge',
+        'attestation_binding': binding,
+    })
+    assert response.status_code == 200
+    assert response.json()['status'] == 'PROCEED'
+    assert seen['binding'] == binding
