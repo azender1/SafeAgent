@@ -1,0 +1,28 @@
+name: paid-claim attestation binding regression
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package and test dependency
+        run: |
+          python -m pip install --upgrade pip
+          pip install . pytest
+
+      - name: Run full test suite
+        run: python -m pytest -q
