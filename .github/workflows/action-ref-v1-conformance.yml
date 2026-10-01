@@ -27,8 +27,14 @@ jobs:
       - name: Run action-ref focused tests
         run: python -m pytest tests/test_attestation_gate.py -q
 
-      - name: Verify frozen action-ref-v1 vectors
-        uses: Composable-Evidence-Criteria/action-ref-conformance@v1
+      - name: Verify attestation-gate action-ref-v1 vectors
+        uses: Composable-Evidence-Criteria/action-ref-conformance@56e25a8353ba02b76edb072c5bd405b56238bb12
         with:
           mode: verify-impl
           command: python scripts/action_ref_v1_impl.py
+
+      - name: Verify Mycelium action-ref-v1 vectors
+        uses: Composable-Evidence-Criteria/action-ref-conformance@56e25a8353ba02b76edb072c5bd405b56238bb12
+        with:
+          mode: verify-impl
+          command: python scripts/action_ref_v1_mycelium_impl.py
