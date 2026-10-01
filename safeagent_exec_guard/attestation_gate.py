@@ -21,6 +21,7 @@ in agentgraph_attestation_gate_v0.json.
 from __future__ import annotations
 
 import hashlib
+import re
 from base64 import urlsafe_b64decode
 from datetime import datetime, timezone
 from typing import Any
@@ -30,6 +31,8 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 _BLOCKING = ("critical", "high")
+_ACTION_REF_FIELDS = {"agent_id", "action_type", "scope", "timestamp"}
+_ACTION_REF_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
 
 def _parse_ts(value: str | None) -> datetime | None:
@@ -52,7 +55,26 @@ def sha256hex(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def validate_action_ref_preimage(preimage: dict) -> None:
+    """Enforce the frozen action-ref-v1 four-field grammar before hashing."""
+    if not isinstance(preimage, dict):
+        raise ValueError("action_ref preimage must be an object")
+    if set(preimage) != _ACTION_REF_FIELDS:
+        raise ValueError("action_ref preimage must contain exactly agent_id, action_type, scope, timestamp")
+    for field in ("agent_id", "action_type", "scope"):
+        if not isinstance(preimage[field], str):
+            raise ValueError(f"action_ref {field} must be a string")
+    timestamp = preimage["timestamp"]
+    if not isinstance(timestamp, str) or not _ACTION_REF_TS_RE.fullmatch(timestamp):
+        raise ValueError("action_ref timestamp must be YYYY-MM-DDTHH:MM:SS.mmmZ")
+    try:
+        datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as exc:
+        raise ValueError("action_ref timestamp is not a valid UTC instant") from exc
+
+
 def compute_action_ref(preimage: dict) -> str:
+    validate_action_ref_preimage(preimage)
     return sha256hex(jcs(preimage))
 
 
@@ -136,7 +158,6 @@ def gate(
     - Bad signature, binding mismatch, verdict != admit, or a critical/high finding: DENY.
     - Otherwise: ALLOW, carrying the action_ref for the exactly-once guard.
     """
-    # availability stop — distinct from a safety stop
     if unreachable:
         if require_attestation:
             return {"decision": "DENY", "reason": "attestation_unreachable"}
@@ -153,7 +174,6 @@ def gate(
         if not verify_signature(attestation, jwks):
             return {"decision": "DENY", "reason": "attestation_signature_invalid"}
 
-    # bind to THIS claim — an attestation can't be replayed against a different charge
     expected = compute_binding_digest(claim_binding_preimage)
     claimed = ((attestation.get("binding") or attestation.get("attestation_binding") or {})
                .get("binding_digest"))
@@ -161,7 +181,6 @@ def gate(
         return {"decision": "DENY", "reason": "binding_digest_mismatch",
                 "expected": expected, "claimed": claimed}
 
-    # freshness — a valid, correctly-bound verdict that is no longer current must not admit
     if freshness_ttl_seconds is not None:
         now = now or datetime.now(timezone.utc)
         issued = _parse_ts(attestation.get("issued_at"))
@@ -186,9 +205,22 @@ def gate(
         return {"decision": "DENY", "reason": f"safety_findings: {parts}", "entities": entities}
 
     action_ref_preimage = attestation.get("action_ref_preimage")
-    action_ref = compute_action_ref(action_ref_preimage) if action_ref_preimage else None
+    if action_ref_preimage:
+        try:
+            action_ref = compute_action_ref(action_ref_preimage)
+        except ValueError:
+            return {"decision": "DENY", "reason": "action_ref_preimage_invalid"}
+    else:
+        action_ref = None
     return {"decision": "ALLOW", "reason": "admit", "action_ref": action_ref,
             "binding_digest": expected}
 
 
-__all__ = ["gate", "verify_signature", "compute_action_ref", "compute_binding_digest", "jcs"]
+__all__ = [
+    "gate",
+    "verify_signature",
+    "compute_action_ref",
+    "compute_binding_digest",
+    "validate_action_ref_preimage",
+    "jcs",
+]
