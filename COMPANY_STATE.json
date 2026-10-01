@@ -16,13 +16,17 @@
       "ci": {
         "conclusion": "success",
         "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/29299678303"
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36662579566"
       },
       "control-v15": null,
-      "n8n-node-build": null
+      "n8n-node-build": {
+        "conclusion": "success",
+        "status": "completed",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36512125103"
+      }
     },
     "main_ci_green": false,
-    "open_pull_requests": 3
+    "open_pull_requests": 5
   },
   "next_bottleneck": "npm repo=0.2.6 registry=0.2.7",
   "production": {
@@ -33,16 +37,24 @@
   "releases": {
     "n8n": {
       "match": false,
-      "publish_workflow": null,
+      "publish_workflow": {
+        "conclusion": "failure",
+        "status": "completed",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36512124994"
+      },
       "registry": "0.2.7",
       "repo": "0.2.6"
     },
     "pypi": {
       "match": true,
-      "publish_workflow": null,
+      "publish_workflow": {
+        "conclusion": "success",
+        "status": "completed",
+        "url": "https://github.com/azender1/SafeAgent/actions/runs/36603434652"
+      },
       "registry": "0.1.25",
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-09-30T18:00:10.377196+00:00"
+  "updated_at": "2026-10-01T18:26:18.144192+00:00"
 }
