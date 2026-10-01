@@ -158,6 +158,7 @@ def gate(
     - Bad signature, binding mismatch, verdict != admit, or a critical/high finding: DENY.
     - Otherwise: ALLOW, carrying the action_ref for the exactly-once guard.
     """
+    # availability stop — distinct from a safety stop
     if unreachable:
         if require_attestation:
             return {"decision": "DENY", "reason": "attestation_unreachable"}
@@ -174,6 +175,7 @@ def gate(
         if not verify_signature(attestation, jwks):
             return {"decision": "DENY", "reason": "attestation_signature_invalid"}
 
+    # bind to THIS claim — an attestation can't be replayed against a different charge
     expected = compute_binding_digest(claim_binding_preimage)
     claimed = ((attestation.get("binding") or attestation.get("attestation_binding") or {})
                .get("binding_digest"))
@@ -181,6 +183,7 @@ def gate(
         return {"decision": "DENY", "reason": "binding_digest_mismatch",
                 "expected": expected, "claimed": claimed}
 
+    # freshness — a valid, correctly-bound verdict that is no longer current must not admit
     if freshness_ttl_seconds is not None:
         now = now or datetime.now(timezone.utc)
         issued = _parse_ts(attestation.get("issued_at"))
