@@ -79,9 +79,17 @@ def _extract_agent_id(request: Request) -> Optional[str]:
     )
 
 
+class AttestationBinding(BaseModel):
+    amount_usd: float
+    charge_ref: str
+    nonce: str
+    subject_did: str
+
+
 class ClaimRequest(BaseModel):
     request_id: str
     action: str
+    attestation_binding: Optional[AttestationBinding] = None
 
 
 class TestClaimRequest(BaseModel):
@@ -823,18 +831,28 @@ def create_app(
                 except Exception:
                     pass
 
-                _preimage = {
-                    "agent_id": agent_id or "",
-                    "action_type": body.action,
-                    "scope": body.request_id,
-                    "timestamp": "",
-                }
-                _gate_result = _attestation_gate(
-                    _preimage,
-                    _attestation,
-                    jwks=_jwks,
-                    require_attestation=_require_attestation,
-                )
+                if body.attestation_binding is None:
+                    if _require_attestation:
+                        raise HTTPException(
+                            status_code=403,
+                            detail={
+                                "error": "safety_denied",
+                                "reason": "claim_binding_missing",
+                                "action": body.action,
+                            },
+                        )
+                    _gate_result = {
+                        "decision": "SKIP",
+                        "reason": "claim_binding_missing",
+                    }
+                else:
+                    _binding_preimage = body.attestation_binding.model_dump()
+                    _gate_result = _attestation_gate(
+                        _binding_preimage,
+                        _attestation,
+                        jwks=_jwks,
+                        require_attestation=_require_attestation,
+                    )
                 if _gate_result.get("decision") == "DENY":
                     raise HTTPException(
                         status_code=403,
