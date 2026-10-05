@@ -26,7 +26,7 @@
       }
     },
     "main_ci_green": false,
-    "open_pull_requests": 5
+    "open_pull_requests": 6
   },
   "next_bottleneck": "npm repo=0.2.6 registry=0.2.7",
   "production": {
@@ -37,11 +37,7 @@
   "releases": {
     "n8n": {
       "match": false,
-      "publish_workflow": {
-        "conclusion": "failure",
-        "status": "completed",
-        "url": "https://github.com/azender1/SafeAgent/actions/runs/36512124994"
-      },
+      "publish_workflow": null,
       "registry": "0.2.7",
       "repo": "0.2.6"
     },
@@ -56,5 +52,5 @@
       "repo": "0.1.25"
     }
   },
-  "updated_at": "2026-10-02T17:53:00.921528+00:00"
+  "updated_at": "2026-10-05T20:39:59.473086+00:00"
 }
