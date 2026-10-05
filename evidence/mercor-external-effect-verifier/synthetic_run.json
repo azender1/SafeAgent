@@ -1,0 +1,8 @@
+{
+  "findings": [
+    {"case": "invoice-001", "control_result": "CONFIRMED"},
+    {"case": "invoice-002", "control_result": "CONFIRMED"},
+    {"case": "invoice-003", "control_result": "CONTRADICTION"},
+    {"case": "invoice-004", "control_result": "UNCERTAIN"}
+  ]
+}
