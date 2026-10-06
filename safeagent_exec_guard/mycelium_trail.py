@@ -13,6 +13,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
@@ -27,6 +28,7 @@ MYCELIUM_ENABLED = os.environ.get("MYCELIUM_ENABLED", "1") == "1"
 
 NEXUS_TRAIL_URL = "https://argentum.rgiskard.xyz/nexus/trail"
 VERIFY_CHAIN_URL = "https://argentum.rgiskard.xyz/mycelium/trails/{trail_id}/verify_chain"
+_ACTION_REF_TS_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$")
 
 
 # ---------------------------------------------------------------------------
@@ -52,8 +54,20 @@ def enabled() -> bool:
 # action_ref derivation — argentum-core action-ref-v1
 # ---------------------------------------------------------------------------
 
-def compute_action_ref(agent_id: str, action_type: str, scope: str, ts: int) -> str:
-    """SHA-256 of JCS({agent_id, action_type, scope, timestamp})."""
+def _validate_action_ref_timestamp(timestamp: str) -> None:
+    if not isinstance(timestamp, str) or not _ACTION_REF_TS_RE.fullmatch(timestamp):
+        raise ValueError("action_ref timestamp must be YYYY-MM-DDTHH:MM:SS.mmmZ")
+    try:
+        datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError as exc:
+        raise ValueError("action_ref timestamp is not a valid UTC instant") from exc
+
+
+def compute_action_ref(agent_id: str, action_type: str, scope: str, ts: str) -> str:
+    """SHA-256 of the strict action-ref-v1 JCS preimage."""
+    if not all(isinstance(value, str) for value in (agent_id, action_type, scope)):
+        raise ValueError("action_ref agent_id, action_type, and scope must be strings")
+    _validate_action_ref_timestamp(ts)
     preimage = {
         "agent_id": agent_id,
         "action_type": action_type,
@@ -77,7 +91,6 @@ async def submit_trail_async(
     if not enabled():
         return None
 
-    from datetime import datetime, timezone
     _ct = claimed_at if claimed_at else time.time()
     ts_str = datetime.fromtimestamp(_ct, tz=timezone.utc).strftime('%Y-%m-%dT%H:%M:%S.') + f'{int(_ct * 1000) % 1000:03d}Z'
     _agent_id = agent_id or MYCELIUM_AGENT_ID
@@ -89,7 +102,7 @@ async def submit_trail_async(
         'scope': scope,
         'timestamp': ts_str,
     }
-    action_ref = sha256hex(jcs(preimage))
+    action_ref = compute_action_ref(_agent_id, action, scope, ts_str)
     payment_hash = 'sha256-' + sha256hex(f'payment:{action_ref}'.encode())
     output_hash = 'sha256-' + sha256hex(json.dumps(result, sort_keys=True).encode())
 

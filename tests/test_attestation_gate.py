@@ -12,6 +12,7 @@ import hashlib
 import json
 from base64 import urlsafe_b64encode
 
+import pytest
 import rfc8785
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
@@ -70,8 +71,33 @@ def test_allow_clean():
     att = _sign(_attestation("A", 0, 0, 1), sk, kid)
     r = ag.gate(CLAIM, att, jwks=jwks, require_attestation=True)
     assert r["decision"] == "ALLOW"
-    # action_ref byte-identical to exactly-once-v1.json
     assert r["action_ref"] == "281c2b33068cd63b2f89f09ea49b75edddf2d0c298f939a8eac13c2e34433b18"
+
+
+def test_action_ref_rejects_epoch_integer_timestamp():
+    preimage = {
+        "action_type": "oracle.signal",
+        "agent_id": "nexus-agent-xa12.onrender.com",
+        "scope": "BTC",
+        "timestamp": 1781166600123,
+    }
+    with pytest.raises(ValueError):
+        ag.compute_action_ref(preimage)
+
+
+def test_action_ref_rejects_noncanonical_timestamp_precision():
+    for timestamp in ("2026-06-11T08:45:00Z", "2026-06-11T08:30:00.123456Z"):
+        with pytest.raises(ValueError):
+            ag.compute_action_ref({**ACTION_REF_PREIMAGE, "timestamp": timestamp})
+
+
+def test_gate_denies_invalid_action_ref_preimage():
+    sk, kid, jwks = _issuer()
+    att = _attestation("A", 0, 0)
+    att["action_ref_preimage"] = {**ACTION_REF_PREIMAGE, "timestamp": 1781166600123}
+    att = _sign(att, sk, kid)
+    r = ag.gate(CLAIM, att, jwks=jwks)
+    assert r == {"decision": "DENY", "reason": "action_ref_preimage_invalid"}
 
 
 def test_deny_critical():
@@ -93,7 +119,7 @@ def test_deny_unattested_when_required():
 def test_deny_bad_signature():
     sk, kid, jwks = _issuer()
     att = _sign(_attestation("A", 0, 0), sk, kid)
-    att["attestation"]["payload"]["grade"] = "F"  # mutate after signing
+    att["attestation"]["payload"]["grade"] = "F"
     r = ag.gate(CLAIM, att, jwks=jwks)
     assert r["decision"] == "DENY" and r["reason"] == "attestation_signature_invalid"
 
@@ -110,4 +136,4 @@ def test_jcs_handles_nested_unlike_naive_sort():
     nested = {"attestation": {"payload": {"findings": {
         "total": 7, "critical": 0, "high": 2, "medium": 5}, "grade": "B"}}}
     naive = json.dumps(dict(sorted(nested.items())), separators=(",", ":")).encode()
-    assert ag.jcs(nested) != naive  # the bug this module avoids
+    assert ag.jcs(nested) != naive
