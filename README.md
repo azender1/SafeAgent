@@ -324,20 +324,23 @@ _sa_con.commit()
 def place_order_with_guard(symbol, qty, side, bar_ts):
     request_id = f"order:{symbol}:{side}:{qty}:{bar_ts}"
 
-    _sa_con.execute(
+    cur = _sa_con.execute(
         "INSERT OR IGNORE INTO orders (request_id, status) VALUES (?, 'PENDING')",
         (request_id,)
     )
     _sa_con.commit()
 
-    row = _sa_con.execute(
-        "SELECT status, result FROM orders WHERE request_id = ?",
-        (request_id,)
-    ).fetchone()
-
-    if row and row[0] == 'COMMITTED':
-        print(f"SAFEAGENT SKIP: {request_id}")
-        return row[1]
+    if cur.rowcount == 0:
+        row = _sa_con.execute(
+            "SELECT status, result FROM orders WHERE request_id = ?",
+            (request_id,)
+        ).fetchone()
+        if row and row[0] == 'COMMITTED':
+            print(f"SAFEAGENT SKIP: {request_id}")
+            return row[1]
+        raise RuntimeError(
+            f"SAFEAGENT BLOCKED: unresolved PENDING claim for {request_id}"
+        )
 
     result = place_order(symbol, qty, side)
 
