@@ -309,6 +309,7 @@ WisePick /v1/decide → DashClaw → SafeAgent → Mycelium Trails → Base/Arbi
 The same durable claim behavior without the network call. Drop this into any Python agent:
 
 ```python
+import json
 import sqlite3
 
 _SA_DB = "safeagent_orders.db"
